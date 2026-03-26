@@ -1,0 +1,33 @@
+# Core
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+
+# HTTP Client
+httpx==0.28.0
+
+# Data
+yfinance==0.2.48
+pandas==2.2.3
+numpy==1.26.4
+
+# Database (async SQLite for Phase 1)
+aiosqlite==0.20.0
+sqlalchemy==2.0.36
+chromadb==0.5.0
+
+# Logging
+structlog==24.4.0
+
+# Async Utils
+tenacity==9.0.0
+
+# Orchestration
+langgraph==0.1.5
+apscheduler==3.10.4
+
+# Testing
+pytest==8.3.0
+pytest-asyncio==0.24.0

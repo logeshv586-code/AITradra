@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AXIOM AI TRADING INTELLIGENCE — NEON GLASS DESIGN SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg: #02040a;
+  --glass: rgba(12, 18, 30, 0.45);
+  --glass2: rgba(20, 28, 45, 0.65);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hl: rgba(255, 255, 255, 0.15);
+  --buy: #00f0ff;
+  --sell: #ff2a5f;
+  --ai: #6366f1;
+  --ai-light: #818cf8;
+  --warn: #fbbf24;
+  --purple: #a855f7;
+  --text: #f8fafc;
+  --muted: #94a3b8;
+  --muted2: #475569;
+  --radius: 12px;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Custom Scrollbars ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ─── Utility Classes ──────────────────────────────────────────────────── */
+.text-shadow-glow {
+  text-shadow: 0 0 15px rgba(255,255,255,0.3);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─── Animations ───────────────────────────────────────────────────────── */
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+  50% { opacity: 0.6; box-shadow: 0 0 20px currentColor; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-slide-in {
+  animation: slideInFromRight 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* ─── Glass Card Base ──────────────────────────────────────────────────── */
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px);
+  background: var(--glass);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 var(--border-hl);
+  transition: all 0.3s ease;
+}
+
+.glass-card.interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.4), inset 0 1px 0 var(--border-hl);
+}
+
+/* ─── Button Styles ────────────────────────────────────────────────────── */
+.btn-primary {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--ai);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 0 15px rgba(99,102,241,0.4);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 25px rgba(99,102,241,0.6);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--glass);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--border-hl);
+}
+
+/* ─── Selection ────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(99, 102, 241, 0.3);
+}

@@ -1,0 +1,72 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+.env
+.venv
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Databases and stores
+*.sqlite
+*.sqlite3
+chroma/
+chroma_db/
+*.db
+
+# Model weights
+*.gguf
+*.bin
+*.pth
+*.pt
+*.onnx
+*.mlmodel
+
+# Frontend
+ui/node_modules/
+ui/dist/
+ui/build/
+ui/.env
+ui/.npm/
+ui/coverage/
+
+# IDEs and Tools
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
