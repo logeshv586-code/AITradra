@@ -8,6 +8,12 @@ python-dotenv==1.0.1
 # HTTP Client
 httpx==0.28.0
 
+# Environment
+python-dotenv==1.0.1
+pydantic==2.8.2
+pydantic-settings==2.3.4
+playwright==1.42.0
+
 # Data
 yfinance==0.2.48
 pandas==2.2.3

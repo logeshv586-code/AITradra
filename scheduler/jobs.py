@@ -51,8 +51,18 @@ class TaskScheduler:
         logger.info("APScheduler started with background jobs configured.")
 
     async def _market_scan_job(self):
-        """Scans the master watchlist for sudden anomalies."""
+        """Scans the master watchlist for sudden anomalies using Lightpanda."""
         logger.info("Running background market scan loop...")
+        try:
+            from ingestion.scraper import LightpandaMarketScraper
+            scraper = LightpandaMarketScraper()
+            
+            # Continuously scrape watchlist tickers
+            watchlist = ["MSFT", "AAPL", "NVDA", "TSLA"]
+            for ticker in watchlist:
+                await scraper.scrape_ticker(ticker)
+        except Exception as e:
+            logger.error(f"Market scan job crashed: {e}")
 
     async def _resolve_predictions_job(self):
         """Scores all predictions that expired today."""

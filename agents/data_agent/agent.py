@@ -7,65 +7,113 @@ logger = get_logger(__name__)
 
 
 class DataAgent(BaseAgent):
-    """Collects stock data via yfinance. Implements full Claude Flow."""
+    """Collects raw market data, prioritizing Lightpanda local encoded DB, falling back to YFinance."""
 
-    def __init__(self, memory=None, improvement_engine=None):
-        super().__init__("data_agent", memory, improvement_engine, timeout_seconds=15)
+    def __init__(self, memory: MemoryManager):
+        super().__init__("DataWorker", memory)
+        try:
+            from ingestion.store import CompressedDataStore
+            self.store = CompressedDataStore()
+        except ImportError:
+            self.store = None
 
     async def observe(self, context: AgentContext) -> AgentContext:
+        """Fetch OHLCV and fundamental data."""
         context.observations["ticker"] = context.ticker
-        context.observations["data_sources"] = ["yfinance"]
+        context.observations["data_sources"] = ["lightpanda_db", "yfinance"] if self.store else ["yfinance"]
         return context
 
     async def think(self, context: AgentContext) -> AgentContext:
-        context.thoughts = [
-            f"Need to fetch OHLCV data for {context.ticker}",
-            "Will also collect fundamentals (P/E, market cap, sector)",
-            "Data quality check: must have at least 60 days of history",
-        ]
+        self._add_thought(context, f"Need to fetch OHLCV data for {context.ticker}")
+        self._add_thought(context, "Will also collect fundamentals (P/E, market cap, sector)")
+        self._add_thought(context, "Data quality check: must have at least 60 days of history")
         return context
 
     async def plan(self, context: AgentContext) -> AgentContext:
         context.plan = [
-            "1. Fetch 90-day OHLCV from yfinance",
-            "2. Fetch company info and fundamentals",
-            "3. Validate data completeness",
-            "4. Normalize and structure output",
+            "1. Attempt to fetch latest live data from Lightpanda DB",
+            "2. If no live data or historical needed, fetch 90-day OHLCV from yfinance",
+            "3. Fetch company info and fundamentals from yfinance",
+            "4. Validate data completeness",
+            "5. Normalize and structure output",
         ]
         return context
 
     async def act(self, context: AgentContext) -> AgentContext:
-        try:
-            import yfinance as yf
-            ticker = yf.Ticker(context.ticker)
+        import yfinance as yf # Moved import inside act for conditional use
+        ohlcv = []
+        prices = []
+        volumes = []
+        fundamentals = {
+            "name": context.ticker,
+            "sector": "Unknown",
+            "industry": "Unknown",
+            "market_cap": 0,
+            "pe_ratio": 0,
+            "current_price": 0,
+            "52w_high": 0,
+            "52w_low": 0,
+            "avg_volume": 0,
+            "beta": 1.0,
+        }
 
-            # Fetch historical data
-            hist = ticker.history(period="3mo")
-            ohlcv = []
-            for idx, row in hist.iterrows():
+        # 1. ATTEMPT LIGHTPANDA DB FETCH FIRST
+        if self.store:
+            latest = self.store.get_latest_data(context.ticker, "live_pricing")
+            if latest:
+                self._add_thought(context, "Lightpanda encoded local DB has fresh live data! Bypassing YFinance.")
                 ohlcv.append({
-                    "date": idx.isoformat(),
-                    "open": round(row["Open"], 2),
-                    "high": round(row["High"], 2),
-                    "low": round(row["Low"], 2),
-                    "close": round(row["Close"], 2),
-                    "volume": int(row["Volume"]),
+                    "date": latest.get("timestamp", "").isoformat() if latest.get("timestamp") else "",
+                    "open": latest.get("live_price"),
+                    "high": latest.get("live_price"),
+                    "low": latest.get("live_price"),
+                    "close": latest.get("live_price"),
+                    "volume": latest.get("live_volume", 0)
                 })
+                prices.append(latest.get("live_price"))
+                volumes.append(latest.get("live_volume", 0))
+                # Update current price in fundamentals if available
+                fundamentals["current_price"] = latest.get("live_price", 0)
 
-            # Fetch fundamentals
-            info = ticker.info
-            fundamentals = {
-                "name": info.get("longName", context.ticker),
-                "sector": info.get("sector", "Unknown"),
-                "industry": info.get("industry", "Unknown"),
-                "market_cap": info.get("marketCap", 0),
-                "pe_ratio": info.get("trailingPE", 0),
-                "current_price": info.get("currentPrice", 0),
-                "52w_high": info.get("fiftyTwoWeekHigh", 0),
-                "52w_low": info.get("fiftyTwoWeekLow", 0),
-                "avg_volume": info.get("averageVolume", 0),
-                "beta": info.get("beta", 1.0),
-            }
+        # 2. FALLBACK TO YFINANCE FOR HISTORICAL
+        try:
+            # Only fetch historical from yfinance if no live data was added or if more historical data is needed
+            if not ohlcv or len(ohlcv) < 60: # Ensure we have enough data points
+                ticker = yf.Ticker(context.ticker)
+
+                # Fetch historical data
+                hist = ticker.history(period="3mo")
+
+                if hist.empty:
+                    self._add_thought(context, "yfinance returned empty dataset")
+                    raise ValueError(f"No data found for {context.ticker}")
+
+                for idx, row in hist.iterrows():
+                    ohlcv.append({
+                        "date": idx.isoformat(),
+                        "open": round(row["Open"], 2),
+                        "high": round(row["High"], 2),
+                        "low": round(row["Low"], 2),
+                        "close": round(row["Close"], 2),
+                        "volume": int(row["Volume"]),
+                    })
+                    prices.append(round(row['Close'], 2))
+                    volumes.append(int(row['Volume']))
+
+                # Fetch fundamentals
+                info = ticker.info
+                fundamentals.update({
+                    "name": info.get("longName", context.ticker),
+                    "sector": info.get("sector", "Unknown"),
+                    "industry": info.get("industry", "Unknown"),
+                    "market_cap": info.get("marketCap", 0),
+                    "pe_ratio": info.get("trailingPE", 0),
+                    "current_price": info.get("currentPrice", prices[-1] if prices else 0),
+                    "52w_high": info.get("fiftyTwoWeekHigh", 0),
+                    "52w_low": info.get("fiftyTwoWeekLow", 0),
+                    "avg_volume": info.get("averageVolume", 0),
+                    "beta": info.get("beta", 1.0),
+                })
 
             context.result = {
                 "ticker": context.ticker,

@@ -64,6 +64,13 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    restart: always
+
+  # Fast Headless Browser for Autonomous Data Scraping
+  lightpanda:
+    image: ghcr.io/lightpanda-io/browser:latest
+    ports:
+      - "9222:9222"
     restart: unless-stopped
 
 volumes:
