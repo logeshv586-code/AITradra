@@ -1,16 +1,20 @@
-"""DataAgent — Fetches OHLCV data, fundamentals, and market info using yfinance."""
+"""DataAgent — Fetches OHLCV data, fundamentals, and market info using OSS APIs (yfinance, CCXT)."""
 
 from agents.base_agent import BaseAgent, AgentContext
 from core.logger import get_logger
+from tools.ticker_registry import TickerRegistry, AssetClass
+import asyncio
+from datetime import datetime
 
 logger = get_logger(__name__)
 
 
 class DataAgent(BaseAgent):
-    """Collects raw market data, prioritizing Lightpanda local encoded DB, falling back to YFinance."""
+    """Collects raw market data, routing through TickerRegistry for Universal OSS support."""
 
-    def __init__(self, memory: MemoryManager):
+    def __init__(self, memory):
         super().__init__("DataWorker", memory)
+        self.registry = TickerRegistry()
         try:
             from ingestion.store import CompressedDataStore
             self.store = CompressedDataStore()
@@ -18,52 +22,54 @@ class DataAgent(BaseAgent):
             self.store = None
 
     async def observe(self, context: AgentContext) -> AgentContext:
-        """Fetch OHLCV and fundamental data."""
+        """Identify asset class and correct data source."""
+        asset_info = self.registry.resolve(context.ticker)
+        context.observations["asset_info"] = {
+            "name": asset_info.name,
+            "class": asset_info.asset_class,
+            "source": asset_info.data_source,
+            "currency": asset_info.currency
+        } if asset_info else None
         context.observations["ticker"] = context.ticker
-        context.observations["data_sources"] = ["lightpanda_db", "yfinance"] if self.store else ["yfinance"]
         return context
 
     async def think(self, context: AgentContext) -> AgentContext:
-        self._add_thought(context, f"Need to fetch OHLCV data for {context.ticker}")
-        self._add_thought(context, "Will also collect fundamentals (P/E, market cap, sector)")
-        self._add_thought(context, "Data quality check: must have at least 60 days of history")
+        asset_info = context.observations.get("asset_info")
+        if asset_info:
+            self._add_thought(context, f"Resolved {context.ticker} as {asset_info['class']} via {asset_info['source']}")
+        else:
+            self._add_thought(context, f"Could not resolve {context.ticker}, defaulting to yfinance fallback")
         return context
 
     async def plan(self, context: AgentContext) -> AgentContext:
         context.plan = [
-            "1. Attempt to fetch latest live data from Lightpanda DB",
-            "2. If no live data or historical needed, fetch 90-day OHLCV from yfinance",
-            "3. Fetch company info and fundamentals from yfinance",
-            "4. Validate data completeness",
-            "5. Normalize and structure output",
+            "1. Check Lightpanda local DB for live scrape",
+            "2. Route to correct OSS provider (CCXT for Crypto, Yfinance/Stooq for Equity)",
+            "3. Fetch OHLCV history",
+            "4. Fetch basic fundamentals if applicable"
         ]
         return context
 
     async def act(self, context: AgentContext) -> AgentContext:
-        import yfinance as yf # Moved import inside act for conditional use
+        asset_info = context.observations.get("asset_info")
+        source = asset_info["source"] if asset_info else "yfinance"
+
         ohlcv = []
         prices = []
         volumes = []
         fundamentals = {
-            "name": context.ticker,
-            "sector": "Unknown",
-            "industry": "Unknown",
-            "market_cap": 0,
-            "pe_ratio": 0,
-            "current_price": 0,
-            "52w_high": 0,
-            "52w_low": 0,
-            "avg_volume": 0,
-            "beta": 1.0,
+            "name": asset_info["name"] if asset_info else context.ticker,
+            "sector": "Crypto" if (asset_info and asset_info["class"] == AssetClass.CRYPTO) else "Unknown",
+            "current_price": 0
         }
 
-        # 1. ATTEMPT LIGHTPANDA DB FETCH FIRST
+        # 1. LIGHTPANDA LIVE STORE FALLBACK
         if self.store:
             latest = self.store.get_latest_data(context.ticker, "live_pricing")
             if latest:
-                self._add_thought(context, "Lightpanda encoded local DB has fresh live data! Bypassing YFinance.")
+                self._add_thought(context, "Using Lightpanda local cache for live price.")
                 ohlcv.append({
-                    "date": latest.get("timestamp", "").isoformat() if latest.get("timestamp") else "",
+                    "date": latest.get("timestamp", datetime.utcnow()).isoformat(),
                     "open": latest.get("live_price"),
                     "high": latest.get("live_price"),
                     "low": latest.get("live_price"),
@@ -71,76 +77,82 @@ class DataAgent(BaseAgent):
                     "volume": latest.get("live_volume", 0)
                 })
                 prices.append(latest.get("live_price"))
-                volumes.append(latest.get("live_volume", 0))
-                # Update current price in fundamentals if available
                 fundamentals["current_price"] = latest.get("live_price", 0)
 
-        # 2. FALLBACK TO YFINANCE FOR HISTORICAL
-        try:
-            # Only fetch historical from yfinance if no live data was added or if more historical data is needed
-            if not ohlcv or len(ohlcv) < 60: # Ensure we have enough data points
-                ticker = yf.Ticker(context.ticker)
+        # 2. CCXT CRYPTO ROUTE
+        if source == "ccxt":
+            try:
+                import ccxt.async_support as ccxt
+                exchange = getattr(ccxt, asset_info["exchange"].lower() if asset_info else "binance")()
+                symbol = f"{context.ticker}/USDT" if "/" not in context.ticker and "USDT" not in context.ticker else context.ticker
+                if "USDT" in symbol and "/" not in symbol:
+                    symbol = symbol.replace("USDT", "/USDT")
 
-                # Fetch historical data
+                bars = await exchange.fetch_ohlcv(symbol, '1d', limit=90)
+                await exchange.close()
+
+                for bar in bars:
+                    # bar: [timestamp, open, high, low, close, volume]
+                    date_str = datetime.fromtimestamp(bar[0]/1000).isoformat()
+                    ohlcv.append({
+                        "date": date_str,
+                        "open": bar[1], "high": bar[2], "low": bar[3], "close": bar[4], "volume": bar[5]
+                    })
+                    prices.append(bar[4])
+                    volumes.append(bar[5])
+                
+                fundamentals["current_price"] = prices[-1] if prices else 0
+                context.actions_taken.append({"action": "fetch_ccxt_ohlcv", "count": len(bars)})
+            except Exception as e:
+                self.logger.error(f"CCXT fetch failed: {e}")
+                self._add_thought(context, f"CCXT failed: {e}")
+
+        # 3. YFINANCE EQUITY ROUTE
+        else:
+            try:
+                import yfinance as yf
+                ticker = yf.Ticker(context.ticker)
                 hist = ticker.history(period="3mo")
 
-                if hist.empty:
-                    self._add_thought(context, "yfinance returned empty dataset")
-                    raise ValueError(f"No data found for {context.ticker}")
-
-                for idx, row in hist.iterrows():
-                    ohlcv.append({
-                        "date": idx.isoformat(),
-                        "open": round(row["Open"], 2),
-                        "high": round(row["High"], 2),
-                        "low": round(row["Low"], 2),
-                        "close": round(row["Close"], 2),
-                        "volume": int(row["Volume"]),
+                if not hist.empty:
+                    for idx, row in hist.iterrows():
+                        ohlcv.append({
+                            "date": idx.isoformat(),
+                            "open": round(row["Open"], 2), "high": round(row["High"], 2),
+                            "low": round(row["Low"], 2), "close": round(row["Close"], 2),
+                            "volume": int(row["Volume"])
+                        })
+                        prices.append(round(row["Close"], 2))
+                    
+                    info = ticker.info
+                    fundamentals.update({
+                        "name": info.get("longName", context.ticker),
+                        "sector": info.get("sector", "Unknown"),
+                        "market_cap": info.get("marketCap", 0),
+                        "pe_ratio": info.get("trailingPE", 0),
+                        "current_price": info.get("currentPrice", prices[-1] if prices else 0)
                     })
-                    prices.append(round(row['Close'], 2))
-                    volumes.append(int(row['Volume']))
+                context.actions_taken.append({"action": "fetch_yfinance_ohlcv", "count": len(hist)})
+            except Exception as e:
+                self.logger.error(f"Yfinance fetch failed: {e}")
+                self._add_thought(context, f"Yfinance failed: {e}")
 
-                # Fetch fundamentals
-                info = ticker.info
-                fundamentals.update({
-                    "name": info.get("longName", context.ticker),
-                    "sector": info.get("sector", "Unknown"),
-                    "industry": info.get("industry", "Unknown"),
-                    "market_cap": info.get("marketCap", 0),
-                    "pe_ratio": info.get("trailingPE", 0),
-                    "current_price": info.get("currentPrice", prices[-1] if prices else 0),
-                    "52w_high": info.get("fiftyTwoWeekHigh", 0),
-                    "52w_low": info.get("fiftyTwoWeekLow", 0),
-                    "avg_volume": info.get("averageVolume", 0),
-                    "beta": info.get("beta", 1.0),
-                })
-
-            context.result = {
-                "ticker": context.ticker,
-                "ohlcv": ohlcv,
-                "prices": [d["close"] for d in ohlcv],
-                "volume": [d["volume"] for d in ohlcv],
-                "fundamentals": fundamentals,
-                "data_points": len(ohlcv),
-            }
-            context.actions_taken.append({
-                "action": "fetch_ohlcv",
-                "data_points": len(ohlcv),
-                "source": "yfinance"
-            })
-        except ImportError:
-            # Fallback with mock data if yfinance not installed
+        # FALLBACK IF EMPTY
+        if not ohlcv:
             context.result = self._generate_mock_data(context.ticker)
-            context.actions_taken.append({"action": "mock_data", "reason": "yfinance not available"})
-        except Exception as e:
-            context.result = self._generate_mock_data(context.ticker)
-            context.errors.append(f"yfinance fetch failed: {str(e)}, using mock data")
+            return context
 
+        context.result = {
+            "ticker": context.ticker,
+            "ohlcv": ohlcv,
+            "prices": prices,
+            "fundamentals": fundamentals,
+            "data_points": len(ohlcv)
+        }
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:
-        result = context.result or {}
-        dp = result.get("data_points", 0)
+        dp = context.result.get("data_points", 0) if context.result else 0
         if dp >= 60:
             context.reflection = f"Collected {dp} data points — sufficient for analysis"
             context.confidence = 0.95
@@ -153,24 +165,21 @@ class DataAgent(BaseAgent):
         return context
 
     def _generate_mock_data(self, ticker: str) -> dict:
-        """Generate realistic mock data as fallback."""
         import random
-        price = {"NVDA": 892, "AAPL": 178, "TSLA": 182, "MSFT": 420}.get(ticker, 100)
+        price = 100
         ohlcv = []
-        p = price * 0.9
+        p = price
         for i in range(60):
-            vol = p * 0.022
+            vol = p * 0.02
             o = p + (random.random() - 0.5) * vol
             c = o + (random.random() - 0.3) * vol
-            h = max(o, c) + random.random() * vol * 0.6
-            l = min(o, c) - random.random() * vol * 0.6
-            v = int((50 + random.random() * 80) * 1e6)
-            ohlcv.append({"open": round(o,2), "high": round(h,2), "low": round(l,2), "close": round(c,2), "volume": v})
+            h = max(o, c) + random.random() * vol
+            l = min(o, c) - random.random() * vol
+            v = int(random.random() * 1e6)
+            ohlcv.append({"open": o, "high": h, "low": l, "close": c, "volume": v})
             p = c
         return {
-            "ticker": ticker, "ohlcv": ohlcv,
-            "prices": [d["close"] for d in ohlcv],
-            "volume": [d["volume"] for d in ohlcv],
-            "fundamentals": {"name": ticker, "sector": "Tech", "market_cap": 0, "pe_ratio": 0, "current_price": p, "beta": 1.0},
-            "data_points": len(ohlcv),
+            "ticker": ticker, "ohlcv": ohlcv, "prices": [d["close"] for d in ohlcv],
+            "fundamentals": {"name": ticker, "sector": "Mock", "current_price": p},
+            "data_points": 60
         }

@@ -1,79 +1,92 @@
 version: "3.9"
 
 services:
-  # ─── API Backend ────────────────────────────────────────
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+  # ─── Core Backend ─────────────────────────────────────────
+  axiom_api:
+    build: .
+    ports: ["8000:8000"]
+    depends_on: [redis, kafka, postgres, qdrant, minio]
     environment:
-      - DATABASE_URL=postgresql://axiom:axiom@postgres:5432/axiom
-      - CHROMADB_HOST=chromadb
       - REDIS_URL=redis://redis:6379
-      - OLLAMA_URL=http://ollama:11434
-      - LOG_LEVEL=INFO
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-    restart: unless-stopped
+      - KAFKA_BOOTSTRAP=kafka:9092
+      - DATABASE_URL=postgresql://axiom:axiom@postgres:5432/axiom
+      - QDRANT_URL=http://qdrant:6333
+      - MINIO_URL=http://minio:9000
+      - PAPER_TRADING=true
 
-  # ─── Frontend ───────────────────────────────────────────
-  ui:
-    build:
-      context: ./ui
-    ports:
-      - "3000:3000"
+  # ─── Frontend ─────────────────────────────────────────────
+  axiom_ui:
+    build: ./ui
+    ports: ["3000:3000"]
+    depends_on: [axiom_api]
+
+  # ─── Real-Time Cache ──────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+  # ─── Event Streaming ──────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
     environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_WS_URL=ws://localhost:8000
-    depends_on:
-      - api
-    restart: unless-stopped
+      ZOOKEEPER_CLIENT_PORT: 2181
 
-  # ─── PostgreSQL ─────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on: [zookeeper]
+    ports: ["9092:9092"]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # ─── Time-Series Database ─────────────────────────────────
   postgres:
-    image: postgres:15-alpine
+    image: timescale/timescaledb:latest-pg15
+    ports: ["5432:5432"]
     environment:
       POSTGRES_DB: axiom
       POSTGRES_USER: axiom
       POSTGRES_PASSWORD: axiom
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
+      - pgdata:/var/lib/postgresql/data
 
-  # ─── Redis ──────────────────────────────────────────────
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+  # ─── OSS Vector DB (Qdrant) ───────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333", "6334:6334"]
     volumes:
-      - redis_data:/data
-    restart: unless-stopped
+      - qdrant_data:/qdrant/storage
 
-  # ─── Ollama (Local LLM) ────────────────────────────────
+  # ─── OSS Object Storage (MinIO) ───────────────────────────
+  minio:
+    image: minio/minio:latest
+    ports: ["9000:9000", "9001:9001"]
+    environment:
+      MINIO_ROOT_USER: axiom_admin
+      MINIO_ROOT_PASSWORD: axiom_password
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  # ─── Local LLM ────────────────────────────────────────────
   ollama:
     image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
+    ports: ["11434:11434"]
     volumes:
       - ollama_data:/root/.ollama
     restart: always
 
-  # Fast Headless Browser for Autonomous Data Scraping
+  # ─── Fast Headless Browser ────────────────────────────────
   lightpanda:
     image: ghcr.io/lightpanda-io/browser:latest
-    ports:
-      - "9222:9222"
+    ports: ["9222:9222"]
     restart: unless-stopped
 
 volumes:
-  postgres_data:
-  redis_data:
+  pgdata:
+  qdrant_data:
+  minio_data:
   ollama_data:
