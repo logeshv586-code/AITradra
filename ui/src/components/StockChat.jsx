@@ -11,7 +11,7 @@ export default function StockChat({ ticker, context, onClose }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: `I am the OMNI-DATA agent for ${ticker}. I have synthesized recent market news and sentiment. What would you like to know?`
+      content: `OMNI-DATA v3.1 Neural Intelligence System online. Synthesizing multi-agent data for ${ticker} via NVIDIA NIM. How can I assist your strategy?`
     }
   ]);
   const [input, setInput] = useState("");
@@ -43,7 +43,7 @@ export default function StockChat({ ticker, context, onClose }) {
   return (
     <div className="fixed bottom-0 right-0 w-full sm:w-[450px] h-2/3 clay-panel z-[110] border-t border-indigo-500/30 flex flex-col slide-in-bottom">
       <header className="p-4 border-b border-white/5 flex justify-between items-center bg-indigo-500/5">
-        <span className="font-mono text-xs font-bold tracking-widest text-indigo-400">🧠 {ticker} AI ANALYST</span>
+        <span className="font-mono text-xs font-bold tracking-widest text-indigo-400">🧠 OMNI-DATA v3.1 — {ticker}</span>
         <button onClick={onClose} className="text-slate-500 hover:text-white">✕</button>
       </header>
       

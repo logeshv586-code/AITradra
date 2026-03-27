@@ -79,6 +79,7 @@ from gateway.llm_prompts import (
 from gateway.cache import cache
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import BaseModel
+from gateway.synthesis_service import SynthesisService
 
 class ChatRequest(BaseModel):
     message: str
@@ -153,9 +154,24 @@ async def lifespan(app: FastAPI):
         arbitrage_agent=arbitrage_agent, portfolio_agent=portfolio_agent,
         macro_agent=macro_agent, social_sentiment_agent=social_sentiment_agent,
         earnings_agent=earnings_agent, options_flow_agent=options_flow_agent,
-        regime_detector_agent=regime_detector_agent, backtest_agent=backtest_agent,
+        regime_detector_agent=regime_detector_agent, backtest_agent=backtest_agent
     )
 
+    # V3 RAG Agent
+    from agents.rag_agent import RagAgent
+    app.state.rag_agent = RagAgent(memory=app.state.memory)
+    try:
+        app.state.rag_agent.load_index()
+    except Exception as e:
+        logger.warning(f"RAG index load failed: {e}")
+
+    # AXIOM v3.1 Synthesis Service
+    from gateway.synthesis_service import SynthesisService
+    import gateway.synthesis_service as synth_mod
+    synth_mod.synthesis_service = SynthesisService(
+        orchestrator=app.state.orchestrator,
+        rag_agent=app.state.rag_agent
+    )
     # V2 Execution Layer
     app.state.broker = BrokerRouter({"PAPER_TRADING": True})
     app.state.alerts = AlertManager()
@@ -378,11 +394,10 @@ async def explain_price_move(ticker: str):
 
 @app.post("/api/chat/stock/{ticker}")
 async def stock_chat(ticker: str, body: ChatRequest):
-    """Dedicated per-stock chat."""
+    """Dedicated per-stock chat using OMNI-DATA v3.1 Hyper-Synthesis."""
+    from gateway.synthesis_service import synthesis_service
     ticker = ticker.upper()
-    context = await data_engine.get_full_context(ticker)
-    prompt = build_stock_chat_prompt(ticker, context, body.message)
-    response = await llm_client.complete(prompt)
+    response = await synthesis_service.generate_v3_1_synthesis(ticker, body.message)
     return {"response": response, "ticker": ticker}
 
 @app.get("/api/market/globe-data")

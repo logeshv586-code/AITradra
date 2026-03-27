@@ -15,33 +15,36 @@ class LLMClient:
         self.model = model or settings.LLM_MODEL
         self.timeout = settings.LLM_TIMEOUT
         
-        # Initialize NVIDIA NIM Provider if configured
+        # NVIDIA NIM Configuration (API)
         self.nvidia_api_key = os.getenv("NVIDIA_API_KEY")
         self.nvidia_base_url = "https://integrate.api.nvidia.com/v1"
         self.nvidia_model = model or "nvidia/nemotron-3-8b-instruct"
         
-        # Initialize GGUF Provider automatically
-        from llm.providers.mistral_gguf import MistralGGUFProvider
-        model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
+        # Local NVIDIA Nemotron GGUF Configuration
+        self.local_nvidia_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
         
         if self.nvidia_api_key:
             logger.info(f"NVIDIA API Key found. Using NvidiaNIMProvider with {self.nvidia_model}")
             self.provider_type = "nvidia"
-        elif os.path.exists(model_path):
-            logger.info("Local Mistral GGUF model found. Using MistralGGUFProvider.")
-            self.provider = MistralGGUFProvider(model_path)
+        elif os.path.exists(self.local_nvidia_path):
+            logger.info(f"Local NVIDIA Nemotron GGUF found at {self.local_nvidia_path}. Using as primary.")
+            from llm.providers.mistral_gguf import MistralGGUFProvider
+            self.provider = MistralGGUFProvider(self.local_nvidia_path)
             self.provider_type = "gguf"
         else:
             logger.warning("No superior providers found. Falling back to Ollama.")
             self.provider_type = "ollama"
 
     async def complete(self, prompt: str, system: str = "", temperature: float = 0.1,
-                       max_tokens: int = 2000, expect_json: bool = False) -> str:
+                       max_tokens: int = 2000, expect_json: bool = False, force_provider: str | None = None) -> str:
         """Try each provider. Never return hardcoded text unless all fail."""
         import re
         import json
         
-        providers = ["nvidia", "gguf", "ollama"]
+        if force_provider == "nvidia":
+            providers = ["nvidia", "gguf"] # Try both NIM and Local Nemotron
+        else:
+            providers = [force_provider] if force_provider else ["nvidia", "gguf", "ollama"]
         
         for provider in providers:
             try:
@@ -49,11 +52,14 @@ class LLMClient:
                 if provider == "nvidia" and self.nvidia_api_key:
                     result = await self._try_nvidia(prompt, system, temperature, max_tokens)
                 elif provider == "gguf" and hasattr(self, 'provider'):
+                    # Only use GGUF as "nvidia" if it's the actual Nemotron model
+                    if force_provider == "nvidia" and not os.path.exists(self.local_nvidia_path):
+                        continue
                     result = await self._try_gguf(prompt, system, temperature, max_tokens)
                 elif provider == "ollama":
                     result = await self._try_ollama(prompt, system, temperature, max_tokens)
                 
-                if result:
+                if result and isinstance(result, str):
                     if expect_json:
                         # Strip markdown code fences, parse JSON
                         clean = re.sub(r"```json|```", "", result).strip()
@@ -66,7 +72,9 @@ class LLMClient:
                     return result
             except Exception as e:
                 logger.warning(f"LLM provider {provider} failed: {e}")
-        
+        if force_provider:
+            return f"Error: OMNI-DATA {force_provider} provider failed and 'No Fallback' is enforced."
+            
         return self._fallback_response(prompt)
 
     async def _try_nvidia(self, prompt, system, temperature, max_tokens):
