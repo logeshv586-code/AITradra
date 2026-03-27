@@ -55,12 +55,27 @@ class Settings(BaseSettings):
     NEWS_FETCH_INTERVAL_MINUTES: int = 30
     MARKET_SCAN_INTERVAL_MINUTES: int = 15
 
-    # Watchlist
+    # Watchlist (Expanded for comprehensive global visibility)
     DEFAULT_WATCHLIST: list[str] = [
-        "AAPL", "GOOGL", "MSFT", "AMZN", "NVDA",
-        "TSLA", "META", "NFLX",
-        "RELIANCE.NS", "TCS.NS", "INFY.NS",
-        "BTC-USD", "ETH-USD"
+        # US Tech & Megacap
+        "AAPL", "GOOGL", "MSFT", "AMZN", "NVDA", "TSLA", "META", "NFLX", "AMD", "INTC", 
+        "CRM", "ADBE", "PYPL", "SQ", "UBER", "ABNB", "SPOT", "PLTR", "SNOW", "SHOP", "ORCL", "IBM",
+
+        # US Finance / Traditional
+        "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "JNJ", "PFE", "UNH", "PG", "KO", "PEP", "WMT", "TGT", "HD", "XOM", "CVX",
+
+        # Indian / Asian Equities
+        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", 
+        "TATOMOTORS.NS", "BABA", "TCEHY", "TSM", "SONY",
+
+        # European / Other Internationals
+        "ASML", "NVO", "NVS", "SAP", "SIE.DE", "LVMUY", "NSRGY", "RY", "TD", "BHP", "RIO",
+
+        # Major Indices & ETFs
+        "SPY", "QQQ", "DIA", "IWM", "VTI", "VEA", "VWO", "GLD", "SLV", "USO", "TLT",
+
+        # Cryptocurrencies
+        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", "AVAX-USD", "DOGE-USD", "DOT-USD", "LINK-USD", "MATIC-USD"
     ]
 
     class Config:

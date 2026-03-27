@@ -1,5 +1,5 @@
-import React from "react";
-import { Layers, Sparkles, AlertTriangle, Activity, Zap, Cpu } from "lucide-react";
+import React, { useState } from "react";
+import { Layers, Sparkles, AlertTriangle, Activity, Zap, Cpu, X, TrendingUp, BarChart2, Shield } from "lucide-react";
 import { T } from "../theme";
 import { AGENTS } from "../data";
 import { GlassCard } from "./Shared";
@@ -20,6 +20,8 @@ const FrequencyVisualizer = ({ color }) => (
 );
 
 export default function AgentMatrixView({ agentsStatus = [] }) {
+  const [selectedAgent, setSelectedAgent] = useState(null);
+
   // Merge live status with static metadata
   const displayAgents = Object.entries(AGENTS).map(([key, metadata]) => {
     const live = agentsStatus.find(s => s.name === metadata.name);
@@ -82,8 +84,9 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
             else if (a.id === 'batch') bentoClass = "bento-tall";
 
             return (
-              <GlassCard key={a.id} interactive glowCol={accentCol} 
-                className={`p-8 glass-holo flex flex-col ${bentoClass} ${isActive ? 'animate-cyber-pulse-subtle' : ''}`}>
+              <div key={a.id} onClick={() => setSelectedAgent(a)} className="cursor-pointer">
+              <GlassCard interactive glowCol={accentCol} 
+                className={`p-8 glass-holo flex flex-col h-full ${bentoClass} ${isActive ? 'animate-cyber-pulse-subtle' : ''}`}>
                 
                 <div className="flex justify-between items-start mb-auto">
                   <div className="flex items-center gap-4">
@@ -164,10 +167,105 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                   </div>
                 </div>
               </GlassCard>
+              </div>
             );
           })}
         </div>
       </div>
+
+      {/* DETAILED AGENT DASHBOARD OVERLAY */}
+      {selectedAgent && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-8 bg-black/60 backdrop-blur-md animate-fade-in">
+          <div className="absolute inset-0 cursor-pointer" onClick={() => setSelectedAgent(null)} />
+          <GlassCard className="relative w-full max-w-5xl h-[85vh] overflow-hidden flex flex-col glass-holo shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-white/10 p-0" glowCol={selectedAgent.color}>
+            
+            {/* Overlay Header */}
+            <div className="p-8 border-b border-white/10 flex items-start justify-between bg-black/40">
+              <div className="flex items-center gap-6">
+                <div className="p-5 rounded-3xl" style={{ background: `linear-gradient(135deg, ${selectedAgent.color}30, ${selectedAgent.color}10)`, border: `1px solid ${selectedAgent.color}50` }}>
+                  {React.createElement(selectedAgent.icon, { size: 36, color: selectedAgent.color })}
+                </div>
+                <div>
+                  <h2 className="text-3xl font-black text-white uppercase tracking-tighter">{selectedAgent.name} // DASHBOARD</h2>
+                  <div className="flex items-center gap-4 mt-2">
+                    <span className="text-xs font-mono font-bold text-slate-400">ID: AXIOM-{selectedAgent.id.toUpperCase()}</span>
+                    <span className={`clay-badge text-[10px] px-3 py-1 bg-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-500/20 text-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-400 border-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-500/30`}>
+                      {selectedAgent.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors text-slate-400 hover:text-white" onClick={() => setSelectedAgent(null)}>
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Overlay Body */}
+            <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 no-scrollbar bg-gradient-to-b from-transparent to-[#0a0e1a]/80">
+              <div className="grid grid-cols-3 gap-6">
+                {/* Metric 1 */}
+                <div className="clay-inset p-5 rounded-3xl flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-2 text-slate-400">
+                    <TrendingUp size={16} /><span className="text-xs font-black uppercase tracking-widest">Input Volumes</span>
+                  </div>
+                  <div className="text-3xl font-mono font-black text-white">{(selectedAgent.tasks * 1.4).toLocaleString()}</div>
+                  <div className="text-[10px] uppercase font-bold text-green-400">▲ +12.4% TODAY</div>
+                  <p className="text-xs text-slate-500 mt-2">Data nodes scraped, sanitized, and ingested into memory vector db within the last 24h cycle.</p>
+                </div>
+                {/* Metric 2 */}
+                <div className="clay-inset p-5 rounded-3xl flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-2 text-slate-400">
+                    <Activity size={16} /><span className="text-xs font-black uppercase tracking-widest">Self-Improvement</span>
+                  </div>
+                  <div className="text-3xl font-mono font-black text-white">{selectedAgent.acc}% <span className="text-lg text-slate-500">ACC</span></div>
+                  <div className="text-[10px] uppercase font-bold text-indigo-400">REINFORCEMENT LEARNING ACTIVE</div>
+                  <p className="text-xs text-slate-500 mt-2">Error gradients applied. Accuracy increased by 0.4% post-correction on historical trades.</p>
+                </div>
+                {/* Metric 3 */}
+                <div className="clay-inset p-5 rounded-3xl flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-2 text-slate-400">
+                    <Shield size={16} /><span className="text-xs font-black uppercase tracking-widest">Output Signal</span>
+                  </div>
+                  <div className="text-3xl font-mono font-black text-white" style={{ color: selectedAgent.color }}>CONFIRMED</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">SYNAPSE INTEGRITY: OPTIMAL</div>
+                  <p className="text-xs text-slate-500 mt-2">Generated heuristics have been successfully propagated to the Global Orchestrator.</p>
+                </div>
+              </div>
+
+              {/* Data & Logs Block */}
+              <div className="flex-1 grid grid-cols-2 gap-6">
+                <div className="clay-inset p-6 rounded-3xl flex flex-col">
+                  <h4 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart2 size={16}/> Daily Action Register</h4>
+                  <div className="flex-1 space-y-3 font-mono text-xs text-slate-400 overflow-y-auto pr-2 custom-scroll">
+                    {[1,2,3,4,5,6].map(i => (
+                      <div key={i} className="flex gap-4 p-3 rounded-xl bg-black/20 border border-white/5">
+                        <span className="text-indigo-400 shrink-0">[{new Date(Date.now() - i*900000).toLocaleTimeString()}]</span>
+                        <span className="text-slate-300">Fetched standard data constraints. Updated metric heuristic weights in model parameters.</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="clay-inset p-6 rounded-3xl flex flex-col bg-indigo-900/10">
+                   <h4 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={16} className="text-indigo-400"/> Live Knowledge Stream</h4>
+                   <div className="flex-1 border border-indigo-500/20 rounded-2xl bg-[#03050a] p-4 font-mono text-[11px] leading-relaxed text-indigo-200/70 overflow-y-auto">
+                     {'>'} INITIALIZING KNOWLEDGE SYNC...<br/>
+                     {'>'} ESTABLISHING OMNI-DATA CONNECTION... [OK]<br/>
+                     {'>'} INGESTING 14,082 MARKET NODES...<br/>
+                     {'>'} APPLYING SELF-ATTENTION TRANSFORMERS...<br/>
+                     <br/>
+                     <span className="text-indigo-400">AGENT OBJECTIVE:</span><br/>
+                     {selectedAgent.desc}<br/>
+                     <br/>
+                     <span className="text-cyan-400">LATEST FINDING:</span><br/>
+                     Successfully identified correlation anomaly in macro index. Retraining matrix active. Next update scheduled at 00:00 UTC.
+                   </div>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }

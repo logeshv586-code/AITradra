@@ -7,7 +7,7 @@ export default function LiveTickerBar({ stocks = [] }) {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    const id = setInterval(() => setOffset(o => (o + 0.2) % 100), 40);
+    const id = setInterval(() => setOffset(o => (o + 0.05) % 100), 50);
     const clockId = setInterval(() => setTime(new Date()), 1000);
     return () => { clearInterval(id); clearInterval(clockId); };
   }, []);

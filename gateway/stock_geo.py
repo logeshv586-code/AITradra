@@ -71,14 +71,27 @@ SUFFIX_TO_EXCHANGE = {
 
 def get_coords_for_ticker(ticker: str, exchange: str = "") -> tuple[float, float]:
     """Get lat/lon for a ticker based on its exchange or suffix."""
+    import hashlib
+    
     # Check suffix first
     for suffix, ex_code in SUFFIX_TO_EXCHANGE.items():
         if ticker.upper().endswith(suffix):
             return EXCHANGE_COORDS.get(ex_code, (40.7, -74.0))
     
-    # Crypto defaults
+    # Hash ticker to deterministically spread fallbacks so they don't stack
+    h = int(hashlib.md5(ticker.encode()).hexdigest(), 16)
+    
+    # Crypto defaults - spread across decentralized tech hubs
+    crypto_hubs = [
+        (37.8, -122.4),  # SF/Silicon Valley
+        (25.8, -80.2),   # Miami
+        (47.2, 8.5),     # Zug (Crypto Valley)
+        (1.3, 103.8),    # Singapore
+        (52.5, 13.4),    # Berlin
+        (35.7, 139.7)    # Tokyo
+    ]
     if "-USD" in ticker.upper() or "USDT" in ticker.upper():
-        return (40.7, -74.0)  # Default crypto to NYC
+        return crypto_hubs[h % len(crypto_hubs)]
     
     # Try exchange name
     if exchange:
@@ -89,9 +102,24 @@ def get_coords_for_ticker(ticker: str, exchange: str = "") -> tuple[float, float
         for key, coords in EXCHANGE_COORDS.items():
             if key in ex_upper or ex_upper in key:
                 return coords
+                
+    # Default global financial hubs for international fallbacks instead of just NYC
+    global_hubs = [
+        (40.7, -74.0),   # NYC
+        (51.5, -0.1),    # London
+        (35.7, 139.7),   # Tokyo
+        (48.9, 2.3),     # Paris
+        (50.1, 8.7),     # Frankfurt
+        (22.3, 114.2),   # Hong Kong
+        (31.2, 121.5),   # Shanghai
+        (1.3, 103.8),    # Singapore
+        (-33.9, 151.2),  # Sydney
+        (-23.5, -46.6),  # Sao Paulo
+        (25.3, 55.3),    # Dubai
+        (19.1, 72.9)     # Mumbai
+    ]
     
-    # Default to NASDAQ/NYSE for US stocks
-    return (40.7, -74.0)
+    return global_hubs[h % len(global_hubs)]
 
 
 def format_market_cap(mcap: float) -> str:

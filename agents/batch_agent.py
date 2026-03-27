@@ -4,6 +4,8 @@ import os
 import schedule
 import time
 from datetime import datetime
+from core.config import settings
+import yfinance as yf
 from agents.base_agent import BaseAgent, AgentContext
 from agents.data_agent import DataAgent
 from agents.blob_agent import BlobAgent
@@ -44,14 +46,62 @@ class BatchAgent(BaseAgent):
         self.rag_agent.save_index()
         print(f"[{datetime.now()}] NIGHTLY BATCH COMPLETE.")
 
+    async def run_historical_backfill(self):
+        """Massive background collection loop for Omni-Data past/present trends."""
+        print(f"[{datetime.now()}] 🌐 OMNI-DATA HISTORICAL BACKFILL INITIATED...")
+        
+        # Scrape maximum historical dataset for the 50+ global assets
+        for symbol in settings.DEFAULT_WATCHLIST:
+            try:
+                print(f"-> Archiving historical trend data for {symbol}")
+                
+                # Fetch 1-year historical dataset using yfinance to satisfy "past and present data"
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="1y")
+                
+                # 1. Persist to blob storage
+                metadata = {
+                    "source": "yfinance_1y",
+                    "rows": len(hist),
+                    "latest_close": round(float(hist['Close'].iloc[-1]), 2) if not hist.empty else 0
+                }
+                await self.blob_agent.run(AgentContext(task=f"Archive History {symbol}", ticker=symbol, metadata=metadata))
+                
+                # 2. Index for RAG semantic search
+                await self.rag_agent.run(AgentContext(task=f"Index Trend {symbol}", ticker=symbol, metadata=metadata))
+                
+            except Exception as e:
+                print(f"Error archiving {symbol} history: {e}")
+                
+        self.rag_agent.save_index()
+        print(f"[{datetime.now()}] 🌐 OMNI-DATA BACKFILL COMPLETE.")
+
     async def observe(self, context: AgentContext) -> AgentContext:
         self._add_thought(context, f"Observing batch trigger: {context.task}")
         return context
 
+    async def plan(self, context: AgentContext) -> AgentContext:
+        self._add_thought(context, "Planning batch execution.")
+        return context
+
+    async def think(self, context: AgentContext) -> AgentContext:
+        self._add_thought(context, "Validating batch targets.")
+        return context
+
+    async def reflect(self, context: AgentContext) -> AgentContext:
+        self._add_thought(context, "Reflecting on batch completion.")
+        return context
+
     async def act(self, context: AgentContext) -> AgentContext:
         self._add_thought(context, "Executing high-throughput batch intelligence extraction.")
-        await self.run_nightly_batch()
-        context.result = {"status": "batch_complete", "stocks_processed": len(self.watchlist)}
+        
+        if "history" in context.task.lower() or "backfill" in context.task.lower():
+            await self.run_historical_backfill()
+            context.result = {"status": "omni_data_backfill_complete", "stocks_processed": len(settings.DEFAULT_WATCHLIST)}
+        else:
+            await self.run_nightly_batch()
+            context.result = {"status": "batch_complete", "stocks_processed": len(self.watchlist)}
+            
         return context
 
 # SCHEDULER (Simulation)

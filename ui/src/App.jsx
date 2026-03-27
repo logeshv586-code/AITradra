@@ -9,6 +9,8 @@ import AgentMatrixView from "./components/AgentMatrixView";
 import StockDetailView from "./components/StockDetailView";
 import AgentStreamPanel from "./components/AgentStreamPanel";
 import ChatPanel from "./components/ChatPanel";
+import Globe3D from "./components/Globe3D";
+import StockDetailPanel from "./components/StockDetailPanel";
 
 const API_BASE = "http://localhost:8000";
 
@@ -60,7 +62,7 @@ export default function App() {
   }, []);
 
   // ─── CHAT (LLM-POWERED) ───────────────────────────────────────────────────
-  const handleSendChat = async (userText, aiText) => {
+  const handleSendChat = async (userText, aiText, stockOverride = null) => {
     if (userText) {
       setChatMessages(p => [...p, { role:'user', text: userText }]);
       
@@ -72,7 +74,7 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               message: userText,
-              ticker: activeStock?.id || '',
+              ticker: (stockOverride ? stockOverride.id : activeStock?.id) || '',
             }),
           });
           const data = await res.json();
@@ -83,13 +85,12 @@ export default function App() {
         return;
       }
     }
-    if (aiText) setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: aiText }]);
+    if (aiText && aiText !== 'auto-analyze') setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: aiText }]);
   };
 
-  const handleSelect = (stock) => {
-    setActiveStock(stock);
-    setView('stock');
-    runAnalysis(stock);
+  const handleSelect = (ticker) => {
+    setActiveStock(ticker);
+    // Panel opens automatically via state
   };
 
   const runAnalysis = (stock) => {
@@ -220,11 +221,11 @@ export default function App() {
         {/* MAIN CONTENT */}
         <main className="flex-1 flex overflow-hidden relative z-10">
           <div className="flex-1 flex flex-col overflow-hidden">
-            {view === 'globe'     && <GlobeView onSelect={handleSelect} stocks={liveStocks} />}
+            {view === 'globe'     && <Globe3D onStockSelect={handleSelect} stocks={liveStocks} />}
             {view === 'watchlist' && <WatchlistView onSelect={handleSelect} stocks={liveStocks} marketIndices={marketIndices} loading={stocksLoading} />}
             {view === 'agents'    && <AgentMatrixView agentsStatus={agentsStatus} />}
-            {view === 'stock' && activeStock && (
-              <StockDetailView stock={activeStock} isAnalyzing={isAnalyzing} analysisComplete={analysisComplete} agentLogs={agentLogs} />
+            {activeStock && (
+              <StockDetailPanel ticker={activeStock} onClose={() => setActiveStock(null)} />
             )}
           </div>
 

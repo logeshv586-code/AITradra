@@ -1,5 +1,12 @@
 {
   "symbol": "AAPL",
-  "error": "Too Many Requests. Rate limited. Try after a while.",
-  "timestamp": "2026-03-27T17:41:37.297359"
+  "name": "Apple Inc.",
+  "price": 248.69,
+  "change_pct": -1.66,
+  "volume": 28884793,
+  "market_cap": 3655227146240,
+  "sector": "Technology",
+  "industry": "Consumer Electronics",
+  "exchange": "NMS",
+  "timestamp": "2026-03-27T19:11:56.495090+00:00"
 }

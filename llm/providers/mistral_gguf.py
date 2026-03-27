@@ -32,18 +32,17 @@ class MistralGGUFProvider:
         if not self._llm:
             raise RuntimeError("Mistral model is not initialized.")
 
-        # Formatting for Mistral Instruct v0.2
-        full_prompt = f"<s>[INST] {system}\n\n{prompt} [/INST]"
-
         try:
-            response = self._llm(
-                full_prompt,
+            response = self._llm.create_chat_completion(
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt}
+                ],
                 max_tokens=max_tokens,
-                temperature=temperature,
-                stop=["</s>", "[INST]"],
-                echo=False
+                temperature=temperature
             )
-            return response["choices"][0]["text"].strip()
+            content = response["choices"][0]["message"]["content"]
+            return content.strip() if content else ""
         except Exception as e:
-            logger.error(f"Mistral inference failed: {e}")
+            logger.error(f"Mistral/Nemotron inference failed: {e}")
             raise
