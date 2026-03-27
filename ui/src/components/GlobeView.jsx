@@ -1,22 +1,20 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import Globe from "react-globe.gl";
-import { STOCKS } from "../data";
 import { T } from "../theme";
 import { Activity, TrendingUp, TrendingDown, Zap } from "lucide-react";
 
 // ─── Premium Neon Color Palette for Hex Polygons ──────────────────────────────
 const NEON_PALETTE = [
-  'rgba(0, 240, 255, 0.55)',   // cyan
-  'rgba(99, 102, 241, 0.50)',  // indigo
-  'rgba(168, 85, 247, 0.45)',  // purple
-  'rgba(59, 130, 246, 0.40)',  // blue
-  'rgba(6, 182, 212, 0.50)',   // teal
-  'rgba(99, 102, 241, 0.35)',  // soft indigo
-  'rgba(139, 92, 246, 0.45)',  // violet
-  'rgba(14, 165, 233, 0.50)',  // sky
+  'rgba(0, 240, 255, 0.55)',
+  'rgba(99, 102, 241, 0.50)',
+  'rgba(168, 85, 247, 0.45)',
+  'rgba(59, 130, 246, 0.40)',
+  'rgba(6, 182, 212, 0.50)',
+  'rgba(99, 102, 241, 0.35)',
+  'rgba(139, 92, 246, 0.45)',
+  'rgba(14, 165, 233, 0.50)',
 ];
 
-// Deterministic color assignment by country ISO code
 function getCountryColor(isoCode) {
   if (!isoCode || isoCode === '-99') return 'rgba(30, 41, 59, 0.3)';
   let hash = 0;
@@ -26,40 +24,46 @@ function getCountryColor(isoCode) {
   return NEON_PALETTE[Math.abs(hash) % NEON_PALETTE.length];
 }
 
-// Stock markers data formatted for globe.gl
-const STOCK_POINTS = STOCKS.map(s => ({
-  lat: s.lat,
-  lng: s.lon,
-  size: 0.6,
-  color: s.chg >= 0 ? '#00f0ff' : '#ff2a5f',
-  stock: s,
-}));
-
-// Arc connections between stock exchanges
-const ARCS_DATA = [
-  { startLat: 37.3, startLng: -121.9, endLat: 30.3, endLng: 120.2, color: ['rgba(0,240,255,0.6)', 'rgba(168,85,247,0.6)'] },
-  { startLat: 37.3, startLng: -122.1, endLat: 49.3, endLng: 8.6, color: ['rgba(99,102,241,0.6)', 'rgba(0,240,255,0.6)'] },
-  { startLat: 30.3, startLng: -97.7, endLat: -37.8, endLng: 144.9, color: ['rgba(255,42,95,0.6)', 'rgba(168,85,247,0.6)'] },
-  { startLat: 37.3, startLng: -121.9, endLat: 49.3, endLng: 8.6, color: ['rgba(0,240,255,0.5)', 'rgba(99,102,241,0.5)'] },
-  { startLat: 30.3, startLng: 120.2, endLat: -37.8, endLng: 144.9, color: ['rgba(168,85,247,0.5)', 'rgba(59,130,246,0.5)'] },
-];
-
-// Rings data for active market pulses
-const RINGS_DATA = STOCKS.map(s => ({
-  lat: s.lat,
-  lng: s.lon,
-  maxR: s.chg >= 0 ? 3 : 2,
-  propagationSpeed: 2,
-  repeatPeriod: 1200 + Math.random() * 800,
-  color: s.chg >= 0 ? 'rgba(0,240,255,0.5)' : 'rgba(255,42,95,0.4)',
-}));
-
-export default function GlobeView({ onSelect }) {
+export default function GlobeView({ onSelect, stocks = [] }) {
   const globeRef = useRef();
   const containerRef = useRef();
   const [countries, setCountries] = useState({ features: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [hoveredStock, setHoveredStock] = useState(null);
+
+  // Dynamically build globe data from live stocks
+  const STOCK_POINTS = useMemo(() => stocks.map(s => ({
+    lat: s.lat || 40.7,
+    lng: s.lon || -74.0,
+    size: 0.6,
+    color: s.chg >= 0 ? '#00f0ff' : '#ff2a5f',
+    stock: s,
+  })), [stocks]);
+
+  const ARCS_DATA = useMemo(() => {
+    if (stocks.length < 2) return [];
+    const arcs = [];
+    for (let i = 0; i < Math.min(stocks.length - 1, 6); i++) {
+      const a = stocks[i];
+      const b = stocks[(i + 1) % stocks.length];
+      if (a.lat && b.lat && a.lon && b.lon) {
+        arcs.push({
+          startLat: a.lat, startLng: a.lon,
+          endLat: b.lat, endLng: b.lon,
+          color: ['rgba(0,240,255,0.6)', 'rgba(168,85,247,0.6)'],
+        });
+      }
+    }
+    return arcs;
+  }, [stocks]);
+
+  const RINGS_DATA = useMemo(() => stocks.filter(s => s.lat && s.lon).map(s => ({
+    lat: s.lat,
+    lng: s.lon,
+    maxR: s.chg >= 0 ? 3 : 2,
+    propagationSpeed: 2,
+    repeatPeriod: 1200 + Math.random() * 800,
+    color: s.chg >= 0 ? 'rgba(0,240,255,0.5)' : 'rgba(255,42,95,0.4)',
+  })), [stocks]);
 
   // Load GeoJSON
   useEffect(() => {
@@ -87,20 +91,15 @@ export default function GlobeView({ onSelect }) {
   useEffect(() => {
     if (!globeRef.current) return;
     const globe = globeRef.current;
-
-    // Auto-rotate
     globe.controls().autoRotate = true;
     globe.controls().autoRotateSpeed = 0.6;
     globe.controls().enableDamping = true;
     globe.controls().dampingFactor = 0.1;
     globe.controls().minDistance = 150;
     globe.controls().maxDistance = 500;
-
-    // Set initial camera position
     globe.pointOfView({ lat: 20, lng: 0, altitude: 2.2 });
   }, [countries]);
 
-  // Hex polygon label
   const hexLabel = useCallback((d) => {
     const props = d.properties;
     if (!props) return '';
@@ -109,7 +108,6 @@ export default function GlobeView({ onSelect }) {
         padding: 10px 14px;
         background: rgba(10, 15, 30, 0.85);
         backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
         border: 1px solid rgba(99, 102, 241, 0.4);
         border-radius: 10px;
         font-family: 'Inter', sans-serif;
@@ -127,7 +125,6 @@ export default function GlobeView({ onSelect }) {
     `;
   }, []);
 
-  // Stock point label
   const pointLabel = useCallback((d) => {
     const s = d.stock;
     const col = s.chg >= 0 ? '#00f0ff' : '#ff2a5f';
@@ -137,7 +134,6 @@ export default function GlobeView({ onSelect }) {
         padding: 12px 16px;
         background: rgba(10, 15, 30, 0.9);
         backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
         border: 1px solid ${col}60;
         border-radius: 12px;
         font-family: 'Inter', sans-serif;
@@ -147,17 +143,17 @@ export default function GlobeView({ onSelect }) {
       ">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
           <span style="font-size: 15px; font-weight: 800; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 10px ${col};">${s.id}</span>
-          <span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: ${col}20; color: ${col}; border: 1px solid ${col}40;">${s.ex}</span>
+          <span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: ${col}20; color: ${col}; border: 1px solid ${col}40;">${s.ex || 'N/A'}</span>
         </div>
         <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">${s.name}</div>
         <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">$${s.px.toFixed(2)}</span>
+          <span style="font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">$${(s.px || 0).toFixed(2)}</span>
           <span style="font-size: 13px; font-weight: 700; color: ${col}; text-shadow: 0 0 10px ${col}80;">
-            ${dir} ${Math.abs(s.chg)}%
+            ${dir} ${Math.abs(s.chg || 0)}%
           </span>
         </div>
         <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 9px; color: #64748b; letter-spacing: 1px; text-transform: uppercase;">
-          MKTCAP: ${s.mcap} · VOL: ${s.vol}
+          MKTCAP: ${s.mcap || 'N/A'} · VOL: ${s.vol || 'N/A'}
         </div>
       </div>
     `;
@@ -171,7 +167,6 @@ export default function GlobeView({ onSelect }) {
 
   return (
     <div className="flex-1 relative flex items-center justify-center overflow-hidden select-none" ref={containerRef}>
-      {/* Ambient atmosphere glow behind globe */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vmin] h-[70vmin] rounded-full bg-indigo-500/8 blur-[100px]" />
         <div className="absolute top-[40%] left-[45%] -translate-x-1/2 -translate-y-1/2 w-[50vmin] h-[50vmin] rounded-full bg-cyan-500/6 blur-[80px]" />
@@ -183,16 +178,10 @@ export default function GlobeView({ onSelect }) {
           width={dimensions.width}
           height={dimensions.height}
           backgroundColor="rgba(0,0,0,0)"
-          
-          // ─── Globe Surface ────────────────────
           globeImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg"
           bumpImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png"
-          
-          // ─── Atmosphere ───────────────────────
           atmosphereColor="#6366f1"
           atmosphereAltitude={0.25}
-          
-          // ─── Hex Polygons (Countries) ─────────
           hexPolygonsData={countries.features}
           hexPolygonResolution={3}
           hexPolygonMargin={0.4}
@@ -200,8 +189,6 @@ export default function GlobeView({ onSelect }) {
           hexPolygonColor={d => getCountryColor(d.properties?.ISO_A2)}
           hexPolygonLabel={hexLabel}
           hexPolygonAltitude={0.01}
-          
-          // ─── Stock Points ─────────────────────
           pointsData={STOCK_POINTS}
           pointAltitude={0.07}
           pointRadius="size"
@@ -209,8 +196,6 @@ export default function GlobeView({ onSelect }) {
           pointLabel={pointLabel}
           onPointClick={handlePointClick}
           pointsMerge={false}
-          
-          // ─── Exchange Arcs ────────────────────
           arcsData={ARCS_DATA}
           arcColor="color"
           arcDashLength={0.4}
@@ -218,8 +203,6 @@ export default function GlobeView({ onSelect }) {
           arcDashAnimateTime={2500}
           arcStroke={0.5}
           arcAltitudeAutoScale={0.3}
-          
-          // ─── Market Pulse Rings ───────────────
           ringsData={RINGS_DATA}
           ringColor="color"
           ringMaxRadius="maxR"
@@ -234,13 +217,14 @@ export default function GlobeView({ onSelect }) {
           style={{
             background: 'rgba(10, 15, 30, 0.65)',
             backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(99, 102, 241, 0.25)',
             boxShadow: '0 0 30px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,240,255,0.6)]" />
-            <span className="text-[10px] font-bold tracking-[0.15em] text-slate-300 uppercase">System Live</span>
+            <span className="text-[10px] font-bold tracking-[0.15em] text-slate-300 uppercase">
+              {stocks.length > 0 ? `${stocks.length} Assets Live` : 'Loading...'}
+            </span>
           </div>
           <div className="w-px h-4 bg-white/10" />
           <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
@@ -252,7 +236,7 @@ export default function GlobeView({ onSelect }) {
 
       {/* ── Stock Quick Stats Floating Panel ── */}
       <div className="absolute top-4 right-4 z-30 space-y-2">
-        {STOCKS.slice(0, 4).map(s => {
+        {stocks.slice(0, 5).map(s => {
           const col = s.chg >= 0 ? T.buy : T.sell;
           return (
             <button key={s.id} onClick={() => onSelect(s)}
@@ -270,7 +254,7 @@ export default function GlobeView({ onSelect }) {
               <div className="text-left flex-1 min-w-0">
                 <div className="font-mono font-bold text-xs text-white group-hover:text-cyan-300 transition-colors">{s.id}</div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-[11px] text-slate-300">${s.px.toFixed(0)}</span>
+                  <span className="font-mono text-[11px] text-slate-300">${(s.px || 0).toFixed(0)}</span>
                   <span className="font-mono text-[10px] font-bold" style={{ color: col }}>
                     {s.chg >= 0 ? '+' : ''}{s.chg}%
                   </span>

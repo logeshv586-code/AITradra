@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Activity, Globe, List, Layers, Settings } from "lucide-react";
 import { T } from "./theme";
 import { AGENTS } from "./data";
@@ -10,19 +10,80 @@ import StockDetailView from "./components/StockDetailView";
 import AgentStreamPanel from "./components/AgentStreamPanel";
 import ChatPanel from "./components/ChatPanel";
 
+const API_BASE = "http://localhost:8000";
+
 export default function App() {
   const [view, setView] = useState('globe');
   const [activeStock, setActiveStock] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [agentLogs, setAgentLogs] = useState([]);
+  const [marketIndices, setMarketIndices] = useState([]);
+  const [agentsStatus, setAgentsStatus] = useState([]);
+  const [liveStocks, setLiveStocks] = useState([]);
+  const [stocksLoading, setStocksLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState([
-    { role:'ai', tag:'AXIOM OS', text:'System online. Cognitive engines fully spooled. Select a global node or input a command.' }
+    { role:'ai', tag:'AXIOM OS', text:'System online. Cognitive engines fully spooled. Live market data streaming. Select a global node or input a command.' }
   ]);
+  const wsRef = useRef(null);
 
-  const handleSendChat = (userText, aiText) => {
-    if (userText) setChatMessages(p => [...p, { role:'user', text:userText }]);
-    if (aiText)   setChatMessages(p => [...p, { role:'ai',  tag:'AXIOM', text:aiText }]);
+  // ─── FETCH LIVE WATCHLIST + INDICES ─────────────────────────────────────────
+  useEffect(() => {
+    const fetchLiveData = async () => {
+      try {
+        const [watchlistRes, indicesRes, agentsRes] = await Promise.all([
+          fetch(`${API_BASE}/api/market/watchlist`),
+          fetch(`${API_BASE}/api/market/indices`),
+          fetch(`${API_BASE}/api/agents/status`)
+        ]);
+        
+        const watchlistData = await watchlistRes.json();
+        const indicesData = await indicesRes.json();
+        const agentsData = await agentsRes.json();
+
+        if (watchlistData.stocks && watchlistData.stocks.length > 0) {
+          setLiveStocks(watchlistData.stocks);
+        }
+        setMarketIndices(indicesData.indices || []);
+        setAgentsStatus(agentsData.agents || []);
+        setStocksLoading(false);
+      } catch (err) {
+        console.error("Failed to fetch live data:", err);
+        setStocksLoading(false);
+      }
+    };
+
+    fetchLiveData();
+    // Refresh every 60s (aligned with backend cache TTL)
+    const interval = setInterval(fetchLiveData, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ─── CHAT (LLM-POWERED) ───────────────────────────────────────────────────
+  const handleSendChat = async (userText, aiText) => {
+    if (userText) {
+      setChatMessages(p => [...p, { role:'user', text: userText }]);
+      
+      // If no AI text provided, call the LLM endpoint
+      if (!aiText) {
+        try {
+          const res = await fetch(`${API_BASE}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: userText,
+              ticker: activeStock?.id || '',
+            }),
+          });
+          const data = await res.json();
+          setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: data.response }]);
+        } catch (err) {
+          setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: 'Neural link interrupted. Reconnecting to agent matrix...' }]);
+        }
+        return;
+      }
+    }
+    if (aiText) setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: aiText }]);
   };
 
   const handleSelect = (stock) => {
@@ -31,35 +92,54 @@ export default function App() {
     runAnalysis(stock);
   };
 
-  const runAnalysis = async (stock) => {
+  const runAnalysis = (stock) => {
+    if (wsRef.current) wsRef.current.close();
+    
     setIsAnalyzing(true);
     setAnalysisComplete(false);
     setAgentLogs([]);
-    const delay = ms => new Promise(r => setTimeout(r, ms));
-    const log = (agent, action, text) =>
-      setAgentLogs(p => [...p, { id: Date.now()+Math.random(), agent, action, text }]);
+    
+    const ws = new WebSocket(`ws://localhost:8000/ws/analyze/${stock.id}`);
+    wsRef.current = ws;
 
-    log('data','OBSERVE',`Fetching 60-day OHLCV for ${stock.id}. Price: $${stock.px}`);
-    await delay(700);
-    log('data','ACT',`Loaded fundamentals. MktCap: ${stock.mcap}. Sector: ${stock.sector}.`);
-    log('news','THINK',`Scanning 12 financial sources for ${stock.id} catalysts...`);
-    await delay(900);
-    log('news','REFLECT',`Sentiment: ${stock.chg>=0?'Bullish (0.78)':'Bearish (-0.64)'}. Institutional signal detected.`);
-    log('trend','PLAN',`Computing RSI, MACD, Bollinger Bands, ATR...`);
-    await delay(800);
-    log('trend','ACT',`RSI: ${stock.chg>=0?68:34}. MACD: ${stock.chg>=0?'Golden cross':'Death cross'} forming.`);
-    log('risk','OBSERVE',`Calculating VaR at 95% confidence. Beta vs S&P500...`);
-    await delay(600);
-    log('risk','ACT',`VaR=${stock.risk.var} | Beta=${stock.risk.beta} | Volatility=${stock.risk.vol}`);
-    log('ml','PLAN',`LSTM (128-unit) + XGBoost (200-tree) ensemble. Feature dim: 42.`);
-    await delay(1200);
-    log('ml','REFLECT',`Ensemble confidence: ${Math.floor(75+Math.random()*18)}%. Prediction: ${stock.chg>=0?'UP':'DOWN'}.`);
-    log('synthesis','THINK',`Running Chain-of-Thought synthesis across all agent outputs...`);
-    await delay(1300);
-    log('synthesis','ACT',`Final signal: ${stock.chg>=0?'STRONG BUY':'SELL'}. Self-critique passed 4/4 checks.`);
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'connected') {
+        setAgentLogs(p => [...p, { id: 'conn', agent: 'data', action: 'D-NETWORK', text: `Uplink established for ${msg.ticker} (v${msg.version})` }]);
+      } else if (msg.type === 'agent_start' || msg.type === 'agent_complete') {
+        const agentKey = msg.agent.replace('Agent', '').toLowerCase();
+        setAgentLogs(p => [...p, { 
+          id: Date.now() + Math.random(), 
+          agent: agentKey, 
+          action: msg.type === 'agent_start' ? 'THINK' : 'ACT', 
+          text: msg.output 
+        }]);
+      } else if (msg.type === 'analysis_complete') {
+        const analysis = msg.result.analysis || {};
+        const confidence = analysis.confidence || 0.82;
+        const signal = analysis.signal || (confidence > 0.7 ? 'STRONG BUY' : 'HOLD');
+        
+        setIsAnalyzing(false);
+        setAnalysisComplete(true);
+        
+        // Update activeStock with live analysis result
+        setActiveStock(prev => ({
+          ...prev,
+          analysis_result: analysis,
+          px: msg.result.ticker === prev.id ? (msg.result.agent_data?.DataAgent?.fundamentals?.current_price || prev.px) : prev.px
+        }));
 
-    setIsAnalyzing(false);
-    setAnalysisComplete(true);
+        handleSendChat(null, `Analysis complete for ${stock.id}. Confidence: ${(confidence * 100).toFixed(1)}%. Signal: ${signal}.`);
+      } else if (msg.type === 'error') {
+        console.error("WS Analysis Error:", msg.message);
+        setIsAnalyzing(false);
+      }
+    };
+
+    ws.onclose = () => {
+      setIsAnalyzing(false);
+      wsRef.current = null;
+    };
   };
 
   const NAV = [
@@ -72,57 +152,67 @@ export default function App() {
 
   return (
     <div className="relative flex flex-col h-screen overflow-hidden text-slate-200 font-sans selection:bg-indigo-500/30">
-      {/* ── AMBIENT NEON BACKGROUND ── */}
+      {/* ── AMBIENT CLAY-COMPATIBLE BACKGROUND ── */}
       <div className="fixed inset-0 pointer-events-none z-[-1]">
-        <div className="absolute inset-0 bg-[#02040a]" />
-        <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] rounded-full bg-indigo-600/10 blur-[120px] mix-blend-screen" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50vw] h-[50vw] rounded-full bg-cyan-600/10 blur-[120px] mix-blend-screen" />
-        <div className="absolute inset-0 opacity-[0.15]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40h40V0H0zm39 3v38H1V1h38z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E")`, maskImage: 'linear-gradient(to bottom, white 10%, transparent 90%)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #0a0e1a 0%, #0d1225 40%, #0a0e1a 100%)' }} />
+        <div className="absolute top-[-25%] left-[-15%] w-[55vw] h-[55vw] rounded-full blur-[150px] mix-blend-screen" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[-25%] right-[-15%] w-[45vw] h-[45vw] rounded-full blur-[150px] mix-blend-screen" style={{ background: 'radial-gradient(circle, rgba(0,240,255,0.05) 0%, transparent 70%)' }} />
+        <div className="absolute top-[40%] left-[50%] w-[30vw] h-[30vw] rounded-full blur-[120px] mix-blend-screen" style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.04) 0%, transparent 70%)' }} />
       </div>
 
-      {/* ── TOP BAR ── */}
-      <header className="h-14 flex items-center justify-between px-6 flex-shrink-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 shadow-lg">
+      {/* ── TOP BAR (Clay Header) ── */}
+      <header className="clay-header h-14 flex items-center justify-between px-6 flex-shrink-0 z-50">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('globe')}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-indigo-500/20 border border-indigo-500/40 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] transition-all">
+            <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all"
+              style={{
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.20), rgba(99,102,241,0.08))',
+                border: '1px solid rgba(99,102,241,0.25)',
+                boxShadow: '3px 3px 8px rgba(0,0,0,0.30), -1px -1px 4px rgba(99,102,241,0.05), inset 1px 1px 2px rgba(255,255,255,0.05), inset -1px -1px 3px rgba(0,0,0,0.20)'
+              }}>
               <Activity size={16} className="text-indigo-400" />
             </div>
             <span className="font-bold tracking-[0.2em] text-sm text-white font-mono text-shadow-glow">
               AXIOM<span className="text-indigo-400">.AI</span>
             </span>
           </div>
-          <div className="h-5 w-px bg-white/10 mx-2" />
-          <span className="text-[10px] px-2.5 py-1 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold tracking-widest flex items-center gap-1.5 shadow-[0_0_10px_rgba(0,240,255,0.2)]">
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" /> CLAUDE_FLOW
-          </span>
+          <div className="h-5 w-px bg-white/8 mx-2" />
+          <div className="clay-badge" style={{ 
+            background: 'linear-gradient(135deg, rgba(0,240,255,0.10), rgba(0,240,255,0.04))', 
+            borderColor: 'rgba(0,240,255,0.18)',
+            color: T.buy 
+          }}>
+            <div className="w-1.5 h-1.5 rounded-full animate-soft-pulse" style={{ background: T.buy, boxShadow: `0 0 8px ${T.buy}60` }} />
+            <span className="text-[10px] font-bold tracking-widest">LIVE_DATA</span>
+          </div>
+          {stocksLoading && (
+            <div className="flex items-center gap-2 text-[9px] text-cyan-400 font-mono animate-pulse">
+              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+              FETCHING MARKETS...
+            </div>
+          )}
         </div>
       </header>
 
       {/* ── TICKER STRIP ── */}
-      <LiveTickerBar />
+      <LiveTickerBar stocks={liveStocks} />
 
       {/* ── BODY ── */}
       <div className="flex-1 flex overflow-hidden">
-        {/* LEFT SIDEBAR */}
-        <nav className="w-16 flex-shrink-0 flex flex-col items-center pt-6 gap-3 bg-black/40 backdrop-blur-xl border-r border-white/10 z-40 shadow-xl">
+        {/* LEFT SIDEBAR (Clay) */}
+        <nav className="clay-sidebar w-16 flex-shrink-0 flex flex-col items-center pt-6 gap-3 z-40">
           {NAV.map(n => {
             const Icon = n.icon;
             const active = view === n.id || (view === 'stock' && n.id === 'watchlist');
             return (
               <button key={n.id} title={n.label} onClick={() => setView(n.id)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center transition-all group relative"
-                style={{
-                  background: active ? 'rgba(99,102,241,0.2)' : 'transparent',
-                  color: active ? T.aiLight : T.muted,
-                  border: `1px solid ${active ? 'rgba(99,102,241,0.4)' : 'transparent'}`,
-                  boxShadow: active ? '0 0 15px rgba(99,102,241,0.3)' : 'none'
-                }}>
-                <Icon size={18} className="group-hover:text-indigo-400 transition-colors" />
+                className={`clay-nav-btn group relative ${active ? 'active' : ''}`}>
+                <Icon size={18} className={`transition-colors ${active ? 'text-indigo-400' : 'text-slate-500 group-hover:text-indigo-400'}`} />
               </button>
             );
           })}
           <div className="flex-1"/>
-          <button className="w-10 h-10 rounded-xl flex items-center justify-center mb-6 text-slate-500 hover:text-white transition-colors" title="Settings">
+          <button className="clay-nav-btn mb-6 text-slate-500 hover:text-white" title="Settings">
             <Settings size={18} />
           </button>
         </nav>
@@ -130,9 +220,9 @@ export default function App() {
         {/* MAIN CONTENT */}
         <main className="flex-1 flex overflow-hidden relative z-10">
           <div className="flex-1 flex flex-col overflow-hidden">
-            {view === 'globe'     && <GlobeView onSelect={handleSelect} />}
-            {view === 'watchlist' && <WatchlistView onSelect={handleSelect} />}
-            {view === 'agents'    && <AgentMatrixView />}
+            {view === 'globe'     && <GlobeView onSelect={handleSelect} stocks={liveStocks} />}
+            {view === 'watchlist' && <WatchlistView onSelect={handleSelect} stocks={liveStocks} marketIndices={marketIndices} loading={stocksLoading} />}
+            {view === 'agents'    && <AgentMatrixView agentsStatus={agentsStatus} />}
             {view === 'stock' && activeStock && (
               <StockDetailView stock={activeStock} isAnalyzing={isAnalyzing} analysisComplete={analysisComplete} agentLogs={agentLogs} />
             )}

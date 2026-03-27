@@ -2,15 +2,15 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   AXIOM AI TRADING INTELLIGENCE — NEON GLASS DESIGN SYSTEM
+   AXIOM AI TRADING INTELLIGENCE — CLAYMORPHISM DESIGN SYSTEM
    ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --bg: #02040a;
-  --glass: rgba(12, 18, 30, 0.45);
-  --glass2: rgba(20, 28, 45, 0.65);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-hl: rgba(255, 255, 255, 0.15);
+  --bg: #0a0e1a;
+  --glass: rgba(16, 22, 40, 0.75);
+  --glass2: rgba(22, 30, 52, 0.85);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hl: rgba(255, 255, 255, 0.12);
   --buy: #00f0ff;
   --sell: #ff2a5f;
   --ai: #6366f1;
@@ -20,7 +20,29 @@
   --text: #f8fafc;
   --muted: #94a3b8;
   --muted2: #475569;
-  --radius: 12px;
+  --radius: 16px;
+
+  /* ── Claymorphism Tokens ───────────────────────────────────── */
+  --clay-bg: rgba(18, 24, 44, 0.80);
+  --clay-bg-light: rgba(28, 36, 60, 0.85);
+  --clay-inner-light: rgba(255, 255, 255, 0.06);
+  --clay-inner-dark: rgba(0, 0, 0, 0.45);
+  --clay-outer: rgba(0, 0, 0, 0.35);
+  --clay-radius: 20px;
+  --clay-border: rgba(255, 255, 255, 0.05);
+  --clay-shadow:
+    6px 6px 14px rgba(0, 0, 0, 0.40),
+    -3px -3px 10px rgba(255, 255, 255, 0.03),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.04),
+    inset -2px -2px 6px rgba(0, 0, 0, 0.35);
+  --clay-shadow-hover:
+    8px 8px 20px rgba(0, 0, 0, 0.50),
+    -4px -4px 12px rgba(255, 255, 255, 0.04),
+    inset 1px 1px 3px rgba(255, 255, 255, 0.05),
+    inset -1px -1px 4px rgba(0, 0, 0, 0.25);
+  --clay-shadow-inset:
+    inset 4px 4px 10px rgba(0, 0, 0, 0.45),
+    inset -2px -2px 8px rgba(255, 255, 255, 0.03);
 }
 
 *, *::before, *::after {
@@ -41,24 +63,18 @@ html, body, #root {
 }
 
 /* ─── Custom Scrollbars ────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
 
 /* ─── Utility Classes ──────────────────────────────────────────────────── */
 .text-shadow-glow {
-  text-shadow: 0 0 15px rgba(255,255,255,0.3);
+  text-shadow: 0 0 12px rgba(255,255,255,0.2), 0 0 30px rgba(99,102,241,0.1);
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ─── Animations ───────────────────────────────────────────────────────── */
 @keyframes slideInFromRight {
@@ -86,103 +102,431 @@ html, body, #root {
   100% { background-position: 200% 0; }
 }
 
-.animate-slide-in {
-  animation: slideInFromRight 0.3s ease-out forwards;
+@keyframes clay-press {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.97); }
+  100% { transform: scale(1); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out forwards;
+@keyframes clay-breathe {
+  0%, 100% { box-shadow: var(--clay-shadow); }
+  50% { box-shadow: var(--clay-shadow-hover); }
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+@keyframes clay-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+
+.animate-slide-in { animation: slideInFromRight 0.3s ease-out forwards; }
+.animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+.animate-float { animation: float 3s ease-in-out infinite; }
+.animate-clay-breathe { animation: clay-breathe 4s ease-in-out infinite; }
+.animate-soft-pulse { animation: soft-pulse 2s ease-in-out infinite; }
+
+/* ─── Professional Data Animations ─────────────────────────────────────── */
+@keyframes cyber-pulse {
+  0% { box-shadow: 0 0 5px rgba(99,102,241,0.2), inset 0 0 5px rgba(99,102,241,0.1); }
+  50% { box-shadow: 0 0 20px rgba(99,102,241,0.4), inset 0 0 10px rgba(99,102,241,0.2); }
+  100% { box-shadow: 0 0 5px rgba(99,102,241,0.2), inset 0 0 5px rgba(99,102,241,0.1); }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes frequency-wave {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.6); }
+}
+
+.animate-cyber-pulse { animation: cyber-pulse 2s infinite ease-in-out; }
+.frequency-bar { animation: frequency-wave 1.2s infinite ease-in-out; transform-origin: bottom; }
+
+.scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: rgba(99, 102, 241, 0.1);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 10;
+  animation: scanline 8s linear infinite;
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
 
-/* ─── Glass Card Base ──────────────────────────────────────────────────── */
-.glass-card {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  background: var(--glass);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 var(--border-hl);
-  transition: all 0.3s ease;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   CLAYMORPHISM COMPONENT CLASSES
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ─── Claymorphism & Enhanced Glass ──────────────────────────────────────── */
+/* ─── Clay Card (Primary container) ──────────────────────────────────── */
 .clay-card {
   position: relative;
-  border-radius: var(--radius);
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: inset -8px -8px 16px rgba(0,0,0,0.4), inset 8px 8px 16px rgba(255,255,255,0.05), 8px 8px 16px rgba(0,0,0,0.3);
-  transition: all 0.3s ease;
+  border-radius: var(--clay-radius);
+  background: var(--clay-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--clay-shadow);
+  transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--clay-border);
+}
+
+.clay-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  z-index: 1;
 }
 
 .clay-card.interactive:hover {
-  box-shadow: inset -4px -4px 10px rgba(0,0,0,0.6), inset 4px 4px 10px rgba(255,255,255,0.05), 12px 12px 20px rgba(0,0,0,0.5);
-  transform: translateY(-2px);
+  box-shadow: var(--clay-shadow-hover);
+  transform: translateY(-3px);
 }
 
-.glass-morphism {
-  background: rgba(12, 18, 30, 0.35);
+.clay-card.interactive:active {
+  transform: translateY(0px) scale(0.99);
+  box-shadow: var(--clay-shadow-inset);
+}
+
+/* ─── Clay Surface (backgrounds, headers, panels) ──────────────────── */
+.clay-surface {
+  background: var(--clay-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    inset 1px 1px 3px rgba(255,255,255,0.04),
+    inset -1px -1px 4px rgba(0,0,0,0.30),
+    0 4px 16px rgba(0,0,0,0.25);
+  border: 1px solid var(--clay-border);
+}
+
+/* ─── Clay Inset (recessed areas: inputs, stat panels) ──────────────── */
+.clay-inset {
+  background: rgba(8, 12, 24, 0.50);
+  border-radius: 14px;
+  box-shadow: var(--clay-shadow-inset);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+/* ─── Glass Card (backward compatibility) ─────────────────────────── */
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--clay-radius);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-  border-radius: var(--radius);
+  background: var(--clay-bg);
+  border: 1px solid var(--clay-border);
+  box-shadow: var(--clay-shadow);
+  transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .glass-card.interactive:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.4), inset 0 1px 0 var(--border-hl);
+  transform: translateY(-3px);
+  box-shadow: var(--clay-shadow-hover);
 }
 
-/* ─── Button Styles ────────────────────────────────────────────────────── */
+.glass-morphism {
+  background: var(--clay-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--clay-border);
+  box-shadow: var(--clay-shadow);
+  border-radius: var(--clay-radius);
+}
+
+/* ─── Clay Buttons ────────────────────────────────────────────────────── */
 .btn-primary {
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 10px 20px;
+  border-radius: 14px;
   font-size: 11px;
   font-weight: 700;
-  background: var(--ai);
+  background: linear-gradient(135deg, rgba(99,102,241,0.35), rgba(99,102,241,0.20));
   color: white;
-  border: none;
+  border: 1px solid rgba(99,102,241,0.30);
   cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 0 15px rgba(99,102,241,0.4);
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow:
+    4px 4px 10px rgba(0,0,0,0.30),
+    -2px -2px 6px rgba(99,102,241,0.08),
+    inset 1px 1px 2px rgba(255,255,255,0.06),
+    inset -1px -1px 3px rgba(0,0,0,0.20);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .btn-primary:hover {
-  box-shadow: 0 0 25px rgba(99,102,241,0.6);
-  transform: translateY(-1px);
+  box-shadow:
+    6px 6px 14px rgba(0,0,0,0.40),
+    -3px -3px 8px rgba(99,102,241,0.12),
+    inset 1px 1px 2px rgba(255,255,255,0.08),
+    inset -1px -1px 3px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, rgba(99,102,241,0.45), rgba(99,102,241,0.25));
+}
+
+.btn-primary:active {
+  transform: translateY(0px);
+  box-shadow: var(--clay-shadow-inset);
 }
 
 .btn-ghost {
-  padding: 8px 16px;
-  border-radius: 8px;
+  padding: 10px 20px;
+  border-radius: 14px;
   font-size: 11px;
   font-weight: 700;
-  background: var(--glass);
+  background: var(--clay-bg);
   color: var(--muted);
-  border: 1px solid var(--border);
+  border: 1px solid var(--clay-border);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow:
+    4px 4px 10px rgba(0,0,0,0.25),
+    -2px -2px 6px rgba(255,255,255,0.02),
+    inset 1px 1px 2px rgba(255,255,255,0.03),
+    inset -1px -1px 3px rgba(0,0,0,0.20);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .btn-ghost:hover {
   color: var(--text);
-  border-color: var(--border-hl);
+  border-color: rgba(255,255,255,0.10);
+  box-shadow:
+    6px 6px 14px rgba(0,0,0,0.35),
+    -3px -3px 8px rgba(255,255,255,0.03),
+    inset 1px 1px 2px rgba(255,255,255,0.05),
+    inset -1px -1px 3px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+.btn-ghost:active {
+  transform: translateY(0px);
+  box-shadow: var(--clay-shadow-inset);
+}
+
+/* ─── Clay Badge (status pills, signals) ──────────────────────────── */
+.clay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: var(--clay-bg);
+  box-shadow:
+    3px 3px 8px rgba(0,0,0,0.30),
+    -1px -1px 4px rgba(255,255,255,0.02),
+    inset 1px 1px 2px rgba(255,255,255,0.04),
+    inset -1px -1px 3px rgba(0,0,0,0.25);
+  border: 1px solid var(--clay-border);
+  transition: all 0.2s ease;
+}
+
+/* ─── Clay Input ─────────────────────────────────────────────────────── */
+.clay-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 12px;
+  background: rgba(8, 12, 24, 0.55);
+  border: 1px solid rgba(255,255,255,0.05);
+  color: var(--text);
+  box-shadow: var(--clay-shadow-inset);
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.clay-input:focus {
+  border-color: rgba(99,102,241,0.35);
+  box-shadow:
+    var(--clay-shadow-inset),
+    0 0 0 3px rgba(99,102,241,0.10);
+}
+
+.clay-input::placeholder {
+  color: rgba(148, 163, 184, 0.4);
+}
+
+/* ─── Clay Header Bar ─────────────────────────────────────────────── */
+.clay-header {
+  background: var(--clay-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--clay-border);
+  box-shadow:
+    0 4px 16px rgba(0,0,0,0.30),
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    inset 0 -1px 0 rgba(0,0,0,0.20);
+}
+
+/* ─── Clay Sidebar ─────────────────────────────────────────────────── */
+.clay-sidebar {
+  background: var(--clay-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-right: 1px solid var(--clay-border);
+  box-shadow:
+    4px 0 16px rgba(0,0,0,0.25),
+    inset 1px 0 0 rgba(255,255,255,0.03),
+    inset -1px 0 0 rgba(0,0,0,0.20);
+}
+
+/* ─── Clay Nav Button ───────────────────────────────────────────────── */
+.clay-nav-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.clay-nav-btn:hover {
+  background: rgba(99,102,241,0.08);
+  box-shadow:
+    3px 3px 8px rgba(0,0,0,0.25),
+    -1px -1px 4px rgba(255,255,255,0.02),
+    inset 1px 1px 2px rgba(255,255,255,0.03),
+    inset -1px -1px 3px rgba(0,0,0,0.20);
+}
+
+.clay-nav-btn.active {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.25);
+  box-shadow:
+    4px 4px 10px rgba(0,0,0,0.30),
+    -2px -2px 6px rgba(99,102,241,0.06),
+    inset 1px 1px 2px rgba(255,255,255,0.05),
+    inset -1px -1px 3px rgba(0,0,0,0.20),
+    0 0 20px rgba(99,102,241,0.15);
+}
+
+/* ─── Clay Ticker Strip ────────────────────────────────────────────── */
+.clay-ticker {
+  background: rgba(10, 14, 26, 0.85);
+  box-shadow:
+    inset 2px 2px 6px rgba(0,0,0,0.35),
+    inset -1px -1px 4px rgba(255,255,255,0.02),
+    0 2px 8px rgba(0,0,0,0.20);
+  border-bottom: 1px solid var(--clay-border);
+}
+
+/* ─── Clay Chat Bubble ────────────────────────────────────────────── */
+.clay-bubble {
+  border-radius: 18px;
+  padding: 12px 16px;
+  max-width: 90%;
+  box-shadow:
+    3px 3px 8px rgba(0,0,0,0.30),
+    -1px -1px 4px rgba(255,255,255,0.02),
+    inset 1px 1px 2px rgba(255,255,255,0.04),
+    inset -1px -1px 3px rgba(0,0,0,0.25);
+  transition: all 0.2s ease;
+}
+
+.clay-bubble.user {
+  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(99,102,241,0.12));
+  border: 1px solid rgba(99,102,241,0.20);
+  border-bottom-right-radius: 6px;
+}
+
+.clay-bubble.ai {
+  background: var(--clay-bg);
+  border: 1px solid var(--clay-border);
+  border-bottom-left-radius: 6px;
+}
+
+/* ─── Clay Chip Button ────────────────────────────────────────────── */
+.clay-chip {
+  white-space: nowrap;
+  padding: 7px 14px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--clay-bg);
+  border: 1px solid var(--clay-border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  box-shadow:
+    3px 3px 8px rgba(0,0,0,0.25),
+    -1px -1px 4px rgba(255,255,255,0.02),
+    inset 1px 1px 2px rgba(255,255,255,0.03),
+    inset -1px -1px 3px rgba(0,0,0,0.20);
+}
+
+.clay-chip:hover {
+  color: var(--text);
+  border-color: rgba(99,102,241,0.25);
+  box-shadow:
+    4px 4px 10px rgba(0,0,0,0.30),
+    -2px -2px 6px rgba(99,102,241,0.05),
+    inset 1px 1px 2px rgba(255,255,255,0.05),
+    inset -1px -1px 3px rgba(0,0,0,0.15);
+  transform: translateY(-1px);
+}
+
+.clay-chip:active {
+  transform: translateY(0px);
+  box-shadow: var(--clay-shadow-inset);
+}
+
+/* ─── Clay Table ─────────────────────────────────────────────────────── */
+.clay-table-header {
+  background: rgba(14, 20, 38, 0.90);
+  box-shadow: var(--clay-shadow-inset);
+}
+
+.clay-table-row {
+  transition: all 0.25s ease;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.clay-table-row:hover {
+  background: rgba(99,102,241,0.04);
+  box-shadow: inset 0 0 20px rgba(99,102,241,0.03);
+}
+
+/* ─── Clay Progress Bar ──────────────────────────────────────────────── */
+.clay-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(8, 12, 24, 0.60);
+  box-shadow: var(--clay-shadow-inset);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+.clay-progress-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.5s ease;
 }
 
 /* ─── Selection ────────────────────────────────────────────────────────── */

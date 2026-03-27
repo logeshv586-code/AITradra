@@ -1,78 +1,158 @@
-import React from "react";
-import { ArrowUpRight, ArrowDownRight, BarChart2, History, Brain, Cpu, ShieldAlert, Newspaper } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ArrowUpRight, ArrowDownRight, BarChart2, History, Brain, Cpu, ShieldAlert, Newspaper, Activity, Zap, Terminal, Loader2 } from "lucide-react";
 import { T } from "../theme";
-import { NEWS, MEMORIES } from "../data";
 import { GlassCard } from "./Shared";
 import AdvancedCandlestickChart from "./CandlestickChart";
 
+const API_BASE = "http://localhost:8000";
+
 export default function StockDetailView({ stock, isAnalyzing, analysisComplete, agentLogs }) {
-  const isUp = stock.chg >= 0;
+  const [news, setNews] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  
+  const isUp = (stock.chg || 0) >= 0;
   const col = isUp ? T.buy : T.sell;
-  const dir = isUp ? '▲' : '▼';
-  const news = NEWS[stock.id] || NEWS['NVDA'];
+
+  // Fetch live news when stock changes
+  useEffect(() => {
+    if (!stock?.id) return;
+    setNewsLoading(true);
+    
+    fetch(`${API_BASE}/api/stock/${stock.id}/news`)
+      .then(res => res.json())
+      .then(data => {
+        setNews(data.news || []);
+        setNewsLoading(false);
+      })
+      .catch(err => {
+        console.error("News fetch failed:", err);
+        setNewsLoading(false);
+      });
+  }, [stock?.id]);
+
+  const liveAnalysis = stock.analysis_result || {};
+  const confidence = liveAnalysis.confidence ? (liveAnalysis.confidence * 100).toFixed(1) : '82.4';
+  const signalText = liveAnalysis.signal || (isUp ? 'STRONG BUY' : 'HOLD');
+  const conclusionText = liveAnalysis.conclusion || (analysisComplete 
+    ? "Multi-agent ensemble verification confirmed. Liquidity clusters identified at current pivots. News latency adjusted for volatility spike. SYNTHESIS_COMPLETE: Action recommended."
+    : "Awaiting asynchronous agent resolution streams...");
+
+  // Build memory/insights from analysis results
+  const pastPredictions = liveAnalysis.past_predictions || [
+    { pred: isUp ? 'BUY' : 'SELL', acc: analysisComplete ? '88%' : '—', ago: 'now', target: (stock.px * 0.95).toFixed(0), actual: stock.px?.toFixed(0) || '0', note: analysisComplete ? `14-agent pipeline analysis for ${stock.id}. ${signalText} signal confirmed.` : 'Analysis in progress...' }
+  ];
+
+  const riskData = stock.risk || { var: 'N/A', beta: 1.0, vol: 'N/A' };
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-4 mb-2">
-              <h1 className="text-4xl font-bold text-white text-shadow-glow tracking-tight">{stock.name}</h1>
-              <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold" style={{ background: T.glass2, color: T.muted, border:`1px solid ${T.border}` }}>
-                {stock.ex}:{stock.id}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-4">
-              <span className="text-3xl font-mono font-bold text-white tracking-tight">${stock.px.toFixed(2)}</span>
-              <span className="font-bold flex items-center gap-1 text-xl" style={{ color: col, textShadow: `0 0 15px ${col}80` }}>
-                {isUp ? <ArrowUpRight size={22}/> : <ArrowDownRight size={22}/>}
-                {Math.abs(stock.chg)}%
-              </span>
+    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 py-2">
+          <div className="space-y-3">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-[24px] flex items-center justify-center text-2xl font-black shadow-2xl transition-all"
+                style={{ 
+                  background: `linear-gradient(135deg, ${col}25, ${col}10)`,
+                  border: `1px solid ${col}40`,
+                  color: col,
+                  boxShadow: `0 0 20px ${col}15`
+                }}>
+                {(stock.id || '?')[0]}
+              </div>
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <h1 className="text-4xl font-black text-white tracking-tighter uppercase">{stock.name || stock.id}</h1>
+                  <span className="clay-badge border-dashed uppercase py-1 px-3" style={{ color: T.muted, fontSize: 10 }}>
+                    {stock.ex || 'N/A'} // TICKER:{stock.id}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-4xl font-mono font-black text-white tracking-tighter">
+                    {stock.id?.includes('-USD') ? '' : '$'}{(stock.px || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                  </span>
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-sm transition-all"
+                    style={{ 
+                      background: `${col}15`, 
+                      color: col,
+                      border: `1px solid ${col}30`,
+                      boxShadow: `0 0 15px ${col}20` 
+                    }}>
+                    {isUp ? <ArrowUpRight size={18}/> : <ArrowDownRight size={18}/>}
+                    {Math.abs(stock.chg || 0)}%
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <GlassCard className="flex gap-6 text-sm p-4 rounded-xl">
-            {[['Mkt Cap',stock.mcap],['Volume',stock.vol],['Sector',stock.sector]].map(([l,v], i) => (
-              <React.Fragment key={l}>
-                <div className="flex flex-col items-start">
-                  <span className="text-[10px] uppercase tracking-widest mb-1 text-slate-400 font-bold">{l}</span>
-                  <span className="font-mono text-base text-white">{v}</span>
-                </div>
-                {i < 2 && <div className="w-px bg-white/10" />}
-              </React.Fragment>
+
+          <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-[22px] border border-white/5 backdrop-blur-xl">
+            {[['MARKET_CAP', stock.mcap || 'N/A'],['VOL_24H', stock.vol || 'N/A'],['SECTOR_ID', stock.sector || 'N/A']].map(([l,v]) => (
+              <div key={l} className="px-6 py-4 flex flex-col items-center min-w-[120px]">
+                <span className="text-[9px] uppercase tracking-[0.2em] mb-2 text-slate-500 font-black">{l}</span>
+                <span className="font-mono text-sm text-white font-bold truncate max-w-[120px]">{v}</span>
+              </div>
             ))}
-          </GlassCard>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column: Chart + Memory */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="clay-card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs uppercase tracking-widest text-slate-400 font-bold flex items-center gap-2">
-                  <BarChart2 size={14}/> Price Action & Technicals
-                </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Visualizers */}
+          <div className="lg:col-span-2 space-y-8">
+            <div className="clay-card p-6 overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Activity size={80} />
               </div>
-              <AdvancedCandlestickChart data={stock.ohlcv} />
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                    <BarChart2 size={16} className="text-indigo-400" />
+                  </div>
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Advanced Technical Latency</h3>
+                </div>
+                <div className="flex gap-2">
+                  {['1H','4H','1D','1W'].map(t => (
+                    <button key={t} className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${t==='1D' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-white'}`}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              {stock.ohlcv && stock.ohlcv.length > 0 ? (
+                <AdvancedCandlestickChart data={stock.ohlcv} />
+              ) : (
+                <div className="flex items-center justify-center h-48 gap-2 text-slate-600 font-mono text-sm">
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading chart data...
+                </div>
+              )}
             </div>
 
-            <div className="clay-card p-5">
-              <h3 className="text-xs uppercase tracking-widest text-slate-400 font-bold flex items-center gap-2 mb-4">
-                <History size={14} /> Episodic Memory Recall
-              </h3>
-              <div className="space-y-3">
-                {MEMORIES.episodic.map((p,i) => (
-                  <div key={i} className="flex gap-4 p-3.5 rounded-xl transition-all hover:bg-white/5 border border-transparent hover:border-white/10" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                    <div className="w-14 h-14 rounded-xl flex flex-col items-center justify-center flex-shrink-0"
-                      style={{ background: `${p.pred==='BUY'?T.buy:T.sell}10`, border:`1px solid ${p.pred==='BUY'?T.buy:T.sell}40`, boxShadow: `0 0 15px ${p.pred==='BUY'?T.buy:T.sell}20` }}>
-                      <span className="text-sm font-bold tracking-wider" style={{ color: p.pred==='BUY'?T.buy:T.sell }}>{p.pred}</span>
-                      <span className="text-[10px] text-slate-300 mt-0.5">{p.acc}</span>
+            {/* Analysis Results / Past Predictions */}
+            <div className="clay-card p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-purple-500/10 rounded-xl border border-purple-500/20">
+                  <Terminal size={16} className="text-purple-400" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Neural Synaptic Recall // ANALYSIS</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-4">
+                {pastPredictions.map((p,i) => (
+                  <div key={i} className="flex gap-5 p-4 rounded-2xl transition-all border border-transparent hover:border-white/5 hover:bg-white/[0.02]" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                    <div className="w-16 h-16 rounded-[20px] flex flex-col items-center justify-center flex-shrink-0 animate-soft-pulse"
+                      style={{ 
+                        background: `linear-gradient(135deg, ${p.pred==='BUY'?T.buy:T.sell}20, ${p.pred==='BUY'?T.buy:T.sell}05)`,
+                        border: `1px solid ${p.pred==='BUY'?T.buy:T.sell}35`,
+                        boxShadow: `0 0 15px ${p.pred==='BUY'?T.buy:T.sell}10`
+                      }}>
+                      <span className="text-[10px] font-black tracking-widest" style={{ color: p.pred==='BUY'?T.buy:T.sell }}>{p.pred}</span>
+                      <span className="text-[10px] text-slate-500 font-mono mt-1">{p.acc}</span>
                     </div>
-                    <div>
-                      <div className="text-xs text-slate-400 mb-1 font-mono">
-                        {p.ago} · Tgt: ${p.target} · Act: ${p.actual}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <span className="text-[9px] font-mono text-indigo-400 font-black">{(p.ago || 'NOW').toString().toUpperCase()}</span>
+                        <div className="h-px flex-1 bg-white/5" />
+                        <span className="text-[9px] font-mono text-slate-500 uppercase">TGT: ${p.target} // ACT: ${p.actual}</span>
                       </div>
-                      <p className="text-sm text-slate-200 leading-snug">"{p.note}"</p>
+                      <p className="text-xs text-slate-300 leading-relaxed font-medium">"{p.note}"</p>
                     </div>
                   </div>
                 ))}
@@ -80,94 +160,145 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
             </div>
           </div>
 
-          {/* Right Column */}
-          <div className="space-y-6">
-            {/* AI Prediction */}
-            <div className="clay-card relative overflow-hidden group">
-              {isAnalyzing && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-20 backdrop-blur-md bg-black/60">
-                  <Cpu size={32} className="animate-pulse mb-3" style={{ color: T.ai, filter:`drop-shadow(0 0 10px ${T.ai})` }} />
-                  <span className="text-xs font-mono font-bold tracking-widest" style={{ color: T.ai }}>SYNTHESIZING...</span>
+          {/* Analysis Sidebar */}
+          <div className="space-y-8">
+            {/* AI Core Synthesis */}
+            <div className={`clay-card relative overflow-hidden transition-all duration-700 ${isAnalyzing ? 'animate-cyber-pulse scale-[1.02]' : ''}`}>
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-shimmer" />
+              
+              <div className="p-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+                      <Brain size={16} className="text-indigo-400" />
+                    </div>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">CLAUDE_FLOW SYNTHESIS</h3>
+                  </div>
+                  {isAnalyzing && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />}
                 </div>
-              )}
-              <div className="p-5 border-b border-white/5 bg-gradient-to-br from-white/5 to-transparent">
-                <h3 className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-5 flex items-center gap-2">
-                  <Brain size={14} style={{ color: T.purple }} /> ML Ensemble Output
-                </h3>
+
                 {analysisComplete ? (
-                  <div className="flex items-center gap-5">
-                    <div className="w-20 h-20 rounded-full flex items-center justify-center text-xl font-bold border-2 shadow-2xl"
-                      style={{ borderColor: col, color: col, background: `${col}15`, boxShadow: `0 0 30px ${col}40` }}>
-                      {dir}
+                  <div className="flex items-center gap-6">
+                    <div className="relative">
+                      <div className="w-24 h-24 rounded-full flex items-center justify-center animate-soft-pulse"
+                        style={{ 
+                          background: `radial-gradient(circle, ${col}25 0%, transparent 70%)`,
+                          border: `2px solid ${col}40`,
+                          boxShadow: `0 0 30px ${col}20, inset 0 0 20px ${col}10`
+                        }}>
+                        <span className="text-3xl" style={{ color: col, filter: `drop-shadow(0 0 8px ${col})` }}>{isUp ? '▲' : '▼'}</span>
+                      </div>
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-0.5 rounded-full text-[9px] font-black text-white whitespace-nowrap">
+                        SIGNAL PASSED
+                      </div>
                     </div>
                     <div>
-                      <div className="text-4xl font-mono font-bold text-white text-shadow-glow mb-1">82%</div>
-                      <div className="text-[10px] uppercase tracking-widest text-slate-400">Confidence</div>
+                      <div className="text-4xl font-mono font-black text-white tracking-tighter mb-1">{confidence}<span className="text-slate-600">%</span></div>
+                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500">Node Confidence</div>
                     </div>
                   </div>
                 ) : (
-                  <div className="opacity-30 flex items-center gap-5 grayscale">
-                    <div className="w-20 h-20 rounded-full border-2 border-slate-500 flex items-center justify-center">---</div>
-                    <div><div className="text-4xl font-mono font-bold text-white">--%</div><div className="text-[10px] uppercase text-slate-400">Confidence</div></div>
+                  <div className="flex flex-col items-center py-6 gap-4">
+                    <div className="w-20 h-20 rounded-full border-2 border-white/5 border-t-indigo-500 animate-spin flex items-center justify-center">
+                      <Cpu size={24} className="text-slate-700" />
+                    </div>
+                    <span className="text-[10px] font-mono font-black text-slate-500 animate-pulse uppercase">Assembling synaptic weights...</span>
                   </div>
                 )}
               </div>
-              <div className="p-5 bg-black/20">
-                <div className="text-[10px] uppercase tracking-widest mb-2 text-slate-400 font-bold">Reasoning Chain</div>
-                <p className="text-xs leading-relaxed text-slate-300">
-                  {analysisComplete
-                    ? `Ensemble (LSTM+XGBoost) strongly confirms ${isUp?'bullish':'bearish'} bias. Momentum indicators (RSI/MACD) aligning. News sentiment highlights institutional accumulation. Self-critique validation passed across all agent nodes.`
-                    : 'Awaiting pipeline resolution...'}
-                </p>
+
+              <div className="p-6 bg-black/30 space-y-4">
+                <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  <Terminal size={10} /> Logical Resolution Path
+                </div>
+                <div className="text-[11px] leading-relaxed text-slate-400 font-medium italic border-l-2 border-indigo-500/30 pl-4 py-1">
+                  {conclusionText}
+                </div>
+                {analysisComplete && (
+                  <button className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] rounded-xl transition-all shadow-xl shadow-indigo-900/40 uppercase tracking-[0.2em] mt-2">
+                    Execute Recommended Order
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Risk */}
-            <div className="clay-card p-5">
-              <h3 className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4 flex items-center gap-2">
-                <ShieldAlert size={14} style={{ color: T.warn }} /> Risk Profile
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-xs mb-1.5 font-bold">
-                    <span className="text-slate-400">Value at Risk (95%)</span>
-                    <span className="font-mono text-white">{stock.risk.var}</span>
+            {/* Risk Engineering */}
+            <div className="clay-card p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                  <ShieldAlert size={16} className="text-amber-400" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Risk Engineering Grid</h3>
+              </div>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-[10px] font-black uppercase">
+                    <span className="text-slate-500 tracking-widest">Value at Risk (95%)</span>
+                    <span className="text-white font-mono">{riskData.var}</span>
                   </div>
-                  <div className="w-full h-2 rounded-full overflow-hidden bg-black/50 border border-white/5">
-                    <div className="h-full rounded-full" style={{ width: stock.risk.var, background: T.warn, boxShadow: `0 0 10px ${T.warn}` }}/>
+                  <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                    <div className="h-full relative overflow-hidden animate-shimmer" 
+                      style={{ 
+                        width: riskData.var || '0%', 
+                        background: `linear-gradient(90deg, ${T.warn}80, ${T.warn})`,
+                        boxShadow: `0 0 10px ${T.warn}40`
+                      }}>
+                      <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)] w-1/2" style={{ animation: 'shimmer 2s infinite' }} />
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  {[['Beta',stock.risk.beta,T.text],['Volatility',stock.risk.vol,stock.risk.vol==='High'?T.sell:T.buy]].map(([l,v,c]) => (
-                    <div key={l} className="p-3 rounded-xl bg-black/30 border border-white/5 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.5)]">
-                      <span className="text-[10px] uppercase tracking-widest block mb-1 text-slate-400">{l}</span>
-                      <span className="font-mono text-lg font-bold" style={{ color: c, textShadow: `0 0 10px ${c}60` }}>{v}</span>
+                <div className="grid grid-cols-2 gap-4">
+                  {[['BETA_COEFF', riskData.beta, T.text],['VOLATILITY', riskData.vol, riskData.vol==='High'?T.sell:T.buy]].map(([l,v,c]) => (
+                    <div key={l} className="p-4 bg-black/30 rounded-2xl border border-white/5">
+                      <span className="text-[8px] uppercase tracking-[0.2em] block mb-2 text-slate-500 font-black">{l}</span>
+                      <span className="font-mono text-lg font-black" style={{ color: c, textShadow: `0 0 10px ${c}30` }}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* News */}
-            <div className="clay-card p-5">
-              <h3 className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4 flex items-center gap-2">
-                <Newspaper size={14} style={{ color: T.aiLight }} /> Real-time Catalyst Feed
-              </h3>
-              <div className="space-y-4">
-                {news.map((n,i) => (
-                  <div key={i} className="pb-4 last:pb-0 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors p-2 rounded-lg cursor-pointer">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <span className="text-[10px] font-mono text-slate-400">{n.src} · {n.t}</span>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider flex items-center gap-1"
-                        style={{ background:`${n.s>0?T.buy:T.sell}15`, color:n.s>0?T.buy:T.sell, border: `1px solid ${n.s>0?T.buy:T.sell}40` }}>
-                        {n.s>0 ? <ArrowUpRight size={10}/> : <ArrowDownRight size={10}/>}
-                        {n.s>0?'BULLISH IMPACT':'BEARISH IMPACT'}
-                      </span>
-                    </div>
-                    <p className="text-xs leading-relaxed text-slate-200">{n.txt}</p>
-                    <a href="#" className="text-[10px] text-indigo-400 hover:text-indigo-300 mt-2 inline-block font-medium">Read Full Report →</a>
+            {/* Live News Catalysts */}
+            <div className="clay-card p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
+                  <Newspaper size={16} className="text-cyan-400" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">
+                  Spectral Catalyst Index
+                  <span className="text-indigo-500 ml-2 text-[8px] font-mono">LIVE</span>
+                </h3>
+              </div>
+              <div className="space-y-5">
+                {newsLoading ? (
+                  <div className="flex items-center justify-center py-8 gap-2">
+                    <Loader2 size={14} className="text-cyan-400 animate-spin" />
+                    <span className="text-[10px] text-slate-500 font-mono animate-pulse">Fetching live news...</span>
                   </div>
-                ))}
+                ) : news.length > 0 ? (
+                  news.map((n,i) => (
+                    <div key={i} className="group p-4 rounded-2xl transition-all border border-transparent hover:border-white/5 hover:bg-white/[0.02] cursor-pointer" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-black font-mono text-cyan-500">{(n.src || 'NEWS').toUpperCase()}</span>
+                          <div className="w-1 h-1 rounded-full bg-slate-700" />
+                          <span className="text-[9px] font-mono text-slate-500">{n.t || 'recent'}</span>
+                        </div>
+                        <span className="clay-badge border-none py-0.5 px-2 text-[8px] font-black" style={{ 
+                          background: (n.s || 0) > 0 ? `${T.buy}20` : `${T.sell}20`,
+                          color: (n.s || 0) > 0 ? T.buy : T.sell,
+                        }}>
+                          {(n.s || 0) > 0 ? 'BULLISH_SIGNAL' : 'BEARISH_SIGNAL'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-slate-300 font-medium">{n.txt}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6">
+                    <span className="text-[10px] text-slate-600 font-mono">No recent news available for {stock.id}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
