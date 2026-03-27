@@ -47,16 +47,16 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column: Chart + Memory */}
           <div className="lg:col-span-2 space-y-6">
-            <GlassCard className="p-5">
+            <div className="clay-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs uppercase tracking-widest text-slate-400 font-bold flex items-center gap-2">
                   <BarChart2 size={14}/> Price Action & Technicals
                 </h3>
               </div>
               <AdvancedCandlestickChart data={stock.ohlcv} />
-            </GlassCard>
+            </div>
 
-            <GlassCard className="p-5">
+            <div className="clay-card p-5">
               <h3 className="text-xs uppercase tracking-widest text-slate-400 font-bold flex items-center gap-2 mb-4">
                 <History size={14} /> Episodic Memory Recall
               </h3>
@@ -77,13 +77,13 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                   </div>
                 ))}
               </div>
-            </GlassCard>
+            </div>
           </div>
 
           {/* Right Column */}
           <div className="space-y-6">
             {/* AI Prediction */}
-            <GlassCard className="relative overflow-hidden group">
+            <div className="clay-card relative overflow-hidden group">
               {isAnalyzing && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center z-20 backdrop-blur-md bg-black/60">
                   <Cpu size={32} className="animate-pulse mb-3" style={{ color: T.ai, filter:`drop-shadow(0 0 10px ${T.ai})` }} />
@@ -120,10 +120,10 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                     : 'Awaiting pipeline resolution...'}
                 </p>
               </div>
-            </GlassCard>
+            </div>
 
             {/* Risk */}
-            <GlassCard className="p-5">
+            <div className="clay-card p-5">
               <h3 className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4 flex items-center gap-2">
                 <ShieldAlert size={14} style={{ color: T.warn }} /> Risk Profile
               </h3>
@@ -139,35 +139,37 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   {[['Beta',stock.risk.beta,T.text],['Volatility',stock.risk.vol,stock.risk.vol==='High'?T.sell:T.buy]].map(([l,v,c]) => (
-                    <div key={l} className="p-3 rounded-xl bg-black/30 border border-white/5">
+                    <div key={l} className="p-3 rounded-xl bg-black/30 border border-white/5 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.5)]">
                       <span className="text-[10px] uppercase tracking-widest block mb-1 text-slate-400">{l}</span>
                       <span className="font-mono text-lg font-bold" style={{ color: c, textShadow: `0 0 10px ${c}60` }}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            </GlassCard>
+            </div>
 
             {/* News */}
-            <GlassCard className="p-5">
+            <div className="clay-card p-5">
               <h3 className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-4 flex items-center gap-2">
                 <Newspaper size={14} style={{ color: T.aiLight }} /> Real-time Catalyst Feed
               </h3>
               <div className="space-y-4">
                 {news.map((n,i) => (
-                  <div key={i} className="pb-4 last:pb-0 border-b border-white/5 last:border-0">
+                  <div key={i} className="pb-4 last:pb-0 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors p-2 rounded-lg cursor-pointer">
                     <div className="flex justify-between items-center mb-1.5">
                       <span className="text-[10px] font-mono text-slate-400">{n.src} · {n.t}</span>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider"
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wider flex items-center gap-1"
                         style={{ background:`${n.s>0?T.buy:T.sell}15`, color:n.s>0?T.buy:T.sell, border: `1px solid ${n.s>0?T.buy:T.sell}40` }}>
-                        {n.s>0?'BULL':'BEAR'}
+                        {n.s>0 ? <ArrowUpRight size={10}/> : <ArrowDownRight size={10}/>}
+                        {n.s>0?'BULLISH IMPACT':'BEARISH IMPACT'}
                       </span>
                     </div>
                     <p className="text-xs leading-relaxed text-slate-200">{n.txt}</p>
+                    <a href="#" className="text-[10px] text-indigo-400 hover:text-indigo-300 mt-2 inline-block font-medium">Read Full Report →</a>
                   </div>
                 ))}
               </div>
-            </GlassCard>
+            </div>
           </div>
         </div>
       </div>

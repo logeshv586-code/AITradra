@@ -1,167 +1,284 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Activity } from "lucide-react";
+import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import Globe from "react-globe.gl";
+import { STOCKS } from "../data";
 import { T } from "../theme";
-import { STOCKS, CONTINENTS } from "../data";
+import { Activity, TrendingUp, TrendingDown, Zap } from "lucide-react";
+
+// ─── Premium Neon Color Palette for Hex Polygons ──────────────────────────────
+const NEON_PALETTE = [
+  'rgba(0, 240, 255, 0.55)',   // cyan
+  'rgba(99, 102, 241, 0.50)',  // indigo
+  'rgba(168, 85, 247, 0.45)',  // purple
+  'rgba(59, 130, 246, 0.40)',  // blue
+  'rgba(6, 182, 212, 0.50)',   // teal
+  'rgba(99, 102, 241, 0.35)',  // soft indigo
+  'rgba(139, 92, 246, 0.45)',  // violet
+  'rgba(14, 165, 233, 0.50)',  // sky
+];
+
+// Deterministic color assignment by country ISO code
+function getCountryColor(isoCode) {
+  if (!isoCode || isoCode === '-99') return 'rgba(30, 41, 59, 0.3)';
+  let hash = 0;
+  for (let i = 0; i < isoCode.length; i++) {
+    hash = isoCode.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return NEON_PALETTE[Math.abs(hash) % NEON_PALETTE.length];
+}
+
+// Stock markers data formatted for globe.gl
+const STOCK_POINTS = STOCKS.map(s => ({
+  lat: s.lat,
+  lng: s.lon,
+  size: 0.6,
+  color: s.chg >= 0 ? '#00f0ff' : '#ff2a5f',
+  stock: s,
+}));
+
+// Arc connections between stock exchanges
+const ARCS_DATA = [
+  { startLat: 37.3, startLng: -121.9, endLat: 30.3, endLng: 120.2, color: ['rgba(0,240,255,0.6)', 'rgba(168,85,247,0.6)'] },
+  { startLat: 37.3, startLng: -122.1, endLat: 49.3, endLng: 8.6, color: ['rgba(99,102,241,0.6)', 'rgba(0,240,255,0.6)'] },
+  { startLat: 30.3, startLng: -97.7, endLat: -37.8, endLng: 144.9, color: ['rgba(255,42,95,0.6)', 'rgba(168,85,247,0.6)'] },
+  { startLat: 37.3, startLng: -121.9, endLat: 49.3, endLng: 8.6, color: ['rgba(0,240,255,0.5)', 'rgba(99,102,241,0.5)'] },
+  { startLat: 30.3, startLng: 120.2, endLat: -37.8, endLng: 144.9, color: ['rgba(168,85,247,0.5)', 'rgba(59,130,246,0.5)'] },
+];
+
+// Rings data for active market pulses
+const RINGS_DATA = STOCKS.map(s => ({
+  lat: s.lat,
+  lng: s.lon,
+  maxR: s.chg >= 0 ? 3 : 2,
+  propagationSpeed: 2,
+  repeatPeriod: 1200 + Math.random() * 800,
+  color: s.chg >= 0 ? 'rgba(0,240,255,0.5)' : 'rgba(255,42,95,0.4)',
+}));
 
 export default function GlobeView({ onSelect }) {
-  const canvasRef = useRef(null);
-  const animRef = useRef(null);
-  const stateRef = useRef({
-    lon: 0, tilt: 0.28, autoSpin: true, isDragging: false,
-    lastMouseX: 0, lastMouseY: 0, velX: 0, hover: null,
-  });
-  const [hovered, setHovered] = useState(null);
-  const [tooltip, setTooltip] = useState(null);
+  const globeRef = useRef();
+  const containerRef = useRef();
+  const [countries, setCountries] = useState({ features: [] });
+  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [hoveredStock, setHoveredStock] = useState(null);
 
-  const R = 210, SIZE = 600;
-  const CX = SIZE / 2, CY = SIZE / 2;
-
-  const toXYZ = (lat, lon, lonRot) => {
-    const p = (lat * Math.PI) / 180;
-    const l = ((lon - lonRot) * Math.PI) / 180;
-    return { x: R * Math.cos(p) * Math.sin(l), y: -R * Math.sin(p), z: R * Math.cos(p) * Math.cos(l) };
-  };
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const s = stateRef.current;
-    ctx.clearRect(0, 0, SIZE, SIZE);
-
-    const atm = ctx.createRadialGradient(CX, CY, R * 0.85, CX, CY, R * 1.3);
-    atm.addColorStop(0, 'rgba(0, 240, 255, 0.12)');
-    atm.addColorStop(0.4,'rgba(99, 102, 241, 0.05)');
-    atm.addColorStop(1,  'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(CX, CY, R * 1.3, 0, Math.PI * 2); ctx.fillStyle = atm; ctx.fill();
-
-    const baseGrad = ctx.createRadialGradient(CX - R * 0.3, CY - R * 0.3, R * 0.1, CX, CY, R);
-    baseGrad.addColorStop(0, '#0f172a'); baseGrad.addColorStop(0.7, '#020617'); baseGrad.addColorStop(1, '#000000');
-    ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.fillStyle = baseGrad; ctx.fill();
-
-    ctx.save(); ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.clip();
-
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.15)'; ctx.lineWidth = 0.8;
-    for (let lat = -80; lat <= 80; lat += 20) {
-      ctx.beginPath(); let first = true;
-      for (let lon = -180; lon <= 180; lon += 4) {
-        const { x, y, z } = toXYZ(lat, lon, s.lon);
-        if (z > 0) { const sx = CX + x, sy = CY + y; first ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy); first = false; } else first = true;
-      } ctx.stroke();
-    }
-    for (let lon = -180; lon < 180; lon += 20) {
-      ctx.beginPath(); let first = true;
-      for (let lat = -90; lat <= 90; lat += 3) {
-        const { x, y, z } = toXYZ(lat, lon, s.lon);
-        if (z > 0) { const sx = CX + x, sy = CY + y; first ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy); first = false; } else first = true;
-      } ctx.stroke();
-    }
-
-    CONTINENTS.forEach(poly => {
-      ctx.beginPath(); let started = false;
-      poly.forEach(([lat, lon]) => {
-        const { x, y, z } = toXYZ(lat, lon, s.lon);
-        if (z > -15) { const sx = CX + x, sy = CY + y; if (!started) { ctx.moveTo(sx, sy); started = true; } else ctx.lineTo(sx, sy); } else { if (started) ctx.closePath(); started = false; }
-      });
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.08)'; ctx.strokeStyle = 'rgba(99, 102, 241, 0.4)'; ctx.lineWidth = 1.2; ctx.fill(); ctx.stroke();
-    });
-    ctx.restore();
-
-    ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(0, 240, 255, 0.25)'; ctx.lineWidth = 2; ctx.stroke();
-
-    const markerPositions = [];
-    STOCKS.forEach(stock => {
-      const { x, y, z } = toXYZ(stock.lat, stock.lon, s.lon);
-      if (z < -R * 0.15) return;
-      const sx = CX + x, sy = CY + y;
-      const isUp = stock.chg >= 0; const col = isUp ? T.buy : T.sell;
-      const isHov = s.hover === stock.id;
-      const fadeFactor = Math.max(0.2, Math.min(1, (z + R * 0.15) / (R * 0.6)));
-
-      ctx.save(); ctx.globalAlpha = fadeFactor;
-      ctx.beginPath(); ctx.arc(sx, sy, isHov ? 16 : 10, 0, Math.PI * 2);
-      ctx.fillStyle = isHov ? `${col}60` : `${col}30`; ctx.shadowColor = col; ctx.shadowBlur = 15; ctx.fill();
-      ctx.beginPath(); ctx.arc(sx, sy, isHov ? 5 : 3, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
-      ctx.restore();
-
-      if (z > R * 0.2 || isHov) {
-        ctx.save(); ctx.globalAlpha = Math.min(1, fadeFactor * 1.5);
-        const lx = sx + 12, ly = sy - 4;
-        const label = `${stock.id} ${stock.chg >= 0 ? '+' : ''}${stock.chg}%`;
-        ctx.font = 'bold 12px monospace';
-        const tw = ctx.measureText(label).width;
-        ctx.fillStyle = 'rgba(2, 4, 10, 0.85)'; ctx.strokeStyle = `${col}60`; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.roundRect(lx - 4, ly - 12, tw + 12, 18, 4); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 5; ctx.fillText(label, lx + 2, ly + 1);
-        ctx.restore();
-      }
-      markerPositions.push({ id: stock.id, sx, sy, r: 14 });
-    });
-    stateRef.current._markers = markerPositions;
+  // Load GeoJSON
+  useEffect(() => {
+    fetch('https://raw.githubusercontent.com/vasturiano/react-globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson')
+      .then(res => res.json())
+      .then(data => setCountries(data));
   }, []);
 
+  // Responsive sizing
   useEffect(() => {
-    let lastTime = 0;
-    const loop = (ts) => {
-      const s = stateRef.current;
-      if (s.autoSpin && !s.isDragging) s.lon = (s.lon + 0.05) % 360;
-      if (!s.isDragging && Math.abs(s.velX) > 0.01) { s.lon += s.velX; s.velX *= 0.92; }
-      draw();
-      animRef.current = requestAnimationFrame(loop);
+    const updateSize = () => {
+      if (containerRef.current) {
+        setDimensions({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight
+        });
+      }
     };
-    animRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [draw]);
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
 
-  const handleMouse = (e, type) => {
-    const s = stateRef.current;
-    const r = canvasRef.current.getBoundingClientRect();
-    const mx = e.clientX - r.left, my = e.clientY - r.top;
-    if (type === 'down') { s.isDragging = true; s.autoSpin = false; s.velX = 0; s.lastMouseX = mx; s.lastMouseY = my; }
-    else if (type === 'move') {
-      const markers = s._markers || []; let found = null;
-      for (const m of markers) { if (Math.hypot(mx - m.sx, my - m.sy) < m.r) { found = m.id; break; } }
-      if (found !== s.hover) { s.hover = found; setHovered(found); setTooltip(found ? { id: found, x: mx, y: my } : null); }
-      if (s.isDragging) { const dx = mx - s.lastMouseX; s.velX = dx * 0.4; s.lon += s.velX; s.lastMouseX = mx; s.lastMouseY = my; }
-    } else if (type === 'up') {
-      s.isDragging = false;
-      setTimeout(() => { if (!stateRef.current.isDragging) stateRef.current.autoSpin = true; }, 3000);
-      if (Math.abs(s.velX) < 0.5 && s.hover) { const fullStock = STOCKS.find(st => st.id === s.hover); if (fullStock) onSelect(fullStock); }
-    } else if (type === 'leave') { s.isDragging = false; setHovered(null); setTooltip(null); s.hover = null; setTimeout(() => { if (!stateRef.current.isDragging) stateRef.current.autoSpin = true; }, 3000); }
-  };
+  // Setup globe after mount
+  useEffect(() => {
+    if (!globeRef.current) return;
+    const globe = globeRef.current;
+
+    // Auto-rotate
+    globe.controls().autoRotate = true;
+    globe.controls().autoRotateSpeed = 0.6;
+    globe.controls().enableDamping = true;
+    globe.controls().dampingFactor = 0.1;
+    globe.controls().minDistance = 150;
+    globe.controls().maxDistance = 500;
+
+    // Set initial camera position
+    globe.pointOfView({ lat: 20, lng: 0, altitude: 2.2 });
+  }, [countries]);
+
+  // Hex polygon label
+  const hexLabel = useCallback((d) => {
+    const props = d.properties;
+    if (!props) return '';
+    return `
+      <div style="
+        padding: 10px 14px;
+        background: rgba(10, 15, 30, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        border-radius: 10px;
+        font-family: 'Inter', sans-serif;
+        color: #f8fafc;
+        box-shadow: 0 0 25px rgba(99,102,241,0.3), 0 8px 32px rgba(0,0,0,0.4);
+        min-width: 140px;
+      ">
+        <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #818cf8;">
+          ${props.ADMIN || props.NAME || 'Unknown'}
+        </div>
+        <div style="font-size: 10px; color: #94a3b8; letter-spacing: 1px; text-transform: uppercase;">
+          ${props.ISO_A2 || ''} · ${props.CONTINENT || ''}
+        </div>
+      </div>
+    `;
+  }, []);
+
+  // Stock point label
+  const pointLabel = useCallback((d) => {
+    const s = d.stock;
+    const col = s.chg >= 0 ? '#00f0ff' : '#ff2a5f';
+    const dir = s.chg >= 0 ? '▲' : '▼';
+    return `
+      <div style="
+        padding: 12px 16px;
+        background: rgba(10, 15, 30, 0.9);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid ${col}60;
+        border-radius: 12px;
+        font-family: 'Inter', sans-serif;
+        color: #f8fafc;
+        box-shadow: 0 0 30px ${col}40, 0 8px 32px rgba(0,0,0,0.5);
+        min-width: 180px;
+      ">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+          <span style="font-size: 15px; font-weight: 800; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 10px ${col};">${s.id}</span>
+          <span style="font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: ${col}20; color: ${col}; border: 1px solid ${col}40;">${s.ex}</span>
+        </div>
+        <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">${s.name}</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 16px; font-weight: 800; font-family: 'JetBrains Mono', monospace;">$${s.px.toFixed(2)}</span>
+          <span style="font-size: 13px; font-weight: 700; color: ${col}; text-shadow: 0 0 10px ${col}80;">
+            ${dir} ${Math.abs(s.chg)}%
+          </span>
+        </div>
+        <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 9px; color: #64748b; letter-spacing: 1px; text-transform: uppercase;">
+          MKTCAP: ${s.mcap} · VOL: ${s.vol}
+        </div>
+      </div>
+    `;
+  }, []);
+
+  const handlePointClick = useCallback((point) => {
+    if (point && point.stock) {
+      onSelect(point.stock);
+    }
+  }, [onSelect]);
 
   return (
-    <div className="flex-1 relative flex items-center justify-center overflow-hidden select-none">
-      <canvas ref={canvasRef} width={SIZE} height={SIZE}
-        className="relative z-10 drop-shadow-[0_0_50px_rgba(0,240,255,0.1)]"
-        style={{ cursor: hovered ? 'pointer' : 'grab', maxWidth:'min(95vw,600px)', maxHeight:'min(95vw,600px)' }}
-        onMouseDown={e => handleMouse(e, 'down')} onMouseMove={e => handleMouse(e, 'move')}
-        onMouseUp={e => handleMouse(e, 'up')} onMouseLeave={e => handleMouse(e, 'leave')} />
-      {tooltip && (() => {
-        const s = STOCKS.find(st => st.id === tooltip.id); if (!s) return null;
-        const col = s.chg >= 0 ? T.buy : T.sell;
-        return (
-          <div className="absolute z-30 pointer-events-none rounded-xl px-4 py-3 backdrop-blur-xl transition-all"
-            style={{ left: tooltip.x + 20, top: tooltip.y - 30, background: 'rgba(10,15,25,0.85)', border:`1px solid ${col}60`, boxShadow: `0 0 30px ${col}30` }}>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="font-mono font-bold text-base" style={{ color: T.text, textShadow:`0 0 10px ${T.text}80` }}>{s.id}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background:`${col}20`, color: col }}>{s.ex}</span>
-            </div>
-            <div className="text-xs mb-2" style={{ color: T.muted }}>{s.name}</div>
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-bold text-base" style={{ color: T.text }}>${s.px.toFixed(2)}</span>
-              <span className="font-mono text-sm font-bold" style={{ color: col, textShadow:`0 0 10px ${col}80` }}>
-                {s.chg >= 0 ? '▲' : '▼'} {Math.abs(s.chg)}%
-              </span>
-            </div>
+    <div className="flex-1 relative flex items-center justify-center overflow-hidden select-none" ref={containerRef}>
+      {/* Ambient atmosphere glow behind globe */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70vmin] h-[70vmin] rounded-full bg-indigo-500/8 blur-[100px]" />
+        <div className="absolute top-[40%] left-[45%] -translate-x-1/2 -translate-y-1/2 w-[50vmin] h-[50vmin] rounded-full bg-cyan-500/6 blur-[80px]" />
+      </div>
+
+      <div className="relative z-10 w-full h-full">
+        <Globe
+          ref={globeRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          backgroundColor="rgba(0,0,0,0)"
+          
+          // ─── Globe Surface ────────────────────
+          globeImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg"
+          bumpImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png"
+          
+          // ─── Atmosphere ───────────────────────
+          atmosphereColor="#6366f1"
+          atmosphereAltitude={0.25}
+          
+          // ─── Hex Polygons (Countries) ─────────
+          hexPolygonsData={countries.features}
+          hexPolygonResolution={3}
+          hexPolygonMargin={0.4}
+          hexPolygonUseDots={true}
+          hexPolygonColor={d => getCountryColor(d.properties?.ISO_A2)}
+          hexPolygonLabel={hexLabel}
+          hexPolygonAltitude={0.01}
+          
+          // ─── Stock Points ─────────────────────
+          pointsData={STOCK_POINTS}
+          pointAltitude={0.07}
+          pointRadius="size"
+          pointColor="color"
+          pointLabel={pointLabel}
+          onPointClick={handlePointClick}
+          pointsMerge={false}
+          
+          // ─── Exchange Arcs ────────────────────
+          arcsData={ARCS_DATA}
+          arcColor="color"
+          arcDashLength={0.4}
+          arcDashGap={0.2}
+          arcDashAnimateTime={2500}
+          arcStroke={0.5}
+          arcAltitudeAutoScale={0.3}
+          
+          // ─── Market Pulse Rings ───────────────
+          ringsData={RINGS_DATA}
+          ringColor="color"
+          ringMaxRadius="maxR"
+          ringPropagationSpeed="propagationSpeed"
+          ringRepeatPeriod="repeatPeriod"
+        />
+      </div>
+
+      {/* ── Bottom HUD Bar ── */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+        <div className="flex items-center gap-5 px-5 py-2.5 rounded-2xl"
+          style={{
+            background: 'rgba(10, 15, 30, 0.65)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            boxShadow: '0 0 30px rgba(99,102,241,0.15), 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05)',
+          }}>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,240,255,0.6)]" />
+            <span className="text-[10px] font-bold tracking-[0.15em] text-slate-300 uppercase">System Live</span>
           </div>
-        );
-      })()}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-6 px-4 py-2 rounded-full backdrop-blur-md" style={{ background: T.glass, border:`1px solid ${T.border}` }}>
-        <div className="flex items-center gap-2 text-xs" style={{ color: T.muted }}>
-          <Activity size={12} style={{ color: T.buy }} className="animate-pulse" />
-          <span style={{ fontSize:10, textTransform:'uppercase', letterSpacing:'1px' }}>System Live · Drag to Pan</span>
+          <div className="w-px h-4 bg-white/10" />
+          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400">
+            <Zap size={10} className="text-indigo-400" />
+            <span className="tracking-wider uppercase">Drag · Zoom · Click Node</span>
+          </div>
         </div>
+      </div>
+
+      {/* ── Stock Quick Stats Floating Panel ── */}
+      <div className="absolute top-4 right-4 z-30 space-y-2">
+        {STOCKS.slice(0, 4).map(s => {
+          const col = s.chg >= 0 ? T.buy : T.sell;
+          return (
+            <button key={s.id} onClick={() => onSelect(s)}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl w-48 transition-all hover:scale-[1.03] cursor-pointer group"
+              style={{
+                background: 'rgba(10, 15, 30, 0.55)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                boxShadow: 'inset -4px -4px 8px rgba(0,0,0,0.3), inset 4px 4px 8px rgba(255,255,255,0.02), 4px 4px 8px rgba(0,0,0,0.2)',
+              }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                style={{ background: `${col}15`, border: `1px solid ${col}30` }}>
+                {s.chg >= 0 ? <TrendingUp size={14} style={{ color: col }} /> : <TrendingDown size={14} style={{ color: col }} />}
+              </div>
+              <div className="text-left flex-1 min-w-0">
+                <div className="font-mono font-bold text-xs text-white group-hover:text-cyan-300 transition-colors">{s.id}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] text-slate-300">${s.px.toFixed(0)}</span>
+                  <span className="font-mono text-[10px] font-bold" style={{ color: col }}>
+                    {s.chg >= 0 ? '+' : ''}{s.chg}%
+                  </span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

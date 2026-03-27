@@ -109,11 +109,39 @@ html, body, #root {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   background: var(--glass);
   border: 1px solid var(--border);
   box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 var(--border-hl);
   transition: all 0.3s ease;
+}
+
+/* ─── Claymorphism & Enhanced Glass ──────────────────────────────────────── */
+.clay-card {
+  position: relative;
+  border-radius: var(--radius);
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: inset -8px -8px 16px rgba(0,0,0,0.4), inset 8px 8px 16px rgba(255,255,255,0.05), 8px 8px 16px rgba(0,0,0,0.3);
+  transition: all 0.3s ease;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.clay-card.interactive:hover {
+  box-shadow: inset -4px -4px 10px rgba(0,0,0,0.6), inset 4px 4px 10px rgba(255,255,255,0.05), 12px 12px 20px rgba(0,0,0,0.5);
+  transform: translateY(-2px);
+}
+
+.glass-morphism {
+  background: rgba(12, 18, 30, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius);
 }
 
 .glass-card.interactive:hover {
