@@ -11,54 +11,52 @@ export default function AgentStreamPanel({ logs, isAnalyzing }) {
   const completedSteps = logs.length;
 
   return (
-    <div className="flex flex-col" style={{ 
-      maxHeight:'45%', 
-      borderBottom: '1px solid rgba(255,255,255,0.04)',
-      background: 'rgba(10, 14, 26, 0.60)',
-      backdropFilter: 'blur(20px)',
+    <div className="flex flex-col glass-morphism border-l border-white/5 h-[45%] relative" style={{ 
+      background: 'rgba(10, 14, 26, 0.75)',
+      backdropFilter: 'blur(32px)',
     }}>
+      {/* Holographic Overlay */}
+      <div className="absolute inset-0 pointer-events-none glass-holo opacity-40 z-0" />
+
       {/* Header */}
-      <div className="px-4 py-3 flex items-center justify-between flex-shrink-0 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-            <Terminal size={12} className="text-indigo-400" />
+      <div className="px-6 py-4 flex items-center justify-between flex-shrink-0 border-b border-white/5 relative z-10 bg-black/20">
+        <div className="flex items-center gap-4">
+          <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/30 clay-organic">
+            <Terminal size={14} className="text-indigo-400" />
           </div>
           <div>
-            <span className="text-[10px] font-black uppercase tracking-[0.15em] text-white block">Claude Flow Stream</span>
-            <span className="text-[8px] font-mono text-slate-500 tracking-wider">
-              {completedSteps} OPS // {activeAgents.length} NODES
+            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white block">Reasoning Trace</span>
+            <span className="text-[9px] font-mono text-slate-500 tracking-widest uppercase mt-0.5">
+              {completedSteps} OPS_TOTAL // {activeAgents.length} NODES_ACTIVE
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {isAnalyzing && (
-            <>
-              <span className="text-[8px] font-black text-indigo-400 animate-pulse uppercase tracking-widest">STREAMING</span>
-              <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />
-            </>
-          )}
-          {!isAnalyzing && logs.length > 0 && (
-            <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">COMPLETE</span>
+            <div className="flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-full">
+              <span className="text-[9px] font-black text-indigo-400 animate-pulse uppercase tracking-[0.1em]">STREAMING</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+            </div>
           )}
         </div>
       </div>
 
       {/* Flow Progress */}
       {logs.length > 0 && (
-        <div className="px-4 py-2 flex items-center gap-1 border-b border-white/[0.03] bg-black/20">
+        <div className="px-5 py-3 flex items-center gap-2 border-b border-white/[0.05] bg-black/40 overflow-x-auto no-scrollbar relative z-10">
           {FLOW_STEPS.map((step, i) => {
             const isActive = logs.some(l => l.action === step);
             const isCurrent = logs[logs.length - 1]?.action === step;
             return (
               <React.Fragment key={step}>
-                <div className={`px-2 py-1 rounded-md text-[7px] font-black tracking-wider transition-all ${
-                  isCurrent ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                  : isActive ? 'bg-white/5 text-slate-400'
-                  : 'text-slate-600'
+                <div className={`px-3 py-1.5 rounded-lg text-[8px] font-black tracking-[0.15em] transition-all whitespace-nowrap ${
+                  isCurrent ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/40 scale-105'
+                  : isActive ? 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
+                  : 'text-slate-600 border border-transparent'
                 }`}>
                   {step}
                 </div>
-                {i < FLOW_STEPS.length - 1 && <ChevronRight size={8} className="text-slate-700" />}
+                {i < FLOW_STEPS.length - 1 && <ChevronRight size={10} className="text-slate-800 flex-shrink-0" />}
               </React.Fragment>
             );
           })}
@@ -66,12 +64,12 @@ export default function AgentStreamPanel({ logs, isAnalyzing }) {
       )}
 
       {/* Log Stream */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 no-scrollbar" style={{ minHeight: 0 }}>
+      <div className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar relative z-10" style={{ minHeight: 0 }}>
         {logs.length === 0
           ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-3 opacity-40">
-              <Cpu size={24} className="text-slate-600" />
-              <p className="text-[10px] font-mono font-black text-slate-600 uppercase tracking-widest">Awaiting pipeline trigger...</p>
+            <div className="flex flex-col items-center justify-center py-12 gap-4 opacity-50 h-full">
+              <Cpu size={32} className="text-slate-800 animate-float" />
+              <p className="text-[10px] font-mono font-black text-slate-600 uppercase tracking-[0.3em]">Awaiting synaptic trigger...</p>
             </div>
           )
           : logs.map(log => {
@@ -79,28 +77,20 @@ export default function AgentStreamPanel({ logs, isAnalyzing }) {
               if (!a) return null;
               const Icon = a.icon;
               return (
-                <div key={log.id} className="animate-slide-in group">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-5 h-5 rounded-md flex items-center justify-center"
-                      style={{ background: `${a.color}15`, border: `1px solid ${a.color}25` }}>
-                      <Icon size={10} style={{ color: a.color }} />
+                <div key={log.id} className="animate-slide-in group border-l-2 pl-5 py-1 transition-all hover:bg-white/[0.02] rounded-r-xl"
+                  style={{ borderColor: `${a.color}30` }}>
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shadow-lg"
+                      style={{ background: `${a.color}20`, border: `1px solid ${a.color}40` }}>
+                      <Icon size={12} style={{ color: a.color }} />
                     </div>
-                    <span className="font-black font-mono text-[10px] tracking-wider" style={{ color: a.color }}>{a.name}</span>
-                    <span className="py-0.5 px-2 rounded text-[7px] font-black tracking-wider border"
-                      style={{
-                        background: `${T.ai}10`,
-                        borderColor: `${T.ai}20`,
-                        color: T.aiLight,
-                      }}>
-                      {log.action}
-                    </span>
-                    <div className="flex-1" />
-                    <span className="text-[8px] font-mono text-slate-600">
+                    <span className="font-black font-mono text-[11px] tracking-widest uppercase" style={{ color: a.color }}>{a.name}</span>
+                    <span className="text-[8px] font-mono text-slate-600 ml-auto">
                       {new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>
-                  <div className="font-mono text-[10px] pl-7 border-l-2 leading-relaxed text-slate-400 group-hover:text-slate-300 transition-colors"
-                    style={{ borderColor: `${a.color}25` }}>
+                  <div className="font-mono text-[11px] leading-relaxed text-slate-400 group-hover:text-slate-200 transition-colors">
+                    <span className="text-indigo-500/50 mr-2">»</span>
                     {log.text}
                   </div>
                 </div>

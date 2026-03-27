@@ -162,7 +162,7 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
 
           {/* Analysis Sidebar */}
           <div className="space-y-8">
-            {/* AI Core Synthesis */}
+            {/* AI Core Synthesis & 6-Step Flow Trace */}
             <div className={`clay-card relative overflow-hidden transition-all duration-700 ${isAnalyzing ? 'animate-cyber-pulse scale-[1.02]' : ''}`}>
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-shimmer" />
               
@@ -172,13 +172,13 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                     <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
                       <Brain size={16} className="text-indigo-400" />
                     </div>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">CLAUDE_FLOW SYNTHESIS</h3>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">CLAUDE_FLOW V3.1 // SYNTHESIS</h3>
                   </div>
                   {isAnalyzing && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />}
                 </div>
 
                 {analysisComplete ? (
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-6 animate-fade-in">
                     <div className="relative">
                       <div className="w-24 h-24 rounded-full flex items-center justify-center animate-soft-pulse"
                         style={{ 
@@ -188,8 +188,8 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                         }}>
                         <span className="text-3xl" style={{ color: col, filter: `drop-shadow(0 0 8px ${col})` }}>{isUp ? '▲' : '▼'}</span>
                       </div>
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-0.5 rounded-full text-[9px] font-black text-white whitespace-nowrap">
-                        SIGNAL PASSED
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-0.5 rounded-full text-[9px] font-black text-white whitespace-nowrap uppercase">
+                        V3.1 SECURED
                       </div>
                     </div>
                     <div>
@@ -199,24 +199,47 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                   </div>
                 ) : (
                   <div className="flex flex-col items-center py-6 gap-4">
-                    <div className="w-20 h-20 rounded-full border-2 border-white/5 border-t-indigo-500 animate-spin flex items-center justify-center">
-                      <Cpu size={24} className="text-slate-700" />
+                    <div className="relative w-24 h-24">
+                       <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20 animate-pulse" />
+                       <div className="absolute inset-0 rounded-full border-2 border-t-indigo-500 animate-spin" />
+                       <div className="absolute inset-0 flex items-center justify-center">
+                         <Cpu size={24} className="text-indigo-400 animate-bounce" />
+                       </div>
                     </div>
-                    <span className="text-[10px] font-mono font-black text-slate-500 animate-pulse uppercase">Assembling synaptic weights...</span>
+                    <span className="text-[10px] font-mono font-black text-slate-500 animate-pulse uppercase tracking-[0.2em]">Resolving synaptic weights...</span>
                   </div>
+                )}
+              </div>
+
+              {/* 6-Step Flow Trace (Agent Logs) */}
+              <div className="p-4 bg-black/50 border-b border-white/5 max-h-48 overflow-y-auto no-scrollbar space-y-2">
+                <div className="flex items-center gap-2 mb-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest border-b border-white/5 pb-2">
+                  <Terminal size={10} /> 6-Step Agent Reasoning Loop
+                </div>
+                {agentLogs.map((log, i) => (
+                  <div key={i} className="flex gap-3 text-[10px] font-mono animate-slide-in-right" style={{ animationDelay: `${i * 100}ms` }}>
+                    <span className={`flex-shrink-0 w-3 height-3 rounded-full mt-0.5 ${log.type === 'agent_complete' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-indigo-500 animate-pulse'}`} />
+                    <div className="flex-1">
+                      <span className="text-slate-500 mr-2">[{log.agent || 'SYSTEM'}]</span>
+                      <span className={log.type === 'agent_complete' ? 'text-green-400' : 'text-slate-300'}>{log.output}</span>
+                    </div>
+                  </div>
+                ))}
+                {agentLogs.length === 0 && (
+                  <div className="text-[10px] text-slate-600 italic py-2">Initialize analysis to trace agent reasoning...</div>
                 )}
               </div>
 
               <div className="p-6 bg-black/30 space-y-4">
                 <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  <Terminal size={10} /> Logical Resolution Path
+                  <Zap size={10} className="text-amber-500" /> Synthesis Conclusion (NVIDIA NIM)
                 </div>
-                <div className="text-[11px] leading-relaxed text-slate-400 font-medium italic border-l-2 border-indigo-500/30 pl-4 py-1">
+                <div className="text-[11px] leading-relaxed text-slate-200 font-medium italic border-l-2 border-amber-500/50 pl-4 py-2 bg-amber-500/5 rounded-r-xl">
                   {conclusionText}
                 </div>
                 {analysisComplete && (
-                  <button className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] rounded-xl transition-all shadow-xl shadow-indigo-900/40 uppercase tracking-[0.2em] mt-2">
-                    Execute Recommended Order
+                  <button className="w-full py-4 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white font-black text-[10px] rounded-2xl transition-all shadow-2xl shadow-indigo-900/40 uppercase tracking-[0.2em] mt-2 border border-white/10">
+                    Deploy Strategic Position
                   </button>
                 )}
               </div>

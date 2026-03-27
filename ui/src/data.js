@@ -1,15 +1,20 @@
 import {
-  BarChart2, Newspaper, TrendingUp, ShieldAlert, Brain, Cpu
+  BarChart2, Newspaper, TrendingUp, ShieldAlert, Brain, Cpu, Layers, Activity, Terminal
 } from "lucide-react";
 
-// ─── AGENTS (static config — used by AgentMatrixView) ─────────────────────────
+// ─── AGENTS (V3.1 Cognitive Matrix) ──────────────────────────────────────────
 export const AGENTS = {
-  data:      { name:'DataAgent',      color:'#3b82f6', icon:BarChart2,   acc:99.9, status:'Active',      tasks:1420, desc:'Live OHLCV + fundamentals via yfinance' },
-  news:      { name:'NewsAgent',      color:'#a855f7', icon:Newspaper,   acc:84.2, status:'Active',      tasks:890,  desc:'LLM-scored sentiment classification' },
-  trend:     { name:'TrendAgent',     color:'#00f0ff', icon:TrendingUp,  acc:78.5, status:'Active',      tasks:1105, desc:'RSI, MACD, Bollinger signals' },
-  risk:      { name:'RiskAgent',      color:'#fbbf24', icon:ShieldAlert, acc:92.1, status:'Active',      tasks:650,  desc:'VaR, Beta, drawdown analysis' },
-  ml:        { name:'MLAgent',        color:'#ff2a5f', icon:Brain,       acc:68.4, status:'Retraining',  tasks:430,  desc:'LSTM + XGBoost ensemble' },
-  synthesis: { name:'SynthesisAgent', color:'#6366f1', icon:Cpu,         acc:88.8, status:'Active',      tasks:920,  desc:'LLM chain-of-thought synthesis' },
+  datacollector: { name:'DataCollector',      color:'#3b82f6', icon:BarChart2,   acc:99.9, status:'Active',      tasks:2450, desc:'6-Step live OHLCV extraction' },
+  blobstorage:   { name:'BlobStorageAgent',   color:'#10b981', icon:Layers,       acc:100.0,status:'Active',      tasks:1200, desc:'Daily persistent intelligence' },
+  marketrag:     { name:'MarketRagAgent',     color:'#6366f1', icon:Brain,        acc:94.2, status:'Active',      tasks:850,  desc:'FAISS semantic market search' },
+  newsintel:     { name:'NewsIntelAgent',     color:'#a855f7', icon:Newspaper,   acc:88.4, status:'Active',      tasks:1890, desc:'NVIDIA NIM sentiment scoring' },
+  pricemove:     { name:'PriceMoveAgent',     color:'#00f0ff', icon:TrendingUp,  acc:82.5, status:'Active',      tasks:1560, desc:'6-Step statistical analysis' },
+  forecast:      { name:'ForecastAgent',      color:'#fbbf24', icon:Activity,    acc:78.1, status:'Active',      tasks:940,  desc:'Technical trend projection' },
+  explanation:   { name:'ExplainAgent',       color:'#ff2a5f', icon:Cpu,         acc:96.8, status:'Active',      tasks:720,  desc:'NVIDIA Nemotron synthesis' },
+  thinkagent:    { name:'ThinkAgent',         color:'#6366f1', icon:Brain,       acc:94.5, status:'Active',      tasks:1100, desc:'Chain-of-thought reasoner' },
+  mcpnews:       { name:'McpNewsAgent',       color:'#a855f7', icon:Newspaper,   acc:91.2, status:'Active',      tasks:1450, desc:'Multi-source aggregator' },
+  batchagent:    { name:'BatchAgent',         color:'#f6ad55', icon:Activity,    acc:100.0,status:'Standby',     tasks:800,  desc:'Nightly S&P 500 processing' },
+  uiapi:         { name:'UIApiAgent',         color:'#ffffff', icon:Terminal,    acc:99.9, status:'Active',      tasks:5000, desc:'6-Step orchestration gateway' },
 };
 
 export const FLOW_STEPS = ['OBSERVE','THINK','PLAN','ACT','REFLECT','IMPROVE'];

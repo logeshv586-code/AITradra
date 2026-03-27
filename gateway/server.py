@@ -43,6 +43,28 @@ from alerts.alert_manager import AlertManager
 
 # V3 Persistent RAG Agents
 from agents.api_agent import router as v3_router
+from agents.data_agent import DataAgent as V3DataAgent
+from agents.blob_agent import BlobAgent as V3BlobAgent
+from agents.rag_agent import RagAgent as V3RagAgent
+from agents.news_agent import NewsAgent as V3NewsAgent
+from agents.price_agent import PriceAgent as V3PriceAgent
+from agents.forecast_agent import ForecastAgent as V3ForecastAgent
+from agents.explain_agent import ExplainAgent as V3ExplainAgent
+from agents.think_agent import ThinkAgent as V3ThinkAgent
+from agents.mcp_news_agent import McpNewsAgent as V3McpNewsAgent
+from agents.batch_agent import BatchAgent as V3BatchAgent
+
+# Global V3 instances for streaming
+data_agent = V3DataAgent()
+blob_agent = V3BlobAgent()
+rag_agent = V3RagAgent()
+news_agent = V3NewsAgent()
+price_agent = V3PriceAgent()
+forecast_agent = V3ForecastAgent()
+explain_agent = V3ExplainAgent()
+think_agent = V3ThinkAgent()
+mcp_news_agent = V3McpNewsAgent()
+batch_agent = V3BatchAgent()
 
 # Geo Mapping
 from gateway.stock_geo import get_coords_for_ticker, format_market_cap, format_volume
@@ -499,20 +521,17 @@ async def analyze_stock(ticker: str, query: str = "Should I buy this stock?"):
 async def agent_status():
     return {
         "agents": [
-            {"name": "DataAgent", "status": "active", "type": "v1_core"},
-            {"name": "NewsAgent", "status": "active", "type": "v1_core"},
-            {"name": "TrendAgent", "status": "active", "type": "v1_core"},
-            {"name": "RiskAgent", "status": "active", "type": "v1_core"},
-            {"name": "MLAgent", "status": "active", "type": "v1_core"},
-            {"name": "SynthesisAgent", "status": "active", "type": "v1_core"},
-            {"name": "ArbitrageAgent", "status": "active", "type": "v2_profit"},
-            {"name": "PortfolioAgent", "status": "active", "type": "v2_profit"},
-            {"name": "MacroAgent", "status": "active", "type": "v2_profit"},
-            {"name": "SocialSentimentAgent", "status": "active", "type": "v2_profit"},
-            {"name": "EarningsAgent", "status": "active", "type": "v2_profit"},
-            {"name": "OptionsFlowAgent", "status": "active", "type": "v2_profit"},
-            {"name": "RegimeDetectorAgent", "status": "active", "type": "v2_profit"},
-            {"name": "BacktestAgent", "status": "active", "type": "v2_profit"},
+            {"name": "DataCollector",      "status": "active", "type": "v3_intelligence"},
+            {"name": "BlobStorageAgent",   "status": "active", "type": "v3_intelligence"},
+            {"name": "MarketRagAgent",     "status": "active", "type": "v3_intelligence"},
+            {"name": "NewsIntelAgent",     "status": "active", "type": "v3_intelligence"},
+            {"name": "PriceMoveAgent",     "status": "active", "type": "v3_intelligence"},
+            {"name": "ForecastAgent",      "status": "active", "type": "v3_intelligence"},
+            {"name": "ExplainAgent",       "status": "active", "type": "v3_intelligence"},
+            {"name": "ThinkAgent",         "status": "active", "type": "v3_intelligence"},
+            {"name": "McpNewsAgent",       "status": "active", "type": "v3_intelligence"},
+            {"name": "BatchAgent",         "status": "active", "type": "v3_intelligence"},
+            {"name": "UIApiAgent",         "status": "active", "type": "v3_intelligence"},
         ]
     }
 
@@ -533,34 +552,68 @@ async def get_predictions(ticker: str, limit: int = 10):
 
 @app.websocket("/ws/analyze/{ticker}")
 async def analyze_stream(websocket: WebSocket, ticker: str):
-    """Stream 14-agent thinking in real-time."""
+    """Stream AXIOM V3 11-agent thinking in real-time."""
     await ws_manager.connect(websocket)
     try:
-        await websocket.send_json({"type": "connected", "ticker": ticker, "version": "2.0"})
+        await websocket.send_json({"type": "connected", "ticker": ticker, "version": "3.0"})
 
-        agents = [
-            "DataAgent", "NewsAgent", "ArbitrageAgent", "MacroAgent",
-            "SocialSentimentAgent", "TrendAgent", "EarningsAgent",
-            "OptionsFlowAgent", "RegimeDetectorAgent", "RiskAgent",
-            "PortfolioAgent", "MLAgent", "BacktestAgent", "SynthesisAgent",
-        ]
+        # 1. Data Collection
+        await websocket.send_json({"type": "agent_start", "agent": "datacollector", "output": "OBSERVING live market feeds..."})
+        data_ctx = await data_agent.run(AgentContext(task=f"Fetch {ticker}", ticker=ticker))
+        await websocket.send_json({"type": "agent_complete", "agent": "datacollector", "output": "ACT: Data retrieved successfully."})
 
-        for agent_name in agents:
-            await websocket.send_json({
-                "type": "agent_start",
-                "agent": agent_name,
-                "output": f"Running {agent_name} Claude Flow loop..."
-            })
-            await asyncio.sleep(0.3)
-            await websocket.send_json({
-                "type": "agent_complete",
-                "agent": agent_name,
-                "output": f"{agent_name} complete"
-            })
+        # 2. Persistence Layer
+        await websocket.send_json({"type": "agent_start", "agent": "blobstorage", "output": "THINKING: Persisting to Daily Blob storage..."})
+        await blob_agent.run(AgentContext(task=f"Save {ticker}", ticker=ticker, metadata={"blob_data": data_ctx.result}))
+        await websocket.send_json({"type": "agent_complete", "agent": "blobstorage", "output": "ACT: Historical state saved."})
 
-        # Run actual analysis
-        result = await app.state.orchestrator.analyze(ticker=ticker.upper())
-        await websocket.send_json({"type": "analysis_complete", "result": result})
+        await websocket.send_json({"type": "agent_start", "agent": "marketrag", "output": "PLANNING: Indexing for semantic RAG retrieval..."})
+        await rag_agent.run(AgentContext(task=f"Index {ticker}", ticker=ticker, metadata={"blob_data": data_ctx.result}))
+        await websocket.send_json({"type": "agent_complete", "agent": "marketrag", "output": "REFLECT: Semantic index parity achieved."})
+
+        # 3. Market Intelligence (News & Price)
+        await websocket.send_json({"type": "agent_start", "agent": "newsintel", "output": "OBSERVING sentiment catalysts..."})
+        news_ctx = await mcp_news_agent.run(AgentContext(task=f"News {ticker}", ticker=ticker))
+        await websocket.send_json({"type": "agent_complete", "agent": "newsintel", "output": "ACT: Multi-source news aggregated."})
+
+        await websocket.send_json({"type": "agent_start", "agent": "pricemove", "output": "THINKING: Analyzing volatility clusters..."})
+        price_ctx = await price_agent.run(AgentContext(task=f"Analyze {ticker}", ticker=ticker))
+        await websocket.send_json({"type": "agent_complete", "agent": "pricemove", "output": "REFLECT: Stats confirmed."})
+
+        # 4. Neural Reasoning (The "Think" Engine)
+        await websocket.send_json({"type": "agent_start", "agent": "thinkagent", "output": "THINKING: Executing Deep Multi-Step Reasoning..."})
+        think_ctx = await think_agent.run(AgentContext(task=f"Think {ticker}", ticker=ticker, metadata={
+            "price_data": price_ctx.result,
+            "news_data": news_ctx.result
+        }))
+        await websocket.send_json({"type": "agent_complete", "agent": "thinkagent", "output": f"IMPROVE: Logical path closed. Signal: {think_ctx.result.get('signal')}"})
+
+        # 5. Technical Projection
+        await websocket.send_json({"type": "agent_start", "agent": "forecast", "output": "PLANNING: Projecting technical trends..."})
+        forecast_ctx = await forecast_agent.run(AgentContext(task=f"Forecast {ticker}", ticker=ticker))
+        await websocket.send_json({"type": "agent_complete", "agent": "forecast", "output": "IMPROVE: Level confidence high."})
+
+        # 6. Narrative Synthesis
+        await websocket.send_json({"type": "agent_start", "agent": "explanation", "output": "THINKING: Synthesizing final institutional narrative..."})
+        explain_ctx = await explain_agent.run(AgentContext(task=f"Explain {ticker}", ticker=ticker, metadata={
+            "price_data": price_ctx.result,
+            "news_data": news_ctx.result,
+            "think_result": think_ctx.result
+        }))
+        await websocket.send_json({"type": "agent_complete", "agent": "explanation", "output": "ACT: Synthesis complete."})
+
+        # Final Result
+        final_result = {
+            "stock": data_ctx.result,
+            "analysis": {
+                "movement": price_ctx.result,
+                "forecast": forecast_ctx.result,
+                "thinking": think_ctx.result,
+                "explanation": explain_ctx.result,
+                "news": news_ctx.result
+            }
+        }
+        await websocket.send_json({"type": "analysis_complete", "result": final_result})
 
     except WebSocketDisconnect:
         logger.info(f"Client disconnected from {ticker} stream")

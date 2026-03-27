@@ -76,6 +76,45 @@ html, body, #root {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ── Bento Grid Utilities ── */
+.grid-bento {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-gap: 1.5rem;
+}
+
+.bento-main { grid-column: span 2; grid-row: span 2; }
+.bento-wide { grid-column: span 2; }
+.bento-tall { grid-row: span 2; }
+
+/* ── Organic Clay Effects ── */
+.clay-organic {
+  border-radius: 32px 10px 32px 10px;
+}
+
+.glass-holo {
+  position: relative;
+  overflow: hidden;
+}
+
+.glass-holo::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(99, 102, 241, 0.05) 0px,
+    rgba(99, 102, 241, 0.05) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  opacity: 0.3;
+}
+
 /* ─── Animations ───────────────────────────────────────────────────────── */
 @keyframes slideInFromRight {
   from { opacity: 0; transform: translateX(20px); }
@@ -146,8 +185,15 @@ html, body, #root {
   50% { transform: scaleY(0.6); }
 }
 
+@keyframes flow-line {
+  0% { stroke-dashoffset: 100; opacity: 0.2; }
+  50% { opacity: 0.8; }
+  100% { stroke-dashoffset: 0; opacity: 0.2; }
+}
+
 .animate-cyber-pulse { animation: cyber-pulse 2s infinite ease-in-out; }
 .frequency-bar { animation: frequency-wave 1.2s infinite ease-in-out; transform-origin: bottom; }
+.animate-flow-line { stroke-dasharray: 10; animation: flow-line 5s linear infinite; }
 
 .scanline {
   position: absolute;
