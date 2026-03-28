@@ -79,13 +79,31 @@ html, body, #root {
 /* ── Bento Grid Utilities ── */
 .grid-bento {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(1, 1fr);
   grid-gap: 1.5rem;
 }
 
-.bento-main { grid-column: span 2; grid-row: span 2; }
-.bento-wide { grid-column: span 2; }
-.bento-tall { grid-row: span 2; }
+@media (min-width: 768px) {
+  .grid-bento { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .grid-bento { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (min-width: 1440px) {
+  .grid-bento { grid-template-columns: repeat(4, 1fr); }
+}
+
+.bento-main { grid-column: span 1; grid-row: span 1; }
+.bento-wide { grid-column: span 1; }
+.bento-tall { grid-row: span 1; }
+
+@media (min-width: 1024px) {
+  .bento-main { grid-column: span 2; grid-row: span 2; }
+  .bento-wide { grid-column: span 2; }
+  .bento-tall { grid-row: span 2; }
+}
 
 /* ── Organic Clay Effects ── */
 .clay-organic {

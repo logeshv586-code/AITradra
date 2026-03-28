@@ -1,3 +1,12 @@
+"""RagAgent — Enhanced Semantic Search Market Intelligence using Claude Flow.
+
+Supports indexing:
+- Stock data blobs (legacy)
+- News articles from knowledge store
+- Market snapshots and agent insights
+- Time-filtered semantic queries
+"""
+
 import os
 import faiss
 import numpy as np
@@ -60,18 +69,42 @@ class RagAgent(BaseAgent):
                 context.errors.append("No blob data provided for indexing")
                 return context
             
-            symbol = blob_data.get("symbol")
-            text_content = f"Stock: {symbol}. Name: {blob_data.get('name')}. Price: {blob_data.get('price')}. Sector: {blob_data.get('sector')}. Industry: {blob_data.get('industry')}."
+            symbol = blob_data.get("symbol", "UNKNOWN")
+            data_type = blob_data.get("type", "stock")
             
-            self._add_thought(context, f"Indexing metadata for {symbol}")
+            # Build text content based on data type
+            if data_type == "news":
+                text_content = f"News about {symbol}: {blob_data.get('name', '')}. {blob_data.get('text', '')}"
+            elif data_type == "insight":
+                text_content = f"Insight for {symbol}: {blob_data.get('text', '')}"
+            elif data_type == "snapshot":
+                text_content = (f"Market snapshot for {symbol}. "
+                               f"Price: {blob_data.get('price')}. Change: {blob_data.get('change_pct')}%. "
+                               f"Sector: {blob_data.get('sector')}.")
+            else:
+                # Legacy stock blob format
+                text_content = (f"Stock: {symbol}. Name: {blob_data.get('name')}. "
+                               f"Price: {blob_data.get('price')}. Sector: {blob_data.get('sector')}. "
+                               f"Industry: {blob_data.get('industry')}.")
+            
+            self._add_thought(context, f"Indexing {data_type} for {symbol}")
             embedding = self.model.encode([text_content])[0]
             self.index.add(np.array([embedding]).astype('float32'))
-            self.metadata_store.append(blob_data)
-            context.result = {"status": "indexed", "symbol": symbol}
+            
+            # Enhanced metadata with timestamps and type
+            metadata_entry = {
+                **blob_data,
+                "indexed_at": datetime.now().isoformat(),
+                "data_type": data_type,
+                "text_indexed": text_content[:200],  # Store preview
+            }
+            self.metadata_store.append(metadata_entry)
+            context.result = {"status": "indexed", "symbol": symbol, "type": data_type}
             
         elif mode == "query":
             query_text = context.task
             k = context.metadata.get("k", 5)
+            ticker_filter = context.metadata.get("ticker_filter")
             
             if self.index.ntotal == 0:
                 self._add_thought(context, "Index is empty, returning empty results.")
@@ -80,12 +113,23 @@ class RagAgent(BaseAgent):
                 
             self._add_thought(context, f"Querying FAISS for: '{query_text}'")
             embedding = self.model.encode([query_text])[0]
-            D, I = self.index.search(np.array([embedding]).astype('float32'), k)
+            
+            # Search more than k to allow filtering
+            search_k = min(k * 3, self.index.ntotal)
+            D, I = self.index.search(np.array([embedding]).astype('float32'), search_k)
             
             results = []
-            for i in I[0]:
+            for idx, i in enumerate(I[0]):
                 if i != -1 and i < len(self.metadata_store):
-                    results.append(self.metadata_store[i])
+                    entry = self.metadata_store[i]
+                    # Apply ticker filter if specified
+                    if ticker_filter and entry.get("symbol", "").upper() != ticker_filter.upper():
+                        continue
+                    entry_with_score = {**entry, "relevance_distance": float(D[0][idx])}
+                    results.append(entry_with_score)
+                    if len(results) >= k:
+                        break
+            
             context.result = results
 
         context.actions_taken.append({"action": f"rag_{mode}"})
@@ -96,6 +140,59 @@ class RagAgent(BaseAgent):
             context.reflection = f"RAG operation ({context.observations.get('mode')}) completed successfully."
             context.confidence = 0.9
         return context
+
+    # ─── Enhanced Methods for Knowledge Store Integration ─────────────────────
+
+    async def index_news_article(self, article: dict) -> bool:
+        """Index a single news article into FAISS."""
+        blob_data = {
+            "symbol": article.get("ticker", "GENERAL"),
+            "name": article.get("headline", ""),
+            "type": "news",
+            "source": article.get("source", ""),
+            "url": article.get("url", ""),
+            "published_at": article.get("published_at", ""),
+            "text": f"{article.get('headline', '')}. {article.get('summary', '')}"
+        }
+        ctx = AgentContext(task="Index blob", metadata={"blob_data": blob_data})
+        result = await self.run(ctx)
+        return not bool(result.errors)
+
+    async def index_daily_snapshot(self, ticker: str, snapshot: dict) -> bool:
+        """Index a market snapshot into FAISS."""
+        blob_data = {
+            "symbol": ticker,
+            "type": "snapshot",
+            "price": snapshot.get("px") or snapshot.get("price"),
+            "change_pct": snapshot.get("chg") or snapshot.get("change_pct"),
+            "sector": snapshot.get("sector"),
+            "text": json.dumps(snapshot)[:500]
+        }
+        ctx = AgentContext(task="Index blob", metadata={"blob_data": blob_data})
+        result = await self.run(ctx)
+        return not bool(result.errors)
+
+    async def index_market_event(self, ticker: str, event_text: str,
+                                  source_url: str = None) -> bool:
+        """Index a significant market event into FAISS."""
+        blob_data = {
+            "symbol": ticker,
+            "name": event_text[:100],
+            "type": "insight",
+            "source": "market_event",
+            "url": source_url or "",
+            "text": event_text
+        }
+        ctx = AgentContext(task="Index blob", metadata={"blob_data": blob_data})
+        result = await self.run(ctx)
+        return not bool(result.errors)
+
+    async def search_for_ticker(self, query: str, ticker: str, k: int = 5) -> list[dict]:
+        """Search RAG with ticker filtering."""
+        ctx = AgentContext(task=query, metadata={"k": k, "ticker_filter": ticker})
+        ctx.observations["mode"] = "query"
+        result = await self.act(ctx)
+        return result.result if isinstance(result.result, list) else []
 
     # Legacy compatibility methods
     def index_stock_blob(self, blob_data: dict):
@@ -113,7 +210,7 @@ class RagAgent(BaseAgent):
     def save_index(self):
         faiss.write_index(self.index, os.path.join(self.index_path, "market.index"))
         with open(os.path.join(self.index_path, "metadata.json"), "w") as f:
-            json.dump(self.metadata_store, f)
+            json.dump(self.metadata_store, f, default=str)
 
     def load_index(self):
         idx_file = os.path.join(self.index_path, "market.index")
@@ -126,10 +223,14 @@ class RagAgent(BaseAgent):
 if __name__ == "__main__":
     async def test():
         agent = RagAgent()
-        # Index
-        await agent.run(AgentContext(task="Index", metadata={"blob_data": {"symbol": "NVDA", "name": "NVIDIA"}}))
+        # Index news
+        await agent.index_news_article({
+            "ticker": "NVDA", "headline": "NVIDIA beats Q4 earnings",
+            "summary": "Revenue up 265% year-over-year", "source": "Reuters",
+            "url": "https://example.com/nvda"
+        })
         # Query
-        res = await agent.run(AgentContext(task="GPU manufacturer"))
+        res = await agent.run(AgentContext(task="Query: GPU earnings"))
         print(f"Results: {res.result}")
     
     asyncio.run(test())

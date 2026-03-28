@@ -20,20 +20,16 @@ class LLMClient:
         self.nvidia_base_url = "https://integrate.api.nvidia.com/v1"
         self.nvidia_model = model or "nvidia/nemotron-3-8b-instruct"
         
-        # Local NVIDIA Nemotron GGUF Configuration
-        self.local_nvidia_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
+        # LM Studio Configuration
+        self.lmstudio_url = "http://localhost:1234/v1/chat/completions"
+        self.lmstudio_model = "lmstudio-community/nvidia-nemotron-3-nano-4b-gguf"
         
         if self.nvidia_api_key:
             logger.info(f"NVIDIA API Key found. Using NvidiaNIMProvider with {self.nvidia_model}")
             self.provider_type = "nvidia"
-        elif os.path.exists(self.local_nvidia_path):
-            logger.info(f"Local NVIDIA Nemotron GGUF found at {self.local_nvidia_path}. Using as primary.")
-            from llm.providers.mistral_gguf import MistralGGUFProvider
-            self.provider = MistralGGUFProvider(self.local_nvidia_path)
-            self.provider_type = "gguf"
         else:
-            logger.warning("No superior providers found. Falling back to Ollama.")
-            self.provider_type = "ollama"
+            logger.info(f"Using LM Studio local model: {self.lmstudio_model}")
+            self.provider_type = "lmstudio"
 
     async def complete(self, prompt: str, system: str = "", temperature: float = 0.1,
                        max_tokens: int = 2000, expect_json: bool = False, force_provider: str | None = None) -> str:
@@ -42,20 +38,17 @@ class LLMClient:
         import json
         
         if force_provider == "nvidia":
-            providers = ["nvidia", "gguf"] # Try both NIM and Local Nemotron
+            providers = ["nvidia", "lmstudio"]
         else:
-            providers = [force_provider] if force_provider else ["nvidia", "gguf", "ollama"]
+            providers = [force_provider] if force_provider else ["nvidia", "lmstudio", "ollama"]
         
         for provider in providers:
             try:
                 result = None
                 if provider == "nvidia" and self.nvidia_api_key:
                     result = await self._try_nvidia(prompt, system, temperature, max_tokens)
-                elif provider == "gguf" and hasattr(self, 'provider'):
-                    # Only use GGUF as "nvidia" if it's the actual Nemotron model
-                    if force_provider == "nvidia" and not os.path.exists(self.local_nvidia_path):
-                        continue
-                    result = await self._try_gguf(prompt, system, temperature, max_tokens)
+                elif provider == "lmstudio":
+                    result = await self._try_lmstudio(prompt, system, temperature, max_tokens)
                 elif provider == "ollama":
                     result = await self._try_ollama(prompt, system, temperature, max_tokens)
                 
@@ -96,10 +89,23 @@ class LLMClient:
                 return response.json()["choices"][0]["message"]["content"]
             return None
 
-    async def _try_gguf(self, prompt, system, temperature, max_tokens):
-        import asyncio
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.provider.generate, prompt, system, temperature, max_tokens)
+    async def _try_lmstudio(self, prompt, system, temperature, max_tokens):
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            response = await client.post(
+                self.lmstudio_url,
+                json={
+                    "model": self.lmstudio_model,
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens
+                }
+            )
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            return None
 
     async def _try_ollama(self, prompt, system, temperature, max_tokens):
         async with httpx.AsyncClient(timeout=self.timeout) as client:

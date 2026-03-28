@@ -1,4 +1,4 @@
-"""AXIOM V2.0 Trading Intelligence API — FastAPI gateway with 14-agent pipeline + Live Data."""
+"""AXIOM V4.0 Mythic Trading Intelligence API — FastAPI gateway with multi-agent + orchestrator pipeline + Live Data."""
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +53,19 @@ from agents.explain_agent import ExplainAgent as V3ExplainAgent
 from agents.think_agent import ThinkAgent as V3ThinkAgent
 from agents.mcp_news_agent import McpNewsAgent as V3McpNewsAgent
 from agents.batch_agent import BatchAgent as V3BatchAgent
+
+# V4 LLM-First Intelligence
+from agents.query_router import QueryRouter, query_router
+from agents.collector_agent import (
+    CollectorAgent, collect_historical_data, collect_daily_data,
+    collect_news_data, index_knowledge_to_rag
+)
+from gateway.session_manager import SessionManager, session_manager
+from gateway.knowledge_store import knowledge_store
+
+# V4 Mythic-Tier Architecture
+from agents.orchestrator import mythic_orchestrator
+from gateway.db_portability import router as db_portability_router
 
 # Global V3 instances for streaming
 data_agent = V3DataAgent()
@@ -143,8 +156,21 @@ async def lifespan(app: FastAPI):
     from gateway.scrapers.rss_scraper import rss_scraper
     scheduler.add_job(rss_scraper.fetch_all, "interval", minutes=5)
     asyncio.create_task(asyncio.to_thread(rss_scraper.fetch_all))
+
+    # V4 Data Collection Scheduler
+    # Collect news every 5 minutes and index to RAG every 15 minutes
+    scheduler.add_job(lambda: asyncio.ensure_future(collect_news_data()), "interval", minutes=5, id="collect_news")
+    scheduler.add_job(lambda: asyncio.ensure_future(index_knowledge_to_rag()), "interval", minutes=15, id="index_rag")
+    # Collect daily OHLCV data at startup and then daily
+    scheduler.add_job(lambda: asyncio.ensure_future(collect_daily_data()), "interval", hours=24, id="collect_daily")
+
     scheduler.start()
-    logger.info("⏰ Background scheduler started.")
+    logger.info("⏰ Background scheduler started (RSS + News + RAG indexing + Daily OHLCV).")
+
+    # Trigger initial data collection in background (non-blocking)
+    asyncio.create_task(collect_news_data())
+    asyncio.create_task(collect_historical_data())
+    logger.info("📡 Initial data collection triggered in background.")
 
     # V2 Orchestrator (14 agents)
     app.state.orchestrator = AgentOrchestrator(
@@ -196,9 +222,9 @@ scheduler = AsyncIOScheduler()
 llm_client = LLMClient()
 
 app = FastAPI(
-    title="AXIOM V2.0 + V3 RAG Intelligence API",
-    version="3.0.0",
-    description="AI-powered 14-agent trading + 8-agent RAG Intelligence platform (100% Open-Source)",
+    title="AXIOM V4.0 Mythic Intelligence API",
+    version="4.0.0",
+    description="AI-powered multi-agent trading platform with ReAct orchestrator, specialist fleet, critique layer, and confidence calibration (100% Open-Source)",
     lifespan=lifespan,
 )
 
@@ -213,6 +239,9 @@ app.add_middleware(
 
 # Include V3 RAG Router
 app.include_router(v3_router)
+
+# Include V4 DB Portability Router
+app.include_router(db_portability_router)
 
 
 # ─── HELPER: Fetch yfinance data with caching ────────────────────────────────
@@ -394,11 +423,79 @@ async def explain_price_move(ticker: str):
 
 @app.post("/api/chat/stock/{ticker}")
 async def stock_chat(ticker: str, body: ChatRequest):
-    """Dedicated per-stock chat using OMNI-DATA v3.1 Hyper-Synthesis."""
-    from gateway.synthesis_service import synthesis_service
+    """Dedicated per-stock chat — routes through QueryRouter with RAG + LLM."""
     ticker = ticker.upper()
-    response = await synthesis_service.generate_v3_1_synthesis(ticker, body.message)
+    
+    # Use session-based chat if session_id provided, else one-shot
+    session_id = getattr(body, 'session_id', None)
+    
+    if session_id:
+        session = session_manager.get_session(session_id)
+        if session:
+            session.add_message("user", body.message)
+    
+    # Route through QueryRouter (RAG → Agents → LLM)
+    ctx = AgentContext(task=body.message, ticker=ticker)
+    result = await query_router.run(ctx)
+    response = result.result.get("response", "") if isinstance(result.result, dict) else str(result.result)
+    
+    if session_id:
+        session = session_manager.get_session(session_id)
+        if session:
+            session.add_message("assistant", response)
+    
     return {"response": response, "ticker": ticker}
+
+
+@app.post("/api/chat/stock/{ticker}/session")
+async def create_stock_session(ticker: str):
+    """Create a new per-stock chat session (called when a stock is clicked on the globe)."""
+    ticker = ticker.upper()
+    session = session_manager.create_session(ticker)
+    return {
+        "session_id": session.session_id,
+        "ticker": ticker,
+        "welcome_message": session.messages[0]["content"] if session.messages else "",
+    }
+
+
+@app.post("/api/chat/stock/{ticker}/session/{session_id}")
+async def stock_session_chat(ticker: str, session_id: str, body: ChatRequest):
+    """Send a message to an existing per-stock chat session."""
+    ticker = ticker.upper()
+    session = session_manager.get_or_create_session(ticker, session_id)
+    session.add_message("user", body.message)
+    
+    # Build conversation-aware prompt
+    conversation_context = session.get_conversation_context(max_messages=6)
+    enhanced_query = f"""CONVERSATION HISTORY:
+{conversation_context}
+
+CURRENT QUESTION: {body.message}
+
+Answer the current question in context of the conversation above."""
+    
+    # Route through QueryRouter with full conversation context
+    ctx = AgentContext(task=enhanced_query, ticker=ticker)
+    result = await query_router.run(ctx)
+    response = result.result.get("response", "") if isinstance(result.result, dict) else str(result.result)
+    
+    session.add_message("assistant", response)
+    
+    return {
+        "response": response,
+        "ticker": ticker,
+        "session_id": session.session_id,
+        "message_count": len(session.messages),
+    }
+
+
+@app.get("/api/knowledge/status")
+async def knowledge_status():
+    """Get current knowledge store data collection status."""
+    status = knowledge_store.get_collection_status()
+    status["active_sessions"] = session_manager.get_active_count()
+    return status
 
 @app.get("/api/market/globe-data")
 async def get_globe_data():
@@ -430,7 +527,7 @@ async def get_globe_data():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "2.0.0", "app": "AXIOM V2", "agents": 14}
+    return {"status": "healthy", "version": "4.0.0", "app": "AXIOM V4 Mythic", "agents": 14, "mythic_agents": 5}
 
 
 async def _background_watchlist_sync():
@@ -637,147 +734,80 @@ Headlines:
 
 @app.post("/api/chat")
 async def chat_endpoint(request: Request):
-    """OMNI-DATA AGENT — Clean synthesized intelligence output."""
+    """AXIOM MYTHIC — Multi-agent orchestrated intelligence.
+    
+    Routes through MythicOrchestrator pipeline:
+    Parallel Fan-Out → Specialist Fleet → Critique → Calibrated Synthesis
+    """
     body = await request.json()
-    user_msg = body.get("message", "")
+    user_msg = body.get("message", "").strip()
     ticker = body.get("ticker", "")
+    
+    # ─── INTERCEPT COMMANDS ────────────────────────────────────────────────
+    if user_msg.startswith("> scrape"):
+        try:
+            from scrapers.playwright_news import run_scraper
+            import shlex
+            
+            # e.g., > scrape "Indian IT" TCS INFY
+            parts = shlex.split(user_msg[8:].strip())
+            query = parts[0] if parts else "Indian stock market"
+            tickers = parts[1:] if len(parts) > 1 else []
+            
+            saved = await run_scraper(query, tickers, headless=True)
+            return {
+                "response": f"✅ Scrape completed. Found and saved **{saved}** new articles for `{query}` and tickers `{tickers}` into `stock_news.db`.",
+                "source": "playwright_scraper"
+            }
+        except Exception as e:
+            logger.error(f"Scrape command failed: {e}")
+            return {"response": f"⚠️ Scraper failed: {e}", "source": "system"}
+            
+    if user_msg.startswith("> compare") or user_msg.startswith("> sentiment"):
+        try:
+            from agents.sentiment_engine import sentiment_engine
+            
+            # extract tickers, e.g., > compare TCS INFY WIPRO
+            cmd_parts = user_msg.split(" ")[1:]
+            tickers = [t.upper() for t in cmd_parts if len(t) < 10]
+            if not tickers and ticker:
+                tickers = [ticker.upper()]
+                
+            res = await sentiment_engine.analyze_sentiment(user_msg, tickers)
+            if res.get("error"):
+                return {"response": res.get("message", "Error analyzing sentiment."), "source": "system"}
+                
+            return {
+                "response": res["markdown"],
+                "source": "sentiment_engine",
+                "sources_used": res.get("sources_used", [])
+            }
+        except Exception as e:
+            logger.error(f"Sentiment command failed: {e}")
+            return {"response": f"⚠️ Sentiment analysis failed: {e}", "source": "system"}
+    # ───────────────────────────────────────────────────────────────────────
 
-    system_prompt = f"""You are OMNI-DATA, an elite multi-agent market intelligence system.
-
-{("Currently analyzing: " + ticker) if ticker else "Global market scan active."}
-
-Your internal pipeline:
-- Technical Agent → price structure, indicators, support/resistance
-- Sentiment Agent → news tone, social signals
-- Macro Agent → global indices, rates, inflation
-- Risk Agent → volatility, VaR, black swan detection
-
-CRITICAL RULES:
-1. NEVER expose raw agent logs or internal system data
-2. NEVER say "analysis unavailable" or "LLM unavailable"  
-3. ALWAYS give actual, specific market insights and stock recommendations
-4. Output ONLY the final synthesized analysis in clean, readable format
-
-OUTPUT FORMAT (follow this exactly):
-
-🧠 OMNI-DATA — MARKET ANALYSIS
-
-📊 Market Context
-[2-3 lines: current market regime, key trends, macro environment]
-
-📈 Top Picks
-[List 3-6 specific stocks with emoji flags, sector, strength, and outlook]
-Format each as:
-[Flag] [Stock Name]
-Sector: [sector]
-Strength: [key reason]
-Outlook: [Bullish/Bearish/Neutral + brief reason]
-
-⚠️ Risk Analysis
-[3-4 bullet points of real risks]
-
-🎯 Strategy
-[Simple allocation recommendation with percentages]
-
-📌 Verdict
-[2-3 line final summary]
-Confidence: [X]% (based on data quality + trend strength + sentiment alignment)
-
-BEHAVIOR:
-- Be specific with real stock names and real market analysis
-- Use current market knowledge
-- Give actionable insights, not vague platitudes
-- Keep it concise but substantive
-- Use emoji for section headers only"""
-
-    try:
-        response = await app.state.llm.complete(
-            prompt=user_msg,
-            system=system_prompt,
-            temperature=0.4,
-            max_tokens=1500
-        )
-        return {"response": response, "source": "omni_data"}
-    except Exception as e:
-        logger.error(f"OMNI-DATA AGENT LLM failed: {e}")
-        # Clean synthesized fallback — NOT raw agent logs
-        fallback_ticker = ticker.upper() if ticker else None
-        
-        if fallback_ticker:
-            fallback = f"""🧠 OMNI-DATA — {fallback_ticker} ANALYSIS
-
-📊 Market Context
-Global markets showing mixed signals. S&P 500 consolidating near highs. Interest rate trajectory remains key driver for equity valuations. Sector rotation favoring quality over momentum.
-
-📈 Analysis: {fallback_ticker}
-The technical structure shows price respecting key moving averages. Volume patterns suggest institutional accumulation at current levels. RSI in neutral territory — no overbought/oversold extremes.
-
-⚠️ Risk Factors
-• Earnings volatility could trigger sharp moves
-• Sector-specific regulatory headwinds possible
-• Broader market correction risk if macro data disappoints
-• Currency fluctuations impacting international revenue
-
-🎯 Strategy
-Consider scaling into positions at support levels. Use 2-3% position sizing with stops below recent swing lows. Monitor earnings calendar for catalyst dates.
-
-📌 Verdict
-{fallback_ticker} presents a balanced risk/reward setup at current levels. Wait for confirmed support bounce or earnings catalyst before full commitment.
-
-👉 Confidence: 62% (technical data strong, sentiment neutral, macro uncertain)"""
-        else:
-            fallback = """🧠 OMNI-DATA — GLOBAL MARKET SCAN
-
-📊 Market Context
-Global indices (S&P 500, NASDAQ) → Stable with mild bullish bias
-Interest rates → Neutral to slightly restrictive
-Inflation → Cooling gradually across major economies
-Overall regime → Moderate growth, selective opportunities
-
-📈 Top Picks
-
-🇺🇸 NVIDIA (NVDA)
-Sector: AI / Semiconductors
-Strength: AI infrastructure demand leader
-Outlook: Bullish (high growth, but elevated volatility)
-
-🇺🇸 Microsoft (MSFT)
-Sector: Cloud + AI
-Strength: Azure growth + AI integration across products
-Outlook: Strong long-term compounder
-
-🇺🇸 Apple (AAPL)
-Sector: Consumer Tech
-Strength: Ecosystem moat + massive cash reserves
-Outlook: Stable, defensive growth
-
-🇮🇳 Reliance Industries (RELIANCE)
-Sector: Energy + Telecom + Retail
-Strength: Diversified conglomerate with digital pivot
-Outlook: Bullish long-term, strong domestic fundamentals
-
-🇮🇳 TCS (TCS.NS)
-Sector: IT Services
-Strength: Stable revenue, global client base
-Outlook: Safe + steady growth play
-
-⚠️ Risk Analysis
-• AI stocks carry overvaluation risk at current multiples
-• Interest rate sensitivity across growth names
-• Geopolitical tensions could spike short-term volatility
-• USD strength headwind for emerging market positions
-
-🎯 Strategy
-💰 50% → Stable large-cap (MSFT, AAPL, TCS)
-🚀 30% → Growth momentum (NVDA, RELIANCE)
-🔄 20% → Cash / opportunity reserve
-
-📌 Verdict
-Quality stocks remain attractive but selectivity is critical. Focus on companies with strong fundamentals, proven cash flow, and clear growth catalysts. Avoid chasing momentum without conviction.
-
-👉 Confidence: 72% (data quality high, sentiment mixed, macro stable)"""
-        
-        return {"response": fallback, "source": "omni_data_synthesis"}
+    # Route through the intelligent QueryRouter → MythicOrchestrator
+    ctx = AgentContext(
+        task=user_msg,
+        ticker=ticker.upper() if ticker else None
+    )
+    result = await query_router.run(ctx)
+    
+    if isinstance(result.result, dict):
+        response = result.result.get("response", "")
+        return {
+            "response": response,
+            "source": "mythic_v4",
+            "consensus": result.result.get("consensus"),
+            "confidence": result.result.get("confidence"),
+            "specialist_outputs": result.result.get("specialist_outputs"),
+            "critique": result.result.get("critique"),
+            "pipeline_ms": result.result.get("pipeline_ms"),
+            "sources_used": result.result.get("sources_used", []),
+        }
+    else:
+        return {"response": str(result.result), "source": "mythic_v4_fallback"}
 
 
 @app.get("/api/analyze/{ticker}")
@@ -791,6 +821,7 @@ async def analyze_stock(ticker: str, query: str = "Should I buy this stock?"):
 async def agent_status():
     return {
         "agents": [
+            # V3 Intelligence Agents
             {"name": "DataCollector",      "status": "active", "type": "v3_intelligence"},
             {"name": "BlobStorageAgent",   "status": "active", "type": "v3_intelligence"},
             {"name": "MarketRagAgent",     "status": "active", "type": "v3_intelligence"},
@@ -802,7 +833,33 @@ async def agent_status():
             {"name": "McpNewsAgent",       "status": "active", "type": "v3_intelligence"},
             {"name": "BatchAgent",         "status": "active", "type": "v3_intelligence"},
             {"name": "UIApiAgent",         "status": "active", "type": "v3_intelligence"},
+            # V4 Mythic-Tier Agents
+            {"name": "MythicOrchestrator",  "status": "active", "type": "v4_mythic", "role": "ReAct reasoning loop"},
+            {"name": "TechnicalSpecialist", "status": "active", "type": "v4_mythic", "role": "OHLCV pattern analysis"},
+            {"name": "RiskSpecialist",      "status": "active", "type": "v4_mythic", "role": "VaR, beta, stress scenarios"},
+            {"name": "MacroSpecialist",     "status": "active", "type": "v4_mythic", "role": "News sentiment, macro trends"},
+            {"name": "CritiqueAgent",       "status": "active", "type": "v4_mythic", "role": "Self-reflection + confidence calibration"},
         ]
+    }
+
+
+@app.get("/api/pipeline/status")
+async def pipeline_status():
+    """Mythic pipeline health and recent episode history."""
+    recent_episodes = mythic_orchestrator.get_recent_episodes(limit=5)
+    memory_status = await app.state.memory.get_system_status()
+    return {
+        "pipeline": "mythic_v4",
+        "status": "operational",
+        "components": {
+            "orchestrator": "active",
+            "technical_specialist": "active",
+            "risk_specialist": "active",
+            "macro_specialist": "active",
+            "critique_agent": "active",
+        },
+        "memory": memory_status,
+        "recent_episodes": recent_episodes,
     }
 
 

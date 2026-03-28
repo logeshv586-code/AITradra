@@ -25,7 +25,7 @@ export default function App() {
   const [liveStocks, setLiveStocks] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState([
-    { role:'ai', tag:'AXIOM OS', text:'System online. Cognitive engines fully spooled. Live market data streaming. Select a global node or input a command.' }
+    { role:'ai', tag:'AXIOM MYTHIC', text:'System online. Mythic Orchestrator active — 5 specialist agents + critique layer ready. Live market data streaming. Select a node or ask a question.' }
   ]);
   const wsRef = useRef(null);
 
@@ -62,7 +62,7 @@ export default function App() {
   }, []);
 
   // ─── CHAT (LLM-POWERED) ───────────────────────────────────────────────────
-  const handleSendChat = async (userText, aiText, stockOverride = null) => {
+  const handleSendChat = async (userText, aiText, mythicData = null) => {
     if (userText) {
       setChatMessages(p => [...p, { role:'user', text: userText }]);
       
@@ -74,18 +74,38 @@ export default function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               message: userText,
-              ticker: (stockOverride ? stockOverride.id : activeStock?.id) || '',
+              ticker: (activeStock?.id) || '',
             }),
           });
           const data = await res.json();
-          setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: data.response }]);
+          setChatMessages(p => [...p, { 
+            role:'ai', tag:'AXIOM MYTHIC', text: data.response,
+            mythicData: {
+              consensus: data.consensus,
+              confidence: data.confidence,
+              specialist_outputs: data.specialist_outputs,
+              critique: data.critique,
+              pipeline_ms: data.pipeline_ms,
+            }
+          }]);
         } catch (err) {
-          setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: 'Neural link interrupted. Reconnecting to agent matrix...' }]);
+          setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: 'Neural link interrupted. Reconnecting to mythic orchestrator...' }]);
         }
         return;
       }
     }
-    if (aiText && aiText !== 'auto-analyze') setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: aiText }]);
+    if (aiText && aiText !== 'auto-analyze') {
+      const msg = { role:'ai', tag:'AXIOM MYTHIC', text: aiText };
+      if (mythicData) {
+        msg.mythicData = {
+          consensus: mythicData.consensus,
+          confidence: mythicData.confidence,
+          specialist_outputs: mythicData.specialist_outputs,
+          critique: mythicData.critique,
+        };
+      }
+      setChatMessages(p => [...p, msg]);
+    }
   };
 
   const handleSelect = (ticker) => {
@@ -165,26 +185,21 @@ export default function App() {
       <header className="clay-header h-14 flex items-center justify-between px-6 flex-shrink-0 z-50">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('globe')}>
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all"
-              style={{
-                background: 'linear-gradient(135deg, rgba(99,102,241,0.20), rgba(99,102,241,0.08))',
-                border: '1px solid rgba(99,102,241,0.25)',
-                boxShadow: '3px 3px 8px rgba(0,0,0,0.30), -1px -1px 4px rgba(99,102,241,0.05), inset 1px 1px 2px rgba(255,255,255,0.05), inset -1px -1px 3px rgba(0,0,0,0.20)'
-              }}>
+            <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all bg-indigo-500/10 border border-indigo-400/20 shadow-lg">
               <Activity size={16} className="text-indigo-400" />
             </div>
             <span className="font-bold tracking-[0.2em] text-sm text-white font-mono text-shadow-glow">
               AXIOM<span className="text-indigo-400">.AI</span>
             </span>
           </div>
-          <div className="h-5 w-px bg-white/8 mx-2" />
+          <div className="h-5 w-px bg-white/20 mx-4" />
           <div className="clay-badge" style={{ 
             background: 'linear-gradient(135deg, rgba(0,240,255,0.10), rgba(0,240,255,0.04))', 
             borderColor: 'rgba(0,240,255,0.18)',
             color: T.buy 
           }}>
             <div className="w-1.5 h-1.5 rounded-full animate-soft-pulse" style={{ background: T.buy, boxShadow: `0 0 8px ${T.buy}60` }} />
-            <span className="text-[10px] font-bold tracking-widest">LIVE_DATA</span>
+            <span className="text-[10px] font-bold tracking-widest leading-none">LIVE_DATA</span>
           </div>
           {stocksLoading && (
             <div className="flex items-center gap-2 text-[9px] text-cyan-400 font-mono animate-pulse">

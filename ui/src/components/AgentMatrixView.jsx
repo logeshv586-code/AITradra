@@ -61,11 +61,11 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
             </div>
           </div>
           <div className="hidden lg:flex gap-3">
-             <div className="clay-badge py-2.5 px-5 shadow-xl bg-indigo-500/10 border-indigo-500/20 text-indigo-400">
-               <Cpu size={14} /> CLAUDE_SONNET_3.5_CORE
+             <div className="clay-badge py-2.5 px-5 shadow-xl bg-purple-500/10 border-purple-500/20 text-purple-400">
+               <Cpu size={14} /> NEMOTRON_LOCAL_GGUF
              </div>
              <div className="clay-badge py-2.5 px-5 shadow-xl animate-soft-pulse" style={{ background: `${T.buy}15`, color: T.buy, borderColor: `${T.buy}30` }}>
-               <Sparkles size={14} className="animate-spin-slow" /> AUTONOMOUS_MODE
+               <Sparkles size={14} className="animate-spin-slow" /> MYTHIC_ORCHESTRATION
              </div>
           </div>
         </div>
@@ -75,18 +75,22 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
             const Icon = a.icon;
             const isWarn = a.status === 'Retraining' || a.status === 'Learning' || a.status === 'Standby';
             const isActive = a.status === 'Active';
+            const isMythic = a.tier === 'v4_mythic';
             const accentCol = isWarn ? T.warn : a.color;
             
             // Bento Area Assignment
             let bentoClass = "";
             if (a.id === 'think') bentoClass = "bento-main";
-            else if (a.id === 'explain') bentoClass = "bento-wide";
+            else if (a.id === 'explanation') bentoClass = "bento-wide";
             else if (a.id === 'batch') bentoClass = "bento-tall";
+            else if (a.id === 'orchestrator') bentoClass = "bento-main";
 
             return (
               <div key={a.id} onClick={() => setSelectedAgent(a)} className="cursor-pointer">
               <GlassCard interactive glowCol={accentCol} 
-                className={`p-8 glass-holo flex flex-col h-full ${bentoClass} ${isActive ? 'animate-cyber-pulse-subtle' : ''}`}>
+                className={`p-8 glass-holo flex flex-col h-full ${bentoClass} ${isActive ? 'animate-cyber-pulse-subtle' : ''}`}
+                style={isMythic ? { border: `1px solid ${a.color}30`, boxShadow: `inset 0 0 30px ${a.color}08, 0 0 20px ${a.color}10` } : {}}
+              >
                 
                 <div className="flex justify-between items-start mb-auto">
                   <div className="flex items-center gap-4">
@@ -99,9 +103,10 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                       {isActive && <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-green-500 rounded-full border-4 border-[#0a0e1a] animate-pulse"/>}
                     </div>
                     <div>
-                      <div className={`font-black tracking-tight text-white uppercase ${a.id === 'think' ? 'text-2xl' : 'text-lg'}`}>{a.name}</div>
+                      <div className={`font-black tracking-tight text-white uppercase ${a.id === 'think' || a.id === 'orchestrator' ? 'text-2xl' : 'text-lg'}`}>{a.name}</div>
                       <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 font-bold tracking-widest uppercase">
-                        <span>NODE_v3.1</span>
+                        <span>{isMythic ? 'NODE_v4.0' : 'NODE_v3.1'}</span>
+                        {isMythic && <span className="text-[8px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/25">MYTHIC</span>}
                         <FrequencyVisualizer color={a.color} />
                       </div>
                     </div>

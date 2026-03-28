@@ -1,23 +1,32 @@
 import {
-  BarChart2, Newspaper, TrendingUp, ShieldAlert, Brain, Cpu, Layers, Activity, Terminal
+  BarChart2, Newspaper, TrendingUp, ShieldAlert, Brain, Cpu, Layers, Activity, Terminal,
+  Crosshair, Shield, Globe2, Microscope, Sparkles
 } from "lucide-react";
 
-// ─── AGENTS (V3.1 Cognitive Matrix) ──────────────────────────────────────────
+// ─── AGENTS (V4 Mythic Cognitive Matrix) ─────────────────────────────────────
 export const AGENTS = {
-  datacollector: { name:'DataCollector',      color:'#3b82f6', icon:BarChart2,   acc:99.9, status:'Active',      tasks:2450, desc:'6-Step live OHLCV extraction' },
-  blobstorage:   { name:'BlobStorageAgent',   color:'#10b981', icon:Layers,       acc:100.0,status:'Active',      tasks:1200, desc:'Daily persistent intelligence' },
-  marketrag:     { name:'MarketRagAgent',     color:'#6366f1', icon:Brain,        acc:94.2, status:'Active',      tasks:850,  desc:'FAISS semantic market search' },
-  newsintel:     { name:'NewsIntelAgent',     color:'#a855f7', icon:Newspaper,   acc:88.4, status:'Active',      tasks:1890, desc:'NVIDIA NIM sentiment scoring' },
-  pricemove:     { name:'PriceMoveAgent',     color:'#00f0ff', icon:TrendingUp,  acc:82.5, status:'Active',      tasks:1560, desc:'6-Step statistical analysis' },
-  forecast:      { name:'ForecastAgent',      color:'#fbbf24', icon:Activity,    acc:78.1, status:'Active',      tasks:940,  desc:'Technical trend projection' },
-  explanation:   { name:'ExplainAgent',       color:'#ff2a5f', icon:Cpu,         acc:96.8, status:'Active',      tasks:720,  desc:'NVIDIA Nemotron synthesis' },
-  thinkagent:    { name:'ThinkAgent',         color:'#6366f1', icon:Brain,       acc:94.5, status:'Active',      tasks:1100, desc:'Chain-of-thought reasoner' },
-  mcpnews:       { name:'McpNewsAgent',       color:'#a855f7', icon:Newspaper,   acc:91.2, status:'Active',      tasks:1450, desc:'Multi-source aggregator' },
-  batchagent:    { name:'BatchAgent',         color:'#f6ad55', icon:Activity,    acc:100.0,status:'Standby',     tasks:800,  desc:'Nightly S&P 500 processing' },
-  uiapi:         { name:'UIApiAgent',         color:'#ffffff', icon:Terminal,    acc:99.9, status:'Active',      tasks:5000, desc:'6-Step orchestration gateway' },
+  // V3 Intelligence Agents
+  datacollector: { name:'DataCollector',      color:'#3b82f6', icon:BarChart2,   acc:99.9, status:'Active',      tasks:2450, desc:'6-Step live OHLCV extraction',        tier:'v3' },
+  blobstorage:   { name:'BlobStorageAgent',   color:'#10b981', icon:Layers,       acc:100.0,status:'Active',      tasks:1200, desc:'Daily persistent intelligence',       tier:'v3' },
+  marketrag:     { name:'MarketRagAgent',     color:'#6366f1', icon:Brain,        acc:94.2, status:'Active',      tasks:850,  desc:'FAISS semantic market search',        tier:'v3' },
+  newsintel:     { name:'NewsIntelAgent',     color:'#a855f7', icon:Newspaper,   acc:88.4, status:'Active',      tasks:1890, desc:'NVIDIA NIM sentiment scoring',       tier:'v3' },
+  pricemove:     { name:'PriceMoveAgent',     color:'#00f0ff', icon:TrendingUp,  acc:82.5, status:'Active',      tasks:1560, desc:'6-Step statistical analysis',        tier:'v3' },
+  forecast:      { name:'ForecastAgent',      color:'#fbbf24', icon:Activity,    acc:78.1, status:'Active',      tasks:940,  desc:'Technical trend projection',         tier:'v3' },
+  explanation:   { name:'ExplainAgent',       color:'#ff2a5f', icon:Cpu,         acc:96.8, status:'Active',      tasks:720,  desc:'NVIDIA Nemotron synthesis',          tier:'v3' },
+  think:         { name:'ThinkAgent',         color:'#6366f1', icon:Brain,       acc:94.5, status:'Active',      tasks:1100, desc:'Chain-of-thought reasoner',          tier:'v3' },
+  mcpnews:       { name:'McpNewsAgent',       color:'#a855f7', icon:Newspaper,   acc:91.2, status:'Active',      tasks:1450, desc:'Multi-source aggregator',            tier:'v3' },
+  batch:         { name:'BatchAgent',         color:'#f6ad55', icon:Activity,    acc:100.0,status:'Standby',     tasks:800,  desc:'Nightly S&P 500 processing',         tier:'v3' },
+  uiapi:         { name:'UIApiAgent',         color:'#ffffff', icon:Terminal,    acc:99.9, status:'Active',      tasks:5000, desc:'6-Step orchestration gateway',       tier:'v3' },
+  // V4 Mythic-Tier Specialist Fleet
+  orchestrator:  { name:'MythicOrchestrator', color:'#e040fb', icon:Sparkles,   acc:97.5, status:'Active',      tasks:3200, desc:'ReAct reasoning loop — parallel specialist dispatch, critique, calibrated synthesis', tier:'v4_mythic' },
+  techspec:      { name:'TechnicalSpecialist',color:'#00e5ff', icon:Crosshair,  acc:91.8, status:'Active',      tasks:2100, desc:'OHLCV pattern analysis — support/resistance, momentum, trend detection', tier:'v4_mythic' },
+  riskspec:      { name:'RiskSpecialist',     color:'#ff5252', icon:Shield,     acc:93.4, status:'Active',      tasks:1800, desc:'VaR(95%), max drawdown, beta, stress scenario evaluation', tier:'v4_mythic' },
+  macrospec:     { name:'MacroSpecialist',    color:'#69f0ae', icon:Globe2,     acc:89.7, status:'Active',      tasks:1600, desc:'News sentiment scoring, earnings signals, sector rotation analysis', tier:'v4_mythic' },
+  critique:      { name:'CritiqueAgent',      color:'#ffab40', icon:Microscope, acc:95.2, status:'Active',      tasks:2800, desc:'Self-reflection layer — contradiction detection, confidence calibration (40% agreement + 30% RAG + 30% recency)', tier:'v4_mythic' },
 };
 
 export const FLOW_STEPS = ['OBSERVE','THINK','PLAN','ACT','REFLECT','IMPROVE'];
+export const MYTHIC_STEPS = ['FAN-OUT','SPECIALISTS','CRITIQUE','CALIBRATE','SYNTHESIZE'];
 
 // ─── CONTINENT POLYGONS (Globe visualization) ─────────────────────────────────
 export const CONTINENTS = [

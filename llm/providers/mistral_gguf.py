@@ -17,9 +17,10 @@ class MistralGGUFProvider:
             logger.info("Initializing Mistral GGUF model via llama-cpp-python...")
             self._llm = Llama(
                 model_path=self.model_path,
-                n_ctx=4096,   # Context window size
-                n_threads=4,  # Adjust based on CPU cores
-                verbose=False # Set to True for detailed C++ logs
+                n_ctx=2048,   # Reduced from 4096 to prevent OOM
+                n_threads=4,
+                n_gpu_layers=0, # Force CPU to avoid CUDA mismatch errors
+                verbose=False
             )
             logger.info("Mistral model loaded successfully.")
         except ImportError:

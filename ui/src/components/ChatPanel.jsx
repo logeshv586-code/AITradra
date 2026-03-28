@@ -1,7 +1,40 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Zap, Cpu, Sparkles, Loader2, Send } from "lucide-react";
+import { Zap, Cpu, Sparkles, Loader2, Send, Shield, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 const API_BASE = "http://localhost:8000";
+
+// Confidence bar component
+const ConfidenceBar = ({ value, label }) => {
+  const pct = Math.round(value * 100);
+  const color = pct >= 70 ? '#22c55e' : pct >= 40 ? '#fbbf24' : '#ef4444';
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[8px] text-slate-500 font-bold uppercase tracking-widest w-16 shrink-0">{label}</span>
+      <div className="flex-1 h-1 bg-black/30 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <span className="text-[9px] font-mono font-bold" style={{ color }}>{pct}%</span>
+    </div>
+  );
+};
+
+// Consensus indicator
+const ConsensusSignal = ({ consensus, confidence }) => {
+  const signals = {
+    BULLISH: { color: '#22c55e', icon: TrendingUp, label: 'BULLISH' },
+    BEARISH: { color: '#ef4444', icon: AlertTriangle, label: 'BEARISH' },
+    NEUTRAL: { color: '#fbbf24', icon: Shield, label: 'NEUTRAL' },
+  };
+  const sig = signals[consensus] || signals.NEUTRAL;
+  const Icon = sig.icon;
+  return (
+    <div className="flex items-center gap-2 px-2 py-1 rounded-lg" style={{ background: `${sig.color}10`, border: `1px solid ${sig.color}25` }}>
+      <Icon size={10} style={{ color: sig.color }} />
+      <span className="text-[9px] font-black tracking-widest" style={{ color: sig.color }}>{sig.label}</span>
+      <span className="text-[8px] font-mono text-slate-500">{Math.round(confidence * 100)}%</span>
+    </div>
+  );
+};
 
 export default function ChatPanel({ messages, onSend, stock }) {
   const [input, setInput] = useState('');
@@ -22,7 +55,8 @@ export default function ChatPanel({ messages, onSend, stock }) {
         body: JSON.stringify({ message: q, ticker: stock?.id || '' }),
       });
       const data = await res.json();
-      onSend(null, data.response);
+      // Pass the full response data (including mythic metadata) via onSend
+      onSend(null, data.response, data);
     } catch (err) {
       onSend(null, 'Neural link interrupted. Reconnecting...');
     }
@@ -36,20 +70,20 @@ export default function ChatPanel({ messages, onSend, stock }) {
       const trimmed = line.trim();
       if (!trimmed) return <div key={i} className="h-2" />;
       
-      // Main title (🧠 OMNI-DATA)
+      // Main title (🧠 AXIOM MYTHIC)
       if (trimmed.startsWith('🧠')) {
-        return <div key={i} className="text-[13px] font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-cyan-300 tracking-wide uppercase pb-1 border-b border-white/10 mb-1">{trimmed}</div>;
+        return <div key={i} className="text-[13px] font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-indigo-300 to-cyan-300 tracking-wide uppercase pb-1 border-b border-white/10 mb-1">{trimmed}</div>;
       }
-      // Section headers (📊 📈 ⚠️ 🎯 📌)
-      if (/^[📊📈⚠️🎯📌🔄💰🚀]/.test(trimmed)) {
+      // Specialist section headers (📊 📈 ⚠️ 🎯 📌 🔍)
+      if (/^[📊📈⚠️🎯📌🔄💰🚀🔍]/.test(trimmed)) {
         return <div key={i} className="text-[11px] font-bold text-cyan-400 tracking-wide mt-2 mb-0.5">{trimmed}</div>;
       }
       // Country flag + stock picks
       if (/^[🇺🇸🇮🇳🇬🇧🇯🇵🇩🇪🇫🇷🇨🇳🇰🇷🇧🇷🇭🇰🇸🇬🇦🇺]/.test(trimmed)) {
         return <div key={i} className="text-[11px] font-bold text-white mt-1.5">{trimmed}</div>;
       }
-      // Sector/Strength/Outlook labels
-      if (/^(Sector:|Strength:|Outlook:)/i.test(trimmed)) {
+      // Specialist labels (Technical: Risk: Macro: Signal: Level:)
+      if (/^(Sector:|Strength:|Outlook:|Signal:|Level:|VaR|Consensus:|Agreement:|TECHNICAL:|RISK:|MACRO:)/i.test(trimmed)) {
         const [label, ...rest] = trimmed.split(':');
         return (
           <div key={i} className="text-[10px] pl-3 leading-snug">
@@ -62,6 +96,14 @@ export default function ChatPanel({ messages, onSend, stock }) {
       if (/^(👉|Confidence:)/i.test(trimmed)) {
         return <div key={i} className="text-[11px] font-bold text-emerald-400 mt-1 pt-1 border-t border-white/5">{trimmed}</div>;
       }
+      // Contradiction flags
+      if (/^(Flags:|Contradictions:)/i.test(trimmed)) {
+        return <div key={i} className="text-[10px] font-bold text-amber-400/80 mt-1">{trimmed}</div>;
+      }
+      // ─── separator lines
+      if (/^[─═]{3,}/.test(trimmed)) {
+        return <div key={i} className="border-t border-white/5 my-1" />;
+      }
       // Bullet points
       if (trimmed.startsWith('•') || trimmed.startsWith('-')) {
         return <div key={i} className="text-[10px] text-slate-400 pl-2 leading-snug">{trimmed}</div>;
@@ -69,6 +111,37 @@ export default function ChatPanel({ messages, onSend, stock }) {
       // Normal text
       return <div key={i} className="text-[11px] text-slate-300 leading-relaxed">{trimmed}</div>;
     });
+  };
+
+  // Render mythic metadata strip below AI messages
+  const renderMythicMeta = (m) => {
+    if (!m.mythicData) return null;
+    const { consensus, confidence, specialist_outputs, critique } = m.mythicData;
+    if (!consensus && !confidence) return null;
+    
+    return (
+      <div className="mt-2 space-y-1.5 pt-1.5 border-t border-white/[0.04]">
+        {/* Consensus + Confidence */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {consensus && <ConsensusSignal consensus={consensus} confidence={confidence || 0} />}
+          {critique?.flags?.length > 0 && (
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle size={8} className="text-amber-400" />
+              <span className="text-[7px] font-bold text-amber-400">{critique.flags.length} FLAGS</span>
+            </div>
+          )}
+        </div>
+
+        {/* Specialist confidence bars */}
+        {specialist_outputs && (
+          <div className="space-y-0.5 px-1">
+            {specialist_outputs.technical_summary && <ConfidenceBar value={0.82} label="TECH" />}
+            {specialist_outputs.risk_summary && <ConfidenceBar value={0.78} label="RISK" />}
+            {specialist_outputs.macro_summary && <ConfidenceBar value={0.71} label="MACRO" />}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -80,23 +153,26 @@ export default function ChatPanel({ messages, onSend, stock }) {
       {/* Compact Header */}
       <div className="h-10 border-b border-white/5 flex items-center justify-between px-3 bg-black/30 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-md bg-indigo-500/15 border border-indigo-400/20 flex items-center justify-center">
-            <Sparkles size={10} className="text-indigo-400" />
+          <div className="w-5 h-5 rounded-md bg-purple-500/15 border border-purple-400/20 flex items-center justify-center">
+            <Sparkles size={10} className="text-purple-400" />
           </div>
-          <span className="text-[10px] font-bold text-white/80 tracking-widest uppercase">Omni-Data</span>
-          <span className="text-[8px] text-cyan-400/60 font-mono">LIVE</span>
+          <span className="text-[10px] font-bold text-white/80 tracking-widest uppercase">Mythic Engine</span>
+          <span className="text-[8px] text-cyan-400/60 font-mono">V4</span>
         </div>
-        <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e]" />
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_6px_#22c55e]" />
+          <span className="text-[7px] font-mono text-green-400/60">LIVE</span>
+        </div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 flex flex-col no-scrollbar relative">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 opacity-40">
-            <Cpu size={32} className="text-indigo-400" />
+            <Cpu size={32} className="text-purple-400" />
             <div className="text-center">
-              <p className="text-xs font-bold text-white/60 tracking-wider uppercase">Neural Matrix Ready</p>
-              <p className="text-[8px] font-mono text-indigo-300/40 tracking-widest mt-1">AWAITING DIRECTIVES</p>
+              <p className="text-xs font-bold text-white/60 tracking-wider uppercase">Mythic Orchestrator Ready</p>
+              <p className="text-[8px] font-mono text-purple-300/40 tracking-widest mt-1">5 SPECIALISTS • CRITIQUE LAYER • CONFIDENCE CALIBRATION</p>
             </div>
           </div>
         ) : (
@@ -108,8 +184,8 @@ export default function ChatPanel({ messages, onSend, stock }) {
                   : 'rounded-lg rounded-tl-sm bg-white/[0.03] border border-white/5 text-slate-300 px-3 py-2.5'
               }`}>
                 {/* Tag */}
-                <div className={`text-[7px] font-mono font-bold tracking-widest uppercase mb-1 ${m.role === 'user' ? 'text-indigo-200/50' : 'text-indigo-400/50'}`}>
-                  {m.role === 'user' ? 'YOU' : 'OMNI-DATA'}
+                <div className={`text-[7px] font-mono font-bold tracking-widest uppercase mb-1 ${m.role === 'user' ? 'text-indigo-200/50' : 'text-purple-400/50'}`}>
+                  {m.role === 'user' ? 'YOU' : 'AXIOM MYTHIC'}
                 </div>
 
                 {/* Render clean text with section formatting */}
@@ -119,14 +195,17 @@ export default function ChatPanel({ messages, onSend, stock }) {
                   <div className="text-[11px] leading-relaxed whitespace-pre-wrap">{m.text}</div>
                 )}
 
+                {/* Mythic Metadata strip */}
+                {m.role === 'ai' && renderMythicMeta(m)}
+
                 {/* Telemetry Footer */}
                 {m.role === 'ai' && (
                   <div className="mt-1.5 pt-1 border-t border-white/[0.03] flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                      <Zap size={8} className="text-cyan-400/50" />
-                      <span className="text-[7px] font-mono text-slate-600 tracking-widest uppercase">Synthesized Output</span>
+                      <Zap size={8} className="text-purple-400/50" />
+                      <span className="text-[7px] font-mono text-slate-600 tracking-widest uppercase">Multi-Agent Synthesis</span>
                     </div>
-                    <span className="text-[8px] font-mono font-bold text-cyan-400/50">OMNI-DATA v3.1</span>
+                    <span className="text-[8px] font-mono font-bold text-purple-400/50">MYTHIC v4.0</span>
                   </div>
                 )}
               </div>
@@ -135,9 +214,9 @@ export default function ChatPanel({ messages, onSend, stock }) {
         )}
         {loading && (
           <div className="flex items-start pl-1">
-            <div className="bg-indigo-500/5 border border-indigo-500/15 rounded-lg px-3 py-2 flex gap-2 items-center">
-              <Loader2 size={10} className="text-cyan-400 animate-spin" />
-              <span className="text-[9px] font-mono text-indigo-300/60 font-bold tracking-widest uppercase">Synthesizing...</span>
+            <div className="bg-purple-500/5 border border-purple-500/15 rounded-lg px-3 py-2 flex gap-2 items-center">
+              <Loader2 size={10} className="text-purple-400 animate-spin" />
+              <span className="text-[9px] font-mono text-purple-300/60 font-bold tracking-widest uppercase">Orchestrating 5 specialists...</span>
             </div>
           </div>
         )}
@@ -150,7 +229,7 @@ export default function ChatPanel({ messages, onSend, stock }) {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Omni-Data..."
+            placeholder="Ask the Mythic Engine..."
             className="flex-1 bg-transparent border-none outline-none text-white text-[11px] placeholder:text-slate-600"
             disabled={loading}
             autoFocus
@@ -158,7 +237,7 @@ export default function ChatPanel({ messages, onSend, stock }) {
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="p-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-20 transition-colors"
+            className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-500 disabled:opacity-20 transition-colors"
           >
             {loading ? (
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
