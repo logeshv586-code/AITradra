@@ -85,27 +85,31 @@ class LLMClient:
             from llama_cpp import Llama
             import anyio
             
-            # Use absolute path for robustness
-            model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
-            
-            if not os.path.exists(model_path):
-                logger.warning(f"Local GGUF model not found at {model_path}")
-                return None
-                
             if LLMClient._local_llm is None:
+                # Use absolute path for robustness
+                model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
+                if not os.path.exists(model_path):
+                    logger.warning(f"Local GGUF model not found at {model_path}")
+                    return None
+
                 logger.info(f"Loading local GGUF model from {model_path}...")
                 try:
+                    # n_ctx=512 for speed and stability on local CPU
                     LLMClient._local_llm = Llama(
                         model_path=os.path.abspath(model_path),
                         n_ctx=512,
                         n_threads=os.cpu_count() or 4,
                         n_gpu_layers=0,
-                        verbose=True
+                        verbose=False # Crucial: prevents UnicodeDecodeError in callback
                     )
                 except Exception as inner_e:
-                    logger.error(f"Failed to initialize Llama: {inner_e}")
+                    logger.error(f"FATAL: Llama failed to load architecture (possible 'nemotron_h' conflict): {inner_e}")
+                    LLMClient._local_llm = False # Persistent failure marker to avoid re-loading
                     return None
             
+            if LLMClient._local_llm is False:
+                return None
+
             full_prompt = f"<|system|>\n{system}\n<|user|>\n{prompt}\n<|assistant|>\n"
             
             # Run in thread to avoid blocking event loop
