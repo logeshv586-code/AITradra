@@ -38,10 +38,16 @@ class LLMClient:
         import re
         import json
         
-        if force_provider == "nvidia":
-            providers = ["nvidia", "lmstudio"]
+        if force_provider:
+            providers = [force_provider]
         else:
-            providers = [force_provider] if force_provider else ["nvidia", "lmstudio", "ollama"]
+            # Prioritize local NVIDIA (via LM Studio) and GGUF in development
+            # NVIDIA Nim (nvidia) followed by local LM Studio (lmstudio) and Direct GGUF (local_gguf)
+            providers = ["nvidia", "lmstudio", "local_gguf"]
+            
+            # Only use Ollama in production (DEBUG=False)
+            if not settings.DEBUG:
+                providers.append("ollama")
         
         for provider in providers:
             try:
@@ -79,17 +85,26 @@ class LLMClient:
             from llama_cpp import Llama
             import anyio
             
-            model_path = os.path.join(os.getcwd(), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
+            # Use absolute path for robustness
+            model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
             
+            if not os.path.exists(model_path):
+                logger.warning(f"Local GGUF model not found at {model_path}")
+                return None
+                
             if LLMClient._local_llm is None:
                 logger.info(f"Loading local GGUF model from {model_path}...")
-                LLMClient._local_llm = Llama(
-                    model_path=model_path,
-                    n_ctx=2048,
-                    n_threads=4,
-                    n_gpu_layers=0, # Set to -1 for GPU if available, 0 for CPU
-                    verbose=False
-                )
+                try:
+                    LLMClient._local_llm = Llama(
+                        model_path=os.path.abspath(model_path),
+                        n_ctx=512,
+                        n_threads=os.cpu_count() or 4,
+                        n_gpu_layers=0,
+                        verbose=True
+                    )
+                except Exception as inner_e:
+                    logger.error(f"Failed to initialize Llama: {inner_e}")
+                    return None
             
             full_prompt = f"<|system|>\n{system}\n<|user|>\n{prompt}\n<|assistant|>\n"
             

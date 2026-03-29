@@ -177,10 +177,10 @@ async def lifespan(app: FastAPI):
 
     # V4 Data Collection Scheduler
     # Collect news every 5 minutes and index to RAG every 15 minutes
-    scheduler.add_job(lambda: asyncio.ensure_future(collect_news_data()), "interval", minutes=5, id="collect_news")
-    scheduler.add_job(lambda: asyncio.ensure_future(index_knowledge_to_rag()), "interval", minutes=15, id="index_rag")
+    scheduler.add_job(collect_news_data, "interval", minutes=5, id="collect_news")
+    scheduler.add_job(index_knowledge_to_rag, "interval", minutes=15, id="index_rag")
     # Collect daily OHLCV data at startup and then daily
-    scheduler.add_job(lambda: asyncio.ensure_future(collect_daily_data()), "interval", hours=24, id="collect_daily")
+    scheduler.add_job(collect_daily_data, "interval", hours=24, id="collect_daily")
 
     scheduler.start()
     logger.info("⏰ Background scheduler started (RSS + News + RAG indexing + Daily OHLCV).")

@@ -1,105 +1,111 @@
-import os
-import json
-from datetime import datetime, timezone
+"""
+blob_agent.py  —  Async-safe blob / cache agent
+=================================================
+FIX: Replaced loop.run_until_complete() with proper async/await.
+     load_blob() is now async — call it with `await self.blob_agent.load_blob(ticker)`.
+"""
+
+import logging
 import asyncio
-from agents.base_agent import BaseAgent, AgentContext
+import json
+import hashlib
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Any, Optional
 
-class BlobAgent(BaseAgent):
-    """Agent 2: Blob Storage Agent - Persists market intelligence using Claude Flow."""
-    
-    def __init__(self, memory=None, improvement_engine=None, base_path="gateway/market_blob"):
-        super().__init__(name="BlobStorageAgent", memory=memory, improvement_engine=improvement_engine)
-        self.base_path = base_path
-        if not os.path.exists(self.base_path):
-            os.makedirs(self.base_path)
+import pandas as pd
 
-    async def observe(self, context: AgentContext) -> AgentContext:
-        self._add_thought(context, f"Observing blob storage requirement for task: {context.task}")
-        # Detect if we are saving or loading
-        if "save" in context.task.lower():
-            context.observations["mode"] = "save"
-        else:
-            context.observations["mode"] = "load"
-        return context
+from .collector_agent import fetch_ticker
 
-    async def think(self, context: AgentContext) -> AgentContext:
-        mode = context.observations.get("mode")
-        self._add_thought(context, f"Blob mode: {mode}. Ensuring directory structure is valid.")
-        return context
+logger = logging.getLogger("agents.blob_agent")
 
-    async def plan(self, context: AgentContext) -> AgentContext:
-        mode = context.observations.get("mode")
-        if mode == "save":
-            context.plan = ["Validate symbol", "Create symbol directory", "Serialize JSON to disk"]
-        else:
-            context.plan = ["Detect symbol/date", "Check file existence", "Deserialize JSON"]
-        self._add_thought(context, "Storage plan finalized.")
-        return context
+BLOB_DIR = Path("./data/blobs")
+BLOB_DIR.mkdir(parents=True, exist_ok=True)
 
-    async def act(self, context: AgentContext) -> AgentContext:
-        mode = context.observations.get("mode")
-        data = context.metadata.get("blob_data")
-        symbol = context.ticker or (data.get("symbol") if data else None)
-        
-        if not symbol:
-            context.errors.append("Missing symbol for blob operation")
-            return context
 
-        symbol_path = os.path.join(self.base_path, symbol)
-        if not os.path.exists(symbol_path):
-            os.makedirs(symbol_path)
+class BlobAgent:
+    """
+    Stores and retrieves rich per-ticker analysis blobs.
+    All I/O is async — never blocks the event loop.
+    """
 
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        file_path = os.path.join(symbol_path, f"{date_str}.json")
+    def __init__(self, ttl_hours: int = 4):
+        self.ttl_hours = ttl_hours
 
-        if mode == "save" and data:
-            self._add_thought(context, f"Saving snapshot for {symbol} to {file_path}")
-            with open(file_path, "w") as f:
-                json.dump(data, f, indent=2)
-            context.result = {"file_path": file_path, "status": "saved"}
-        elif mode == "load":
-            self._add_thought(context, f"Loading snapshot for {symbol} from {file_path}")
-            if os.path.exists(file_path):
-                with open(file_path, "r") as f:
-                    context.result = json.load(f)
-            else:
-                context.errors.append(f"No blob found for {symbol} on {date_str}")
-        
-        context.actions_taken.append({"action": f"blob_{mode}", "symbol": symbol})
-        return context
+    def _blob_path(self, ticker: str) -> Path:
+        safe = hashlib.md5(ticker.encode()).hexdigest()[:10]
+        return BLOB_DIR / f"{safe}_{ticker.replace('/', '_')}.json"
 
-    async def reflect(self, context: AgentContext) -> AgentContext:
-        if context.result and not context.errors:
-            context.reflection = "Persistence operation successful. Disk I/O verified."
-            context.confidence = 1.0
-        else:
-            context.reflection = "Persistence operation failed or incomplete."
-            context.confidence = 0.0
-        return context
+    def _is_fresh(self, path: Path) -> bool:
+        if not path.exists():
+            return False
+        age_h = (datetime.now().timestamp() - path.stat().st_mtime) / 3600
+        return age_h < self.ttl_hours
 
-    # Helper methods for direct call (keeping legacy compatibility)
-    def save_blob(self, data: dict):
-        # Wraps the async run for legacy calls if needed
-        loop = asyncio.get_event_loop()
-        ctx = AgentContext(task="Save blob", ticker=data.get("symbol"), metadata={"blob_data": data})
-        res = loop.run_until_complete(self.run(ctx))
-        return res.result.get("file_path") if res.result else None
+    # ── Public async API ─────────────────────────────────────────────────────
 
-    def load_blob(self, symbol: str):
-        loop = asyncio.get_event_loop()
-        ctx = AgentContext(task="Load blob", ticker=symbol)
-        res = loop.run_until_complete(self.run(ctx))
-        return res.result if isinstance(res.result, dict) else None
+    async def load_blob(self, ticker: str) -> Optional[dict]:
+        """
+        Load a ticker blob from disk (if fresh) or fetch fresh data.
+        SAFE to await inside FastAPI/uvicorn — no run_until_complete().
+        """
+        path = self._blob_path(ticker)
+        if self._is_fresh(path):
+            try:
+                loop = asyncio.get_running_loop()
+                text = await loop.run_in_executor(None, path.read_text)
+                blob = json.loads(text)
+                logger.debug(f"[BlobAgent] Cache hit for {ticker}")
+                return blob
+            except Exception as e:
+                logger.debug(f"[BlobAgent] Cache read failed for {ticker}: {e}")
 
-if __name__ == "__main__":
-    async def test():
-        agent = BlobAgent()
-        # Test Save
-        save_ctx = AgentContext(task="Save blob for AAPL", ticker="AAPL", metadata={"blob_data": {"symbol": "AAPL", "price": 180}})
-        await agent.run(save_ctx)
-        # Test Load
-        load_ctx = AgentContext(task="Load blob for AAPL", ticker="AAPL")
-        res = await agent.run(load_ctx)
-        print(f"Loaded: {res.result}")
-    
-    asyncio.run(test())
+        # Fetch fresh data
+        df, source = await fetch_ticker(ticker, period="1y")
+        if df.empty:
+            logger.warning(f"[BlobAgent] No data available for {ticker}")
+            return None
+
+        blob = self._df_to_blob(ticker, df, source)
+        await self._save_blob(path, blob)
+        return blob
+
+    async def save_blob(self, ticker: str, data: dict):
+        path = self._blob_path(ticker)
+        await self._save_blob(path, data)
+
+    # ── Internal helpers ─────────────────────────────────────────────────────
+
+    def _df_to_blob(self, ticker: str, df: pd.DataFrame, source: str) -> dict:
+        close = df["Close"].dropna()
+        return {
+            "ticker":      ticker,
+            "source":      source,
+            "records":     len(df),
+            "last_price":  float(close.iloc[-1]) if not close.empty else None,
+            "last_date":   str(df.index[-1].date()) if not df.empty else None,
+            "fetched_at":  datetime.now(timezone.utc).isoformat(),
+            "pct_1d":      _pct_change(close, 1),
+            "pct_5d":      _pct_change(close, 5),
+            "pct_30d":     _pct_change(close, 30),
+            "high_52w":    float(close.tail(252).max()) if len(close) >= 5 else None,
+            "low_52w":     float(close.tail(252).min()) if len(close) >= 5 else None,
+        }
+
+    async def _save_blob(self, path: Path, blob: dict):
+        try:
+            loop = asyncio.get_running_loop()
+            text = json.dumps(blob, default=str)
+            await loop.run_in_executor(None, path.write_text, text)
+        except Exception as e:
+            logger.debug(f"[BlobAgent] Save failed: {e}")
+
+
+def _pct_change(series: pd.Series, days: int) -> Optional[float]:
+    if len(series) < days + 1:
+        return None
+    old = series.iloc[-(days + 1)]
+    new = series.iloc[-1]
+    if old == 0:
+        return None
+    return round((new - old) / old * 100, 4)

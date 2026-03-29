@@ -40,18 +40,19 @@ class ApiAgent:
         @self.router.get("/api/stock/{ticker}")
         async def get_stock_detail(ticker: str, live: bool = False):
             """Institutional-Grade persistent fetch flow."""
-            if not live:
-                cached = self.blob_agent.load_blob(ticker)
-                if cached: return cached
-                
-            ctx = AgentContext(task=f"Fetch data for {ticker}", ticker=ticker)
-            result = await self.data_agent.run(ctx)
-            data = result.result
-            
-            await self.blob_agent.run(AgentContext(task=f"Save {ticker}", ticker=ticker, metadata={"blob_data": data}))
-            await self.rag_agent.run(AgentContext(task=f"Index {ticker}", ticker=ticker, metadata={"blob_data": data}))
-            self.rag_agent.save_index()
-            return data
+            try:
+                blob = await self.blob_agent.load_blob(ticker)
+                if blob is None:
+                    from fastapi import HTTPException
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"No data available for {ticker} from any source"
+                    )
+                return blob
+            except Exception as e:
+                if isinstance(e, HTTPException): raise e
+                from fastapi import HTTPException
+                raise HTTPException(status_code=500, detail=str(e))
 
         @self.router.get("/api/history/{ticker}")
         async def get_stock_history(ticker: str):

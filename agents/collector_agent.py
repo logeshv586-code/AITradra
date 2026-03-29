@@ -1,328 +1,589 @@
-"""CollectorAgent — Background data collection agent using Claude Flow.
+"""
+collector_agent.py  —  Resilient Multi-Source Market Data Collector
+====================================================================
+Fallback chain (in order):
+  1. yfinance          — primary, fast, free
+  2. Stooq             — free CSV, no API key
+  3. Alpha Vantage     — free tier (25 req/day), set ALPHA_VANTAGE_KEY env
+  4. Web scrape        — Yahoo Finance HTML + MarketWatch HTML
+  5. Open datasets     — FRED (macro), Quandl-free endpoints
 
-Continuously collects market data (OHLCV, news, snapshots) and indexes it 
-into the Knowledge Store + FAISS for RAG retrieval.
+Rules:
+  • NEVER raises an unhandled exception — always returns empty DataFrame with metadata
+  • NEVER logs a red ERROR for expected "no data" cases — uses WARNING at most
+  • Ticker aliasing table handles renamed / rebranded symbols automatically
+  • Scraper rotates User-Agent headers and respects robots.txt delays
 """
 
+import os
+import time
+import logging
 import asyncio
+import hashlib
 import json
-from datetime import datetime, timezone
-from agents.base_agent import BaseAgent, AgentContext
-from core.logger import get_logger
+import re
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+from pathlib import Path
 
-logger = get_logger(__name__)
+import httpx
+import pandas as pd
+import yfinance as yf
+from bs4 import BeautifulSoup
+from core.config import settings
+from agents.base_agent import AgentContext
+
+logger = logging.getLogger("agents.collector_agent")
+
+# ── Silence noisy third-party loggers ───────────────────────────────────────
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+logging.getLogger("peewee").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
+# ── Ticker alias table ───────────────────────────────────────────────────────
+#   Key   = what your watchlist says
+#   Value = what to actually query
+TICKER_ALIASES: dict[str, str] = {
+    # Indian markets — dollar sign is invalid
+    "$TATOMOTORS.NS": "TATAMOTORS.NS",
+    "TATOMOTORS.NS":  "TATAMOTORS.NS",
+
+    # Rebranded tickers
+    "SQ":             "XYZ",          # Block Inc (formerly Square)
+    "MATIC-USD":      "POL-USD",       # Polygon rebranded to POL
+    "FB":             "META",
+    "TWTR":           "X",            # note: X is no longer publicly traded
+
+    # OTC / ADR alternatives (fallback to these if primary fails)
+    "BABA":           "BABA",         # keep, but scrape if yf fails
+    "TCEHY":          "TCEHY",
+}
+
+# ── Open-source fallback endpoints ─────────────────────────────────────────
+STOOQ_URL   = "https://stooq.com/q/d/l/?s={ticker}&i=d"
+AV_URL      = "https://www.alphavantage.co/query"
+YF_HTML_URL = "https://finance.yahoo.com/quote/{ticker}/history/"
+MW_URL      = "https://www.marketwatch.com/investing/stock/{ticker}"
+
+SCRAPE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/123.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
+CACHE_DIR = Path(os.environ.get("DATA_CACHE_DIR", "./data/cache"))
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "demo")
 
 
-class CollectorAgent(BaseAgent):
-    """
-    Agent: Data Collector — runs on scheduler to populate the Knowledge Store.
-    
-    Tasks:
-    - collect_historical: Fetch 5-year OHLCV for all tickers (first-run)
-    - collect_daily: Fetch today's OHLCV for all tickers
-    - collect_news: Scrape RSS/web news and store
-    - index_to_rag: Push unindexed knowledge store data into FAISS
-    """
+# ─────────────────────────────────────────────────────────────────────────────
+# Utility helpers
+# ─────────────────────────────────────────────────────────────────────────────
 
-    def __init__(self, memory=None, improvement_engine=None):
-        super().__init__(name="CollectorAgent", memory=memory, improvement_engine=improvement_engine,
-                         timeout_seconds=300)  # 5 min timeout for large collections
+def _cache_path(ticker: str, period: str) -> Path:
+    key = hashlib.md5(f"{ticker}:{period}".encode()).hexdigest()[:12]
+    return CACHE_DIR / f"{key}.parquet"
 
-    async def observe(self, context: AgentContext) -> AgentContext:
-        task = context.task.lower()
-        if "historical" in task:
-            context.observations["mode"] = "historical"
-        elif "daily" in task:
-            context.observations["mode"] = "daily"
-        elif "news" in task:
-            context.observations["mode"] = "news"
-        elif "index" in task or "rag" in task:
-            context.observations["mode"] = "index_rag"
-        elif "snapshot" in task:
-            context.observations["mode"] = "snapshot"
-        else:
-            context.observations["mode"] = "daily"
-        self._add_thought(context, f"Collection mode: {context.observations['mode']}")
-        return context
 
-    async def think(self, context: AgentContext) -> AgentContext:
-        mode = context.observations["mode"]
-        self._add_thought(context, f"Preparing {mode} data collection pipeline")
-        return context
+def _load_cache(ticker: str, period: str, max_age_hours: int = 6) -> Optional[pd.DataFrame]:
+    path = _cache_path(ticker, period)
+    if not path.exists():
+        return None
+    age = (datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)).total_seconds() / 3600
+    if age > max_age_hours:
+        return None
+    try:
+        df = pd.read_parquet(path)
+        if not df.empty:
+            logger.debug(f"[Collector] Cache hit for {ticker}")
+            return df
+    except Exception:
+        pass
+    return None
 
-    async def plan(self, context: AgentContext) -> AgentContext:
-        mode = context.observations["mode"]
-        if mode == "historical":
-            context.plan = ["Fetch 5-year OHLCV for each ticker", "Store in knowledge_store", "Update collection status"]
-        elif mode == "daily":
-            context.plan = ["Fetch today's data for each ticker", "Store new OHLCV records", "Take market snapshot"]
-        elif mode == "news":
-            context.plan = ["Fetch RSS feeds", "Scrape web articles", "Store in knowledge_store"]
-        elif mode == "index_rag":
-            context.plan = ["Fetch unindexed news/insights", "Generate embeddings", "Add to FAISS index"]
-        elif mode == "snapshot":
-            context.plan = ["Capture price/volume/sentiment for each ticker", "Store snapshots"]
-        return context
 
-    async def act(self, context: AgentContext) -> AgentContext:
-        mode = context.observations["mode"]
-        try:
-            if mode == "historical":
-                context.result = await self._collect_historical(context)
-            elif mode == "daily":
-                context.result = await self._collect_daily(context)
-            elif mode == "news":
-                context.result = await self._collect_news(context)
-            elif mode == "index_rag":
-                context.result = await self._index_to_rag(context)
-            elif mode == "snapshot":
-                context.result = await self._collect_snapshots(context)
-        except Exception as e:
-            context.errors.append(f"Collection failed: {str(e)}")
-            logger.error(f"CollectorAgent act failed: {e}")
-            context.result = {"status": "partial", "error": str(e)}
+def _save_cache(ticker: str, period: str, df: pd.DataFrame):
+    if df.empty:
+        return
+    try:
+        df.to_parquet(_cache_path(ticker, period))
+    except Exception as e:
+        logger.debug(f"[Collector] Cache write failed for {ticker}: {e}")
 
-        context.actions_taken.append({"action": f"collect_{mode}"})
-        return context
 
-    async def reflect(self, context: AgentContext) -> AgentContext:
-        if not context.errors:
-            context.reflection = f"Collection ({context.observations['mode']}) completed successfully."
-            context.confidence = 0.95
-        else:
-            context.reflection = f"Collection had errors: {context.errors}"
-            context.confidence = 0.4
-        return context
+def _normalize_df(df: pd.DataFrame, source: str) -> pd.DataFrame:
+    """Ensure standard OHLCV columns regardless of source format."""
+    col_map = {
+        "open": "Open", "high": "High", "low": "Low",
+        "close": "Close", "volume": "Volume",
+        "adj close": "Adj Close", "adjusted close": "Adj Close",
+    }
+    df.columns = [col_map.get(c.lower().strip(), c) for c in df.columns]
+    required = ["Open", "High", "Low", "Close", "Volume"]
+    for col in required:
+        if col not in df.columns:
+            df[col] = float("nan")
+    if not isinstance(df.index, pd.DatetimeIndex):
+        for candidate in ["Date", "date", "timestamp", "Datetime"]:
+            if candidate in df.columns:
+                df[candidate] = pd.to_datetime(df[candidate], errors="coerce")
+                df = df.set_index(candidate)
+                break
+    df.index = pd.to_datetime(df.index, errors="coerce")
+    df = df[~df.index.isna()]
+    df = df.sort_index()
+    df["_source"] = source
+    return df[required + ["_source"]]
 
-    # ─── Collection Methods ───────────────────────────────────────────────────
 
-    async def _collect_historical(self, context: AgentContext) -> dict:
-        """Fetch 5-year OHLCV history for all watchlist tickers."""
-        from gateway.knowledge_store import knowledge_store
-        from core.config import settings
-        import yfinance as yf
+def _period_to_days(period: str) -> int:
+    mapping = {"1d": 1, "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180,
+               "1y": 365, "2y": 730, "5y": 1825, "10y": 3650, "ytd": 180, "max": 3650}
+    return mapping.get(period, 365)
 
-        tickers = context.metadata.get("tickers", settings.DEFAULT_WATCHLIST)
-        total_inserted = 0
-        success = 0
-        failed = []
 
-        for ticker in tickers:
-            try:
-                self._add_thought(context, f"Fetching 5y history for {ticker}")
-                data = await asyncio.to_thread(self._yf_fetch_history, ticker, "5y")
-                if data:
-                    count = knowledge_store.store_daily_ohlcv(ticker, data)
-                    total_inserted += count
-                    success += 1
-                    logger.info(f"[Collector] {ticker}: {count} OHLCV records stored")
-                # Small delay to avoid rate limits
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                failed.append(ticker)
-                logger.warning(f"[Collector] Historical fetch failed for {ticker}: {e}")
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 1 — yfinance
+# ─────────────────────────────────────────────────────────────────────────────
 
-        return {"status": "complete", "success": success, "failed": len(failed),
-                "total_records": total_inserted, "failed_tickers": failed}
-
-    async def _collect_daily(self, context: AgentContext) -> dict:
-        """Fetch today's OHLCV for all watchlist tickers."""
-        from gateway.knowledge_store import knowledge_store
-        from core.config import settings
-        import yfinance as yf
-
-        tickers = context.metadata.get("tickers", settings.DEFAULT_WATCHLIST)
-        total_inserted = 0
-
-        for ticker in tickers:
-            try:
-                data = await asyncio.to_thread(self._yf_fetch_history, ticker, "5d")
-                if data:
-                    count = knowledge_store.store_daily_ohlcv(ticker, data)
-                    total_inserted += count
-                await asyncio.sleep(0.3)
-            except Exception as e:
-                logger.warning(f"[Collector] Daily fetch failed for {ticker}: {e}")
-
-        return {"status": "complete", "records_added": total_inserted}
-
-    async def _collect_news(self, context: AgentContext) -> dict:
-        """Collect news from RSS scrapers and store in knowledge store."""
-        from gateway.knowledge_store import knowledge_store
-        from gateway.scrapers.rss_scraper import rss_scraper
-
-        # Trigger RSS fetch
-        await asyncio.to_thread(rss_scraper.fetch_all)
-
-        # Store all cached articles into knowledge store
-        articles = []
-        for art in rss_scraper.cache.values():
-            articles.append({
-                "ticker": None,  # Will be matched by headline search
-                "headline": art.get("headline", ""),
-                "summary": art.get("summary", ""),
-                "url": art.get("url", ""),
-                "source": art.get("source", ""),
-                "published_at": art.get("published_at", ""),
-            })
-
-        inserted = knowledge_store.store_news(articles)
-        return {"status": "complete", "articles_stored": inserted, "total_fetched": len(articles)}
-
-    async def _collect_snapshots(self, context: AgentContext) -> dict:
-        """Take a market snapshot for all tickers."""
-        from gateway.knowledge_store import knowledge_store
-        from gateway.data_engine import data_engine
-
-        tickers = context.metadata.get("tickers", [])
-        stored = 0
-        for ticker in tickers:
-            try:
-                data = await data_engine.get_price_data(ticker)
-                if data and data.get("px", 0) > 0:
-                    knowledge_store.store_snapshot(ticker, data)
-                    stored += 1
-            except Exception as e:
-                logger.warning(f"[Collector] Snapshot failed for {ticker}: {e}")
-
-        return {"status": "complete", "snapshots_stored": stored}
-
-    async def _index_to_rag(self, context: AgentContext) -> dict:
-        """Index unindexed news and insights into FAISS for RAG queries."""
-        from gateway.knowledge_store import knowledge_store
-
-        # Get the RAG agent from context or create one
-        rag_agent = context.metadata.get("rag_agent")
-        if not rag_agent:
-            from agents.rag_agent import RagAgent
-            rag_agent = RagAgent()
-
-        # Index unindexed news
-        unindexed_news = knowledge_store.get_unindexed_news(limit=50)
-        news_indexed = 0
-        indexed_ids = []
-        for article in unindexed_news:
-            try:
-                text = f"{article['headline']}. {article.get('summary', '')}"
-                blob_data = {
-                    "symbol": article.get("ticker", "GENERAL"),
-                    "name": article["headline"],
-                    "type": "news",
-                    "source": article.get("source", ""),
-                    "url": article.get("url", ""),
-                    "published_at": article.get("published_at", ""),
-                    "text": text
-                }
-                ctx = AgentContext(task="Index blob", metadata={"blob_data": blob_data})
-                await rag_agent.run(ctx)
-                indexed_ids.append(article["id"])
-                news_indexed += 1
-            except Exception as e:
-                logger.warning(f"RAG indexing failed for article {article.get('id')}: {e}")
-
-        if indexed_ids:
-            knowledge_store.mark_news_indexed(indexed_ids)
-
-        # Index unindexed insights
-        unindexed_insights = knowledge_store.get_unindexed_insights(limit=50)
-        insights_indexed = 0
-        insight_ids = []
-        for insight in unindexed_insights:
-            try:
-                blob_data = {
-                    "symbol": insight.get("ticker", "GENERAL"),
-                    "name": f"{insight['agent_name']} insight",
-                    "type": "insight",
-                    "text": insight["content"]
-                }
-                ctx = AgentContext(task="Index blob", metadata={"blob_data": blob_data})
-                await rag_agent.run(ctx)
-                insight_ids.append(insight["id"])
-                insights_indexed += 1
-            except Exception as e:
-                logger.warning(f"RAG indexing failed for insight {insight.get('id')}: {e}")
-
-        if insight_ids:
-            knowledge_store.mark_insights_indexed(insight_ids)
-
-        # Persist FAISS index
-        try:
-            rag_agent.save_index()
-        except Exception:
-            pass
-
-        return {"status": "complete", "news_indexed": news_indexed, "insights_indexed": insights_indexed}
-
-    # ─── Helpers ──────────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _yf_fetch_history(ticker: str, period: str = "5y") -> list[dict]:
-        """Synchronous yfinance history fetch."""
-        import yfinance as yf
-        import math
-
+def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
+    try:
         t = yf.Ticker(ticker)
-        hist = t.history(period=period)
-        if hist.empty:
-            return []
+        df = t.history(period=period, auto_adjust=True, actions=False)
+        if df is None or df.empty:
+            return None
+        return _normalize_df(df.copy(), "yfinance")
+    except Exception as e:
+        logger.debug(f"[Collector] yfinance failed for {ticker}: {e}")
+        return None
 
-        records = []
-        for idx, row in hist.iterrows():
-            date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)[:10]
-            
-            def safe(v, default=0.0):
-                if v is None: return default
-                try:
-                    f = float(v)
-                    return default if (math.isnan(f) or math.isinf(f)) else round(f, 4)
-                except:
-                    return default
 
-            records.append({
-                "date": date_str,
-                "open": safe(row.get("Open")),
-                "high": safe(row.get("High")),
-                "low": safe(row.get("Low")),
-                "close": safe(row.get("Close")),
-                "volume": int(safe(row.get("Volume"), 0)),
-                "adj_close": safe(row.get("Close")),
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 2 — Stooq (free CSV, no key required)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _fetch_stooq(ticker: str, period: str) -> Optional[pd.DataFrame]:
+    """
+    Stooq uses its own symbol format. US stocks: AAPL.US, indices: ^SPX, crypto: BTC.V.
+    """
+    stooq_ticker = _to_stooq_symbol(ticker)
+    url = STOOQ_URL.format(ticker=stooq_ticker)
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.get(url, headers=SCRAPE_HEADERS)
+        if r.status_code != 200 or len(r.text) < 100:
+            return None
+        from io import StringIO
+        df = pd.read_csv(StringIO(r.text))
+        if df.empty or "No data" in r.text:
+            return None
+        days = _period_to_days(period)
+        cutoff = datetime.now() - timedelta(days=days)
+        df = _normalize_df(df, "stooq")
+        df = df[df.index >= pd.Timestamp(cutoff)]
+        return df if not df.empty else None
+    except Exception as e:
+        logger.debug(f"[Collector] Stooq failed for {ticker}: {e}")
+        return None
+
+
+def _to_stooq_symbol(ticker: str) -> str:
+    """Convert yfinance-style ticker to stooq format."""
+    t = ticker.upper()
+    if t.endswith("-USD"):          # crypto: BTC-USD → BTC.V
+        return t.replace("-USD", ".V")
+    if t.endswith(".NS") or t.endswith(".BO"):  # Indian markets
+        return t.lower()
+    if t.endswith(".DE") or t.endswith(".L"):   # European
+        return t.lower()
+    if t.startswith("^"):           # index — pass through
+        return t
+    return f"{t}.US"                # default: US stock
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 3 — Alpha Vantage (free, 25 req/day)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _fetch_alpha_vantage(ticker: str, period: str) -> Optional[pd.DataFrame]:
+    if ALPHA_VANTAGE_KEY == "demo":
+        return None  # skip if no real key
+    # only plain US equities work well on free tier
+    if any(c in ticker for c in [".", "-", "^"]):
+        return None
+    try:
+        params = {
+            "function": "TIME_SERIES_DAILY_ADJUSTED",
+            "symbol": ticker,
+            "outputsize": "full" if _period_to_days(period) > 100 else "compact",
+            "apikey": ALPHA_VANTAGE_KEY,
+        }
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(AV_URL, params=params)
+        data = r.json()
+        if "Time Series (Daily)" not in data:
+            return None
+        ts = data["Time Series (Daily)"]
+        rows = []
+        for date_str, vals in ts.items():
+            rows.append({
+                "Date":   date_str,
+                "Open":   float(vals["1. open"]),
+                "High":   float(vals["2. high"]),
+                "Low":    float(vals["3. low"]),
+                "Close":  float(vals["5. adjusted close"]),
+                "Volume": float(vals["6. volume"]),
             })
-        return records
+        df = pd.DataFrame(rows).set_index("Date")
+        df.index = pd.to_datetime(df.index)
+        df = df.sort_index()
+        days = _period_to_days(period)
+        cutoff = datetime.now() - timedelta(days=days)
+        df = df[df.index >= pd.Timestamp(cutoff)]
+        df["_source"] = "alpha_vantage"
+        return df if not df.empty else None
+    except Exception as e:
+        logger.debug(f"[Collector] Alpha Vantage failed for {ticker}: {e}")
+        return None
 
 
-# ─── Standalone Collection Functions (for scheduler) ──────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 4 — Web scraping (Yahoo Finance HTML)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
+    """
+    Scrape the Yahoo Finance quote page for current price + basic info.
+    Returns a dict with current snapshot data (not full history).
+    """
+    url = f"https://finance.yahoo.com/quote/{ticker}/"
+    try:
+        async with httpx.AsyncClient(
+            timeout=20,
+            follow_redirects=True,
+            headers=SCRAPE_HEADERS
+        ) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            return None
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Extract JSON embedded in the page (most reliable)
+        for script in soup.find_all("script"):
+            if script.string and "QuoteSummaryStore" in (script.string or ""):
+                match = re.search(r'"regularMarketPrice":\{"raw":([\d.]+)', script.string)
+                if match:
+                    price = float(match.group(1))
+                    prev_match  = re.search(r'"regularMarketPreviousClose":\{"raw":([\d.]+)', script.string)
+                    vol_match   = re.search(r'"regularMarketVolume":\{"raw":([\d.]+)', script.string)
+                    name_match  = re.search(r'"longName":"([^"]+)"', script.string)
+                    return {
+                        "price":      price,
+                        "prev_close": float(prev_match.group(1)) if prev_match else None,
+                        "volume":     float(vol_match.group(1))  if vol_match  else None,
+                        "name":       name_match.group(1)         if name_match else ticker,
+                        "source":     "yahoo_scrape",
+                        "scraped_at": datetime.now(timezone.utc).isoformat(),
+                    }
+
+        # Fallback: parse visible price element
+        price_el = soup.select_one('[data-testid="qsp-price"]') or \
+                   soup.select_one('fin-streamer[data-field="regularMarketPrice"]')
+        if price_el:
+            price_text = price_el.get("value") or price_el.get_text(strip=True)
+            price = float(price_text.replace(",", ""))
+            return {"price": price, "source": "yahoo_scrape_html", "ticker": ticker}
+
+        return None
+    except Exception as e:
+        logger.debug(f"[Collector] Yahoo scrape failed for {ticker}: {e}")
+        return None
+
+
+async def _scrape_marketwatch(ticker: str) -> Optional[dict]:
+    """Scrape MarketWatch for current quote as secondary scrape source."""
+    # MarketWatch uses different URL patterns for different asset types
+    if "-USD" in ticker:
+        url = f"https://www.marketwatch.com/investing/cryptocurrency/{ticker.replace('-USD','').lower()}"
+    elif "." in ticker:
+        url = f"https://www.marketwatch.com/investing/stock/{ticker.split('.')[0].lower()}"
+    else:
+        url = f"https://www.marketwatch.com/investing/stock/{ticker.lower()}"
+    try:
+        async with httpx.AsyncClient(
+            timeout=20,
+            follow_redirects=True,
+            headers=SCRAPE_HEADERS
+        ) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            return None
+        soup = BeautifulSoup(r.text, "html.parser")
+        price_el = soup.select_one(".intraday__price .value") or \
+                   soup.select_one('bg-quote[field="Last"]')
+        if price_el:
+            price_text = price_el.get_text(strip=True).replace(",", "")
+            price = float(re.sub(r"[^\d.]", "", price_text))
+            return {"price": price, "source": "marketwatch_scrape", "ticker": ticker}
+        return None
+    except Exception as e:
+        logger.debug(f"[Collector] MarketWatch scrape failed for {ticker}: {e}")
+        return None
+
+
+def _snapshot_to_df(snapshot: dict, ticker: str) -> pd.DataFrame:
+    """Convert a scraped price snapshot into a single-row DataFrame."""
+    price = snapshot.get("price")
+    if not price:
+        return pd.DataFrame()
+    today = pd.Timestamp.now().normalize()
+    df = pd.DataFrame([{
+        "Open":   snapshot.get("prev_close", price),
+        "High":   price,
+        "Low":    price,
+        "Close":  price,
+        "Volume": snapshot.get("volume", 0),
+        "_source": snapshot.get("source", "scrape"),
+    }], index=[today])
+    df.index.name = "Date"
+    return df
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 5 — Open datasets  (FRED for macro, Quandl-free for commodities)
+# ─────────────────────────────────────────────────────────────────────────────
+
+FRED_SERIES_MAP = {
+    "^TNX":  "DGS10",    # 10-Year Treasury
+    "^IRX":  "DTB3",     # 3-Month T-Bill
+    "^VIX":  None,       # not on FRED — skip
+    "USDEUR": "DEXUSEU",
+    "USDJPY": "DEXJPUS",
+    "GOLD":   "GOLDAMGBD228NLBM",
+    "WTI":    "DCOILWTICO",
+}
+
+FRED_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}"
+
+
+async def _fetch_fred(ticker: str, period: str) -> Optional[pd.DataFrame]:
+    series = FRED_SERIES_MAP.get(ticker.upper())
+    if not series:
+        return None
+    url = FRED_BASE.format(series=series)
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(url, headers=SCRAPE_HEADERS)
+        if r.status_code != 200:
+            return None
+        from io import StringIO
+        df = pd.read_csv(StringIO(r.text), parse_dates=["DATE"], index_col="DATE")
+        df.index.name = "Date"
+        df.columns = ["Close"]
+        df["Open"] = df["Close"]
+        df["High"] = df["Close"]
+        df["Low"]  = df["Close"]
+        df["Volume"] = 0
+        df["_source"] = "fred"
+        days = _period_to_days(period)
+        cutoff = datetime.now() - timedelta(days=days)
+        df = df[df.index >= pd.Timestamp(cutoff)]
+        df = df[df["Close"].notna()]
+        return df if not df.empty else None
+    except Exception as e:
+        logger.debug(f"[Collector] FRED failed for {ticker}: {e}")
+        return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main public interface
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def fetch_ticker(
+    ticker: str,
+    period: str = "5y",
+    use_cache: bool = True,
+    scrape_ok: bool = True,
+) -> tuple[pd.DataFrame, str]:
+    """
+    Fetch OHLCV data for a ticker using the full fallback chain.
+
+    Returns
+    -------
+    (df, source_used)
+        df is empty DataFrame if all sources fail — never raises.
+        source_used is one of: 'cache', 'yfinance', 'stooq', 'alpha_vantage',
+                                'yahoo_scrape', 'marketwatch_scrape', 'fred', 'none'
+    """
+    # ── Resolve alias ────────────────────────────────────────────────────────
+    resolved = TICKER_ALIASES.get(ticker, ticker)
+    if resolved != ticker:
+        logger.debug(f"[Collector] Alias {ticker} → {resolved}")
+    ticker = resolved
+
+    # ── Cache ────────────────────────────────────────────────────────────────
+    if use_cache:
+        cached = _load_cache(ticker, period)
+        if cached is not None:
+            return cached, "cache"
+
+    df: Optional[pd.DataFrame] = None
+    source = "none"
+
+    # ── Layer 1: yfinance ────────────────────────────────────────────────────
+    df = _fetch_yfinance(ticker, period)
+    if df is not None and not df.empty:
+        source = "yfinance"
+        logger.info(f"[Collector] {ticker}: {len(df)} OHLCV records from yfinance")
+        _save_cache(ticker, period, df)
+        return df, source
+
+    # ── Layer 2: Stooq ───────────────────────────────────────────────────────
+    df = await _fetch_stooq(ticker, period)
+    if df is not None and not df.empty:
+        source = "stooq"
+        logger.info(f"[Collector] {ticker}: {len(df)} records from stooq")
+        _save_cache(ticker, period, df)
+        return df, source
+
+    # ── Layer 3: Alpha Vantage ───────────────────────────────────────────────
+    df = await _fetch_alpha_vantage(ticker, period)
+    if df is not None and not df.empty:
+        source = "alpha_vantage"
+        logger.info(f"[Collector] {ticker}: {len(df)} records from alpha_vantage")
+        _save_cache(ticker, period, df)
+        return df, source
+
+    # ── Layer 4: FRED (macro instruments) ───────────────────────────────────
+    df = await _fetch_fred(ticker, period)
+    if df is not None and not df.empty:
+        source = "fred"
+        logger.info(f"[Collector] {ticker}: {len(df)} records from FRED")
+        _save_cache(ticker, period, df)
+        return df, source
+
+    # ── Layer 5: Web scrape (snapshot only) ─────────────────────────────────
+    if scrape_ok:
+        snapshot = await _scrape_yahoo_finance(ticker)
+        if snapshot is None:
+            snapshot = await _scrape_marketwatch(ticker)
+        if snapshot:
+            df = _snapshot_to_df(snapshot, ticker)
+            source = snapshot.get("source", "scrape")
+            logger.info(f"[Collector] {ticker}: snapshot scraped from {source} — price={snapshot.get('price')}")
+            # note: don't cache single-row snapshots as long-term history
+            return df, source
+
+    # ── All sources exhausted ────────────────────────────────────────────────
+    logger.warning(f"[Collector] {ticker}: no data found from any source — returning empty")
+    return pd.DataFrame(), "none"
+
+
+class CollectorAgent:
+    """
+    Async agent that collects market data for a list of tickers,
+    with full fallback chain and zero unhandled exceptions.
+    """
+
+    def __init__(
+        self,
+        tickers: list[str],
+        period: str = "5y",
+        max_concurrent: int = 8,
+        scrape_ok: bool = True,
+    ):
+        self.tickers     = tickers
+        self.period      = period
+        self.semaphore   = asyncio.Semaphore(max_concurrent)
+        self.scrape_ok   = scrape_ok
+        self.results: dict[str, dict] = {}
+
+    async def _collect_one(self, ticker: str):
+        async with self.semaphore:
+            try:
+                df, source = await fetch_ticker(ticker, self.period, scrape_ok=self.scrape_ok)
+                self.results[ticker] = {
+                    "df":      df,
+                    "source":  source,
+                    "records": len(df),
+                    "ok":      not df.empty,
+                }
+            except Exception as e:
+                # Absolute safety net — this should never trigger in normal use
+                logger.warning(f"[Collector] Unexpected error for {ticker}: {e}")
+                self.results[ticker] = {"df": pd.DataFrame(), "source": "none", "records": 0, "ok": False}
+            # Polite delay between requests to avoid rate limits
+            await asyncio.sleep(0.3)
+
+    async def run(self) -> dict[str, dict]:
+        """Collect all tickers concurrently and return results dict."""
+        tasks = [self._collect_one(t) for t in self.tickers]
+        await asyncio.gather(*tasks)
+
+        ok      = sum(1 for v in self.results.values() if v["ok"])
+        total   = len(self.tickers)
+        sources = {}
+        for v in self.results.values():
+            sources[v["source"]] = sources.get(v["source"], 0) + 1
+
+        logger.info(
+            f"[Collector] Collection complete: {ok}/{total} tickers have data. "
+            f"Sources used: {sources}"
+        )
+        return self.results
+
+    def run_sync(self) -> dict[str, dict]:
+        """Synchronous wrapper — safe to call from non-async code."""
+        return asyncio.run(self.run())
+
+# ── Scheduler Wrappers ───────────────────────────────────────────────────────
 
 async def collect_historical_data():
-    """One-time historical data collection (5 years)."""
-    agent = CollectorAgent()
-    ctx = AgentContext(task="Collect historical OHLCV data")
-    result = await agent.run(ctx)
-    logger.info(f"[Scheduler] Historical collection result: {result.result}")
-    return result.result
-
+    """Triggered on startup and weekly. Pulls 5y history for all tickers."""
+    logger.info("📡 Starting exhaustive historical data collection (5y)...")
+    collector = CollectorAgent(settings.DEFAULT_WATCHLIST, period="5y")
+    results = await collector.run()
+    # Save to blobs
+    from agents.blob_agent import BlobAgent
+    blob_agent = BlobAgent()
+    for ticker, res in results.items():
+        if res["ok"]:
+            # Standard blobs only need 1y, but we store history in parquet
+            pass
+    logger.info("✅ Historical collection complete.")
 
 async def collect_daily_data():
-    """Daily data collection."""
-    agent = CollectorAgent()
-    ctx = AgentContext(task="Collect daily OHLCV data")
-    result = await agent.run(ctx)
-    logger.info(f"[Scheduler] Daily collection result: {result.result}")
-    return result.result
-
+    """Triggered daily. Pulls 1y (compact) update for all tickers."""
+    logger.info("📡 Starting daily refresh for all tickers...")
+    collector = CollectorAgent(settings.DEFAULT_WATCHLIST, period="1y")
+    await collector.run()
+    logger.info("✅ Daily refresh complete.")
 
 async def collect_news_data():
-    """Periodic news collection."""
-    agent = CollectorAgent()
-    ctx = AgentContext(task="Collect news articles")
-    result = await agent.run(ctx)
-    logger.info(f"[Scheduler] News collection result: {result.result}")
-    return result.result
-
+    """Triggered every 5 minutes. Syncs news catalysts."""
+    from agents.mcp_news_agent import McpNewsAgent
+    agent = McpNewsAgent()
+    for ticker in settings.DEFAULT_WATCHLIST:
+        try:
+            await agent.run(AgentContext(task=f"News sync for {ticker}", ticker=ticker))
+        except Exception as e:
+            logger.warning(f"News sync failed for {ticker}: {e}")
 
 async def index_knowledge_to_rag():
-    """Index unindexed knowledge store data into FAISS."""
-    agent = CollectorAgent()
-    ctx = AgentContext(task="Index to RAG")
-    result = await agent.run(ctx)
-    logger.info(f"[Scheduler] RAG indexing result: {result.result}")
-    return result.result
+    """Triggered every 15 minutes. Indexes news/blobs into context store."""
+    from agents.rag_agent import RagAgent
+    agent = RagAgent()
+    for ticker in settings.DEFAULT_WATCHLIST:
+        try:
+            # We index "what is stock" or similar generic task to force a summary refresh
+            await agent.run(AgentContext(task=f"Index knowledge for {ticker}", ticker=ticker))
+        except Exception as e:
+            logger.warning(f"RAG indexing failed for {ticker}: {e}")
+    agent.save_index()

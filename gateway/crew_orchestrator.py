@@ -6,30 +6,40 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, ChatMessage, AIMessage
 from langchain_core.outputs import ChatResult, ChatGeneration
 
-class AxiomLangChainWrapper(BaseChatModel):
+from langchain_core.language_models.llms import LLM
+
+class AxiomLangChainWrapper(LLM):
     """Bridge between AXIOM LLMClient and LangChain/CrewAI."""
     axiom_client: Any = None
     
-    def _generate(self, messages: List[BaseMessage], stop: Optional[List[str]] = None, **kwargs) -> ChatResult:
-        # Extract last message as prompt
-        prompt = messages[-1].content
-        system_msg = next((m.content for m in messages if m.type == "system"), "")
-        
+    class Config:
+        arbitrary_types_allowed = True
+
+    def _call(self, prompt: str, stop: Optional[List[str]] = None, **kwargs) -> str:
         # Run async complete in sync context
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            # We are likely inside a thread pool if called by CrewAI
+            # or we need to bridge async to sync safely.
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
             
-        result_text = loop.run_until_complete(self.axiom_client.complete(prompt, system=system_msg))
-        
-        if not isinstance(result_text, str):
-            result_text = str(result_text)
-            
-        message = AIMessage(content=result_text)
-        generation = ChatGeneration(message=message)
-        return ChatResult(generations=[generation])
+            # Use a helper to run coroutine in a safe way if loop is already running
+            if loop.is_running():
+                # This is the tricky part. CrewAI calls this synchronously.
+                # If we are in the main thread's loop, we can't run_until_complete.
+                # But CrewAI usually runs tasks in threads.
+                from concurrent.futures import ThreadPoolExecutor
+                with ThreadPoolExecutor() as executor:
+                    future = executor.submit(lambda: asyncio.run(self.axiom_client.complete(prompt)))
+                    return future.result()
+            else:
+                return loop.run_until_complete(self.axiom_client.complete(prompt))
+        except Exception as e:
+            return f"Error in AxiomLLM: {str(e)}"
 
     @property
     def _llm_type(self) -> str:
