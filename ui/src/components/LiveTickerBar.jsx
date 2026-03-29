@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Clock, ShieldCheck } from "lucide-react";
 import { T } from "../theme";
+import MarketStatusBadges from "./MarketStatusBadges";
 
 export default function LiveTickerBar({ stocks = [] }) {
   const [offset, setOffset] = useState(0);
@@ -22,9 +23,11 @@ export default function LiveTickerBar({ stocks = [] }) {
         style={{ color: T.buy, textShadow: `0 0 10px ${T.buy}40` }}>
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
         <span className="tracking-[0.2em] uppercase">
-          {stocks.length > 0 ? `LIVE_DATA // ${stocks.length} ASSETS` : 'LOADING...'}
+          {stocks.length > 0 ? `LIVE_AXIOM` : 'LOADING...'}
         </span>
       </div>
+
+      <MarketStatusBadges />
 
       <div className="flex-1 overflow-hidden relative h-full flex items-center">
         {items.length > 0 ? (

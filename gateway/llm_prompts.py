@@ -9,10 +9,12 @@ def format_news_for_prompt(news_items: list) -> str:
             lines.append(f"   Summary: {item['summary'][:200]}")
     return "\n".join(lines)
 
-def build_price_analysis_prompt(ticker: str, data: dict) -> str:
+def build_price_analysis_prompt(ticker: str, data: dict, market_context: str = "") -> str:
+    market_str = f"\nMARKET STATUS:\n{market_context}\n" if market_context else ""
     return f"""
 You are OMNI-DATA, a market intelligence AI. Analyze {ticker} using only the
 data provided below. Do NOT use training memory for current prices.
+{market_str}
 
 CURRENT DATA:
 Price: {data.get('px', 'N/A')} | Change: {data.get('chg', 'N/A')} ({data.get('pct_chg', 'N/A')}%)
@@ -45,10 +47,12 @@ RULES:
 - Never say "I don't have data" — synthesize from what you have
 """
 
-def build_investment_criteria_prompt(ticker: str, data: dict) -> str:
+def build_investment_criteria_prompt(ticker: str, data: dict, market_context: str = "") -> str:
+    market_str = f"\nMARKET STATUS:\n{market_context}\n" if market_context else ""
     return f"""
 You are OMNI-DATA. Evaluate {ticker} against these investment criteria.
 Use the data provided. Reason step by step.
+{market_str}
 
 DATA: {json.dumps(data, indent=2)}
 
@@ -82,10 +86,12 @@ OUTPUT FORMAT (JSON):
 }}
 """
 
-def build_stock_chat_prompt(ticker: str, context: dict, question: str) -> str:
+def build_stock_chat_prompt(ticker: str, context: dict, question: str, market_context: str = "") -> str:
+    market_str = f"\nMARKET STATUS:\n{market_context}\n" if market_context else ""
     return f"""
 You are OMNI-DATA, the dedicated AI for {ticker}.
 You have full access to this stock's data. Answer ONLY about this stock.
+{market_str}
 
 STOCK CONTEXT:
 {json.dumps(context, indent=2)}

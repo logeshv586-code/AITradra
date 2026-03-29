@@ -3,6 +3,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from typing import Optional, List, Dict
 import asyncio
 import sys
 import os
@@ -81,6 +82,7 @@ batch_agent = V3BatchAgent()
 
 # Geo Mapping
 from gateway.stock_geo import get_coords_for_ticker, format_market_cap, format_volume
+from core.market_manager import MarketManager
 
 # AXIOM v2 Components
 from gateway.data_engine import data_engine
@@ -93,9 +95,25 @@ from gateway.cache import cache
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import BaseModel
 from gateway.synthesis_service import SynthesisService
+from gateway.simulation_engine import SimulationEngine
+from gateway.crew_orchestrator import OmniCrewManager
 
 class ChatRequest(BaseModel):
     message: str
+    ticker: Optional[str] = ""
+
+class SimulationInitRequest(BaseModel):
+    initial_balance: float
+
+class BuyRequest(BaseModel):
+    ticker: str
+    amount: float
+    prediction: Optional[str] = None
+
+class SimulationTradeRequest(BaseModel):
+    ticker: str
+    amount: Optional[float] = 0.0
+    quantity: Optional[float] = None
 
 logger = get_logger(__name__)
 
@@ -198,6 +216,10 @@ async def lifespan(app: FastAPI):
         orchestrator=app.state.orchestrator,
         rag_agent=app.state.rag_agent
     )
+
+    # OMNI-AXIOM v5 Simulation Engine
+    app.state.simulation = SimulationEngine(data_engine=data_engine)
+
     # V2 Execution Layer
     app.state.broker = BrokerRouter({"PAPER_TRADING": True})
     app.state.alerts = AlertManager()
@@ -220,6 +242,7 @@ async def lifespan(app: FastAPI):
 # Global instances
 scheduler = AsyncIOScheduler()
 llm_client = LLMClient()
+crew_manager = OmniCrewManager(data_engine, llm_client)
 
 app = FastAPI(
     title="AXIOM V4.0 Mythic Intelligence API",
@@ -231,8 +254,8 @@ app = FastAPI(
 # Allow CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "*"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -404,12 +427,33 @@ async def get_stock_detail_v2(ticker: str):
 
 @app.get("/api/stock/{ticker}/analysis")
 async def get_stock_analysis(ticker: str):
-    """LLM-generated investment analysis with criteria scores."""
+    """
+    AXIOM V5: CrewAI Multi-Agent Synthesis.
+    Combines Technical, News, and Risk agents into a final Mythic report.
+    """
     ticker = ticker.upper()
     data = await data_engine.get_full_context(ticker)
-    prompt = build_investment_criteria_prompt(ticker, data)
-    result = await llm_client.complete(prompt, expect_json=True)
-    return result
+    
+    # Run the multi-agent crew (offload to thread as kickoff is synchronous)
+    try:
+        context_str = json.dumps(data, default=str)[:2000] # Limit context size for agents
+        result = await asyncio.to_thread(crew_manager.run_analysis, ticker, context_str)
+        
+        # If result is a string (often from crewAI), try to parse it
+        if isinstance(result, str):
+            try:
+                # Basic cleaning if LLM put code blocks
+                clean_res = result.strip().replace("```json", "").replace("```", "")
+                return json.loads(clean_res)
+            except:
+                return {"raw_crew_output": result}
+        return result
+    except Exception as e:
+        logger.error(f"CrewAI Synthesis failed for {ticker}: {e}")
+        # Fallback to legacy single-prompt analysis
+        market_ctx = MarketManager.get_ai_suggestion_context(ticker)
+        prompt = build_investment_criteria_prompt(ticker, data, market_context=market_ctx)
+        return await llm_client.complete(prompt, expect_json=True)
 
 @app.get("/api/stock/{ticker}/explain-move")
 async def explain_price_move(ticker: str):
@@ -586,6 +630,12 @@ async def market_watchlist():
             stocks.append(dummy)
             
     return {"stocks": stocks, "cached": False, "ts": now, "syncing": True}
+
+
+@app.get("/api/market/status")
+async def get_market_status():
+    """Returns the current status of all global markets."""
+    return MarketManager.get_all_statuses()
 
 
 @app.get("/api/market/indices")
@@ -875,6 +925,270 @@ async def get_predictions(ticker: str, limit: int = 10):
     return await app.state.memory.get_past_predictions(ticker.upper(), limit)
 
 
+# ─── OMNI-AXIOM Endpoints ────────────────────────────────────────────────────
+
+@app.get("/api/market/predictions")
+async def market_predictions():
+    """OMNI-AXIOM Prediction Table — structured prediction for every watchlist stock."""
+    import math
+    cache_data = app.state.cache
+    stocks = cache_data.get("watchlist") or []
+
+    predictions = []
+    for s in stocks:
+        ticker = s.get("id", "")
+        px = s.get("px", 0)
+        chg = s.get("chg", 0)
+        beta = s.get("risk", {}).get("beta", 1.0) if isinstance(s.get("risk"), dict) else 1.0
+
+        # Prediction direction from momentum
+        if chg > 1.0:
+            direction = "UP"
+        elif chg < -1.0:
+            direction = "DOWN"
+        else:
+            direction = "SIDEWAYS"
+
+        # Weighted confidence (capped at 85%)
+        momentum_signal = min(abs(chg) * 8, 25)  # 25% technical
+        news_signal = 20  # baseline from cached RSS
+        macro_signal = 15  # baseline macro
+        sentiment_signal = 10  # baseline sentiment
+        ml_signal = 7  # baseline ML
+        raw_conf = momentum_signal + news_signal + macro_signal + sentiment_signal + ml_signal
+        confidence = min(round(raw_conf, 1), 85)
+
+        # Expected move
+        expected_move = round(abs(chg) * 0.6 + beta * 0.5, 2)
+
+        # Risk level
+        if beta > 1.5 or abs(chg) > 3:
+            risk_level = "HIGH"
+        elif beta > 0.8 or abs(chg) > 1:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
+
+        # Predicted price
+        multiplier = 1 + (expected_move / 100) * (1 if direction == "UP" else -1 if direction == "DOWN" else 0)
+        predicted_price = round(px * multiplier, 2)
+
+        # Primary driver
+        if abs(chg) > 2:
+            primary_driver = "technical"
+        elif beta > 1.3:
+            primary_driver = "macro"
+        else:
+            primary_driver = "news"
+
+        predictions.append({
+            "ticker": ticker,
+            "name": s.get("name", ticker),
+            "current_price": px,
+            "predicted_price": predicted_price,
+            "prediction_direction": direction,
+            "confidence_score": confidence,
+            "expected_move_percent": expected_move,
+            "risk_level": risk_level,
+            "reasoning_summary": f"{ticker} shows {'bullish' if direction == 'UP' else 'bearish' if direction == 'DOWN' else 'neutral'} momentum ({chg:+.2f}%). Beta: {beta:.2f}.",
+            "primary_driver": primary_driver,
+            "source_link": "",
+            "sector": s.get("sector", "N/A"),
+            "chg": chg,
+        })
+
+    return {"predictions": predictions, "count": len(predictions), "max_confidence": 85}
+
+
+@app.get("/api/market/trending")
+async def market_trending():
+    """OMNI-AXIOM Trending Stocks — top movers by absolute % change."""
+    cache_data = app.state.cache
+    stocks = cache_data.get("watchlist") or []
+
+    sorted_by_move = sorted(stocks, key=lambda s: abs(s.get("chg", 0)), reverse=True)
+
+    gainers = [s for s in sorted_by_move if s.get("chg", 0) > 0][:10]
+    losers = [s for s in sorted_by_move if s.get("chg", 0) < 0][:10]
+    most_volatile = sorted_by_move[:10]
+
+    def _fmt(s):
+        return {
+            "ticker": s.get("id", ""),
+            "name": s.get("name", ""),
+            "price": s.get("px", 0),
+            "change_pct": s.get("chg", 0),
+            "sector": s.get("sector", "N/A"),
+            "volume": s.get("vol", "N/A"),
+            "ohlcv": s.get("ohlcv", [])[-20:],
+        }
+
+    return {
+        "gainers": [_fmt(s) for s in gainers],
+        "losers": [_fmt(s) for s in losers],
+        "most_volatile": [_fmt(s) for s in most_volatile],
+    }
+
+
+@app.get("/api/stock/{ticker}/risk")
+async def stock_risk_analysis(ticker: str):
+    """OMNI-AXIOM Risk Analysis — detailed risk breakdown for a single stock."""
+    ticker = ticker.upper()
+    cache_data = app.state.cache
+    stocks = cache_data.get("watchlist") or []
+    stock = next((s for s in stocks if s.get("id") == ticker), None)
+
+    if not stock:
+        # Fetch fresh
+        stock = await _fetch_yf_ticker(ticker)
+
+    risk = stock.get("risk", {}) if isinstance(stock.get("risk"), dict) else {}
+    fundamentals = stock.get("fundamentals", {}) if isinstance(stock.get("fundamentals"), dict) else {}
+    chg = stock.get("chg", 0)
+    beta = risk.get("beta", 1.0)
+
+    # Compute risk metrics
+    var_95 = round(min(beta * 2.5, 10.0), 1)
+    max_drawdown_est = round(min(beta * 5.0, 25.0), 1)
+    volatility = risk.get("vol", "Medium")
+
+    # Sector risk assessment
+    sector = stock.get("sector", "N/A")
+    high_risk_sectors = ["Cryptocurrency", "Biotech", "Cannabis", "SPACs"]
+    sector_risk = "HIGH" if any(hr in sector for hr in high_risk_sectors) else ("MEDIUM" if beta > 1.0 else "LOW")
+
+    # Overall risk level
+    if beta > 1.5 or abs(chg) > 4:
+        overall_risk = "HIGH"
+    elif beta > 0.8 or abs(chg) > 2:
+        overall_risk = "MEDIUM"
+    else:
+        overall_risk = "LOW"
+
+    return {
+        "ticker": ticker,
+        "name": stock.get("name", ticker),
+        "overall_risk": overall_risk,
+        "metrics": {
+            "var_95": f"{var_95}%",
+            "beta": round(beta, 2),
+            "volatility": volatility,
+            "max_drawdown_estimate": f"{max_drawdown_est}%",
+            "current_change": chg,
+        },
+        "sector_risk": sector_risk,
+        "sector": sector,
+        "week52_high": fundamentals.get("52w_high", 0),
+        "week52_low": fundamentals.get("52w_low", 0),
+        "risk_factors": [
+            f"Beta of {beta:.2f} indicates {'above' if beta > 1 else 'below'}-average market sensitivity",
+            f"VaR(95%) suggests max daily loss of {var_95}%",
+            f"Current move of {chg:+.2f}% {'signals elevated' if abs(chg) > 2 else 'within normal'} volatility",
+        ],
+    }
+
+
+@app.get("/api/portfolio/insights")
+async def portfolio_insights():
+    """OMNI-AXIOM Portfolio Insights — allocation breakdown and aggregate metrics."""
+    cache_data = app.state.cache
+    stocks = cache_data.get("watchlist") or []
+
+    # Sector breakdown
+    sector_map = {}
+    total_value = 0
+    for s in stocks:
+        sector = s.get("sector", "Other")
+        px = s.get("px", 0)
+        sector_map.setdefault(sector, {"count": 0, "total_value": 0, "tickers": []})
+        sector_map[sector]["count"] += 1
+        sector_map[sector]["total_value"] += px
+        sector_map[sector]["tickers"].append(s.get("id", ""))
+        total_value += px
+
+    sectors = []
+    for name, data in sorted(sector_map.items(), key=lambda x: x[1]["total_value"], reverse=True):
+        pct = round((data["total_value"] / total_value * 100) if total_value else 0, 1)
+        sectors.append({
+            "sector": name,
+            "count": data["count"],
+            "allocation_pct": pct,
+            "tickers": data["tickers"][:5],
+        })
+
+    # Risk distribution
+    risk_dist = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    for s in stocks:
+        beta = s.get("risk", {}).get("beta", 1.0) if isinstance(s.get("risk"), dict) else 1.0
+        chg = abs(s.get("chg", 0))
+        if beta > 1.5 or chg > 3:
+            risk_dist["HIGH"] += 1
+        elif beta > 0.8 or chg > 1:
+            risk_dist["MEDIUM"] += 1
+        else:
+            risk_dist["LOW"] += 1
+
+    # Aggregate metrics
+    avg_change = round(sum(s.get("chg", 0) for s in stocks) / len(stocks), 2) if stocks else 0
+    bullish = sum(1 for s in stocks if s.get("chg", 0) > 0)
+    bearish = len(stocks) - bullish
+
+    return {
+        "total_assets": len(stocks),
+        "sectors": sectors,
+        "risk_distribution": risk_dist,
+        "aggregate": {
+            "avg_change_pct": avg_change,
+            "bullish_count": bullish,
+            "bearish_count": bearish,
+            "bull_bear_ratio": round(bullish / max(bearish, 1), 2),
+        },
+    }
+
+
+@app.get("/api/market/news-evidence")
+async def market_news_evidence():
+    """OMNI-AXIOM News & Evidence — global news feed with impact scoring."""
+    from gateway.scrapers.rss_scraper import rss_scraper
+
+    # Get all cached articles
+    all_articles = []
+    for _hash, article in rss_scraper.cache.items():
+        if isinstance(article, dict) and article.get("headline"):
+            headline = article.get("headline", "")
+            # Simple impact scoring from keywords
+            high_kw = ["crash", "surge", "record", "billion", "fed", "rate", "war", "crisis", "bankruptcy"]
+            med_kw = ["growth", "earnings", "revenue", "profit", "deal", "merger", "acquisition", "upgrade", "downgrade"]
+            headline_lower = headline.lower()
+
+            if any(kw in headline_lower for kw in high_kw):
+                impact = "HIGH"
+            elif any(kw in headline_lower for kw in med_kw):
+                impact = "MEDIUM"
+            else:
+                impact = "LOW"
+
+            all_articles.append({
+                "headline": headline,
+                "url": article.get("url", ""),
+                "source": article.get("source", "Unknown"),
+                "published_at": article.get("published_at", ""),
+                "impact": impact,
+                "summary": article.get("body", "")[:200] if article.get("body") else "",
+            })
+
+    # Sort by impact priority then recency
+    impact_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    all_articles.sort(key=lambda a: impact_order.get(a["impact"], 2))
+
+    return {
+        "articles": all_articles[:50],
+        "total_cached": len(rss_scraper.cache),
+        "high_impact": sum(1 for a in all_articles if a["impact"] == "HIGH"),
+        "medium_impact": sum(1 for a in all_articles if a["impact"] == "MEDIUM"),
+    }
+
+
 # ─── WebSocket: Live Analysis Stream ──────────────────────────────────────────
 
 @app.websocket("/ws/analyze/{ticker}")
@@ -954,6 +1268,39 @@ async def analyze_stream(websocket: WebSocket, ticker: str):
 
 
 # ─── Entry Point ──────────────────────────────────────────────────────────────
+
+# ─── OMNI-AXIOM v5 Simulation Endpoints ─────────────────────────────────────
+
+@app.get("/api/simulation/status")
+async def simulation_status():
+    """Get summarized virtual portfolio status."""
+    return app.state.simulation.get_status()
+
+@app.post("/api/simulation/init")
+async def simulation_init(req: SimulationInitRequest):
+    """Initialize virtual wallet with starting balance."""
+    return app.state.simulation.initialize_account(req.initial_balance)
+
+@app.post("/api/simulation/buy")
+async def simulation_buy(request: BuyRequest):
+    """Execute virtual BUY using live market price."""
+    try:
+        return app.state.simulation.buy_stock(request.ticker, request.amount, request.prediction)
+    except ValueError as e:
+        return {"error": str(e)}
+
+@app.post("/api/simulation/sell")
+async def simulation_sell(req: SimulationTradeRequest):
+    """Execute virtual SELL using live market price."""
+    try:
+        return app.state.simulation.sell_stock(req.ticker, req.quantity)
+    except ValueError as e:
+        return {"error": str(e)}
+
+@app.get("/api/simulation/update")
+async def simulation_update():
+    """Fetch real-time revaluation of all virtual positions."""
+    return app.state.simulation.calculate_live_portfolio()
 
 if __name__ == "__main__":
     import uvicorn

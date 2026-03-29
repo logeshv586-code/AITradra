@@ -8,7 +8,8 @@ logger = get_logger(__name__)
 
 
 class LLMClient:
-    """Unified LLM client supporting local Mistral GGUF, Ollama, and fallback mock responses."""
+    """Unified LLM client supporting local GGUF (via llama-cpp), NVIDIA NIM, Ollama, and fallback mock responses."""
+    _local_llm = None  # Singleton for local GGUF model
 
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
         self.base_url = base_url or settings.OLLAMA_URL
@@ -45,7 +46,9 @@ class LLMClient:
         for provider in providers:
             try:
                 result = None
-                if provider == "nvidia" and self.nvidia_api_key:
+                if provider == "local_gguf":
+                    result = await self._try_local_gguf(prompt, system, temperature, max_tokens)
+                elif provider == "nvidia" and self.nvidia_api_key:
                     result = await self._try_nvidia(prompt, system, temperature, max_tokens)
                 elif provider == "lmstudio":
                     result = await self._try_lmstudio(prompt, system, temperature, max_tokens)
@@ -69,6 +72,42 @@ class LLMClient:
             return f"Error: OMNI-DATA {force_provider} provider failed and 'No Fallback' is enforced."
             
         return self._fallback_response(prompt)
+
+    async def _try_local_gguf(self, prompt, system, temperature, max_tokens):
+        """Uses llama-cpp-python to run the local GGUF model."""
+        try:
+            from llama_cpp import Llama
+            import anyio
+            
+            model_path = os.path.join(os.getcwd(), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
+            
+            if LLMClient._local_llm is None:
+                logger.info(f"Loading local GGUF model from {model_path}...")
+                LLMClient._local_llm = Llama(
+                    model_path=model_path,
+                    n_ctx=2048,
+                    n_threads=4,
+                    n_gpu_layers=0, # Set to -1 for GPU if available, 0 for CPU
+                    verbose=False
+                )
+            
+            full_prompt = f"<|system|>\n{system}\n<|user|>\n{prompt}\n<|assistant|>\n"
+            
+            # Run in thread to avoid blocking event loop
+            def _infer():
+                output = LLMClient._local_llm(
+                    full_prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stop=["<|endoftext|>", "</s>", "<|user|>"],
+                    echo=False
+                )
+                return output["choices"][0]["text"].strip()
+            
+            return await anyio.to_thread.run_sync(_infer)
+        except Exception as e:
+            logger.error(f"Local GGUF provider error: {e}")
+            return None
 
     async def _try_nvidia(self, prompt, system, temperature, max_tokens):
         async with httpx.AsyncClient(timeout=self.timeout) as client:

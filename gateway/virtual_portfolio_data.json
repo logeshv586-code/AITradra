@@ -1,0 +1,13 @@
+{
+  "initialized": true,
+  "total_balance": 200010000.0,
+  "available_cash": 200010000.0,
+  "invested_amount": 0.0,
+  "positions": [],
+  "history": [],
+  "accuracy_metrics": {
+    "total_trades": 0,
+    "correct_predictions": 0,
+    "accuracy_score": 100.0
+  }
+}

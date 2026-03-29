@@ -36,7 +36,7 @@ const ConsensusSignal = ({ consensus, confidence }) => {
   );
 };
 
-export default function ChatPanel({ messages, onSend, stock }) {
+export default function ChatPanel({ messages, onSend, stock, fullView = false }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
@@ -60,23 +60,35 @@ export default function ChatPanel({ messages, onSend, stock }) {
     } catch (err) {
       onSend(null, 'Neural link interrupted. Reconnecting...');
     }
+    setLoading(true); // Keep loading state until onSend reflects the new message? No, set to false
     setLoading(false);
   };
 
-  // Render clean text with emoji section headers highlighted
+  // Render clean text with clickable links
   const renderCleanText = (text) => {
     const lines = text.split('\n');
     return lines.map((line, i) => {
       const trimmed = line.trim();
       if (!trimmed) return <div key={i} className="h-2" />;
       
-      // Main title (🧠 AXIOM MYTHIC)
-      if (trimmed.startsWith('🧠')) {
-        return <div key={i} className="text-[13px] font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-indigo-300 to-cyan-300 tracking-wide uppercase pb-1 border-b border-white/10 mb-1">{trimmed}</div>;
-      }
       // Specialist section headers (📊 📈 ⚠️ 🎯 📌 🔍)
       if (/^[📊📈⚠️🎯📌🔄💰🚀🔍]/.test(trimmed)) {
-        return <div key={i} className="text-[11px] font-bold text-cyan-400 tracking-wide mt-2 mb-0.5">{trimmed}</div>;
+        return <div key={i} className={`${fullView ? 'text-sm' : 'text-[11px]'} font-bold text-cyan-400 tracking-wide mt-3 mb-1`}>{trimmed}</div>;
+      }
+
+      // Check for URLs and make them clickable
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      if (urlRegex.test(trimmed)) {
+        const parts = trimmed.split(urlRegex);
+        return (
+          <div key={i} className={`${fullView ? 'text-[13px]' : 'text-[10px]'} pl-3 leading-relaxed text-slate-400 mb-1`}>
+            {parts.map((part, pi) => 
+              urlRegex.test(part) 
+                ? <a key={pi} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline inline-flex items-center gap-1">Source <ArrowUpRight size={10}/></a>
+                : part
+            )}
+          </div>
+        );
       }
       // Country flag + stock picks
       if (/^[🇺🇸🇮🇳🇬🇧🇯🇵🇩🇪🇫🇷🇨🇳🇰🇷🇧🇷🇭🇰🇸🇬🇦🇺]/.test(trimmed)) {

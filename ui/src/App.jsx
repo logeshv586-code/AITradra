@@ -11,6 +11,23 @@ import AgentStreamPanel from "./components/AgentStreamPanel";
 import ChatPanel from "./components/ChatPanel";
 import Globe3D from "./components/Globe3D";
 import StockDetailPanel from "./components/StockDetailPanel";
+import PredictionTableView from "./components/PredictionTableView";
+import NewsEvidenceView from "./components/NewsEvidenceView";
+import PortfolioInsightsView from "./components/PortfolioInsightsView";
+import TrendingStocksView from "./components/TrendingStocksView";
+import RiskAnalysisView from "./components/RiskAnalysisView";
+import { 
+  TrendingUp, 
+  BarChart3, 
+  ShieldAlert, 
+  Newspaper, 
+  PieChart, 
+  MessageSquare, 
+  ChevronRight,
+  User,
+  Coins
+} from "lucide-react";
+import VirtualPortfolioView from "./components/VirtualPortfolioView";
 
 const API_BASE = "http://localhost:8000";
 
@@ -109,8 +126,17 @@ export default function App() {
   };
 
   const handleSelect = (ticker) => {
-    setActiveStock(ticker);
-    // Panel opens automatically via state
+    // Look up the full stock object from liveStocks
+    const stockId = typeof ticker === 'string' ? ticker : ticker.id;
+    const found = liveStocks.find(s => s.id === stockId);
+    if (found) {
+      setActiveStock(found);
+      // Optionally switch to detail view, or just keep panel open
+      // setView('stock_detail'); 
+    } else {
+      setActiveStock({ id: stockId });
+    }
+    // Panel opens automatically via state if activeStock is set
   };
 
   const runAnalysis = (stock) => {
@@ -164,12 +190,19 @@ export default function App() {
   };
 
   const NAV = [
-    { id:'globe',       icon: Globe,          label:'Global Map'    },
-    { id:'watchlist',   icon: List,           label:'Watchlist'     },
-    { id:'agents',      icon: Layers,         label:'Agent Matrix'  },
+    { id:'globe',       icon: Globe,          label:'Global Market'   },
+    { id:'predictions', icon: BarChart3,      label:'Prediction Table'},
+    { id:'stock_detail',icon: ChevronRight,   label:'Stock Detail'    },
+    { id:'news',        icon: Newspaper,      label:'News & Evidence' },
+    { id:'agents',      icon: Layers,         label:'AI Analysis'     },
+    { id:'risk',        icon: ShieldAlert,    label:'Risk Analysis'   },
+    { id:'chat',        icon: MessageSquare,  label:'AI Chat'         },
+    { id:'portfolio',   icon: PieChart,       label:'Portfolio'       },
+    { id:'trending',    icon: TrendingUp,     label:'Trending Stocks' },
+    { id:'virtual',     icon: Coins,          label:'Virtual Portfolio'},
   ];
 
-  const showSidebar = view === 'stock' || agentLogs.length > 0;
+  const showSidebar = (view === 'globe' || view === 'predictions' || view === 'watchlist') && (activeStock || agentLogs.length > 0);
 
   return (
     <div className="relative flex flex-col h-screen overflow-hidden text-slate-200 font-sans selection:bg-indigo-500/30">
@@ -236,10 +269,37 @@ export default function App() {
         {/* MAIN CONTENT */}
         <main className="flex-1 flex overflow-hidden relative z-10">
           <div className="flex-1 flex flex-col overflow-hidden">
-            {view === 'globe'     && <Globe3D onStockSelect={handleSelect} stocks={liveStocks} />}
-            {view === 'watchlist' && <WatchlistView onSelect={handleSelect} stocks={liveStocks} marketIndices={marketIndices} loading={stocksLoading} />}
-            {view === 'agents'    && <AgentMatrixView agentsStatus={agentsStatus} />}
-            {activeStock && (
+            {view === 'globe'       && <Globe3D onStockSelect={handleSelect} stocks={liveStocks} />}
+            {view === 'predictions' && <PredictionTableView onSelect={handleSelect} />}
+            {view === 'stock_detail'&& (
+              activeStock ? (
+                <StockDetailView 
+                  stock={activeStock} 
+                  isAnalyzing={isAnalyzing} 
+                  analysisComplete={analysisComplete} 
+                  agentLogs={agentLogs} 
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-slate-500 font-mono text-xs uppercase tracking-widest">
+                  Select a stock to view detailed intelligence matrix
+                </div>
+              )
+            )}
+            {view === 'news'        && <NewsEvidenceView />}
+            {view === 'agents'      && <AgentMatrixView agentsStatus={agentsStatus} />}
+            {view === 'risk'        && <RiskAnalysisView onSelect={handleSelect} />}
+            {view === 'chat'        && (
+              <div className="flex-1 flex flex-col p-8 animate-fade-in">
+                <div className="flex-1 clay-card bg-black/40 overflow-hidden flex flex-col">
+                  <ChatPanel messages={chatMessages} onSend={handleSendChat} stock={activeStock} fullView={true} />
+                </div>
+              </div>
+            )}
+            {view === 'portfolio'   && <PortfolioInsightsView />}
+            {view === 'trending'    && <TrendingStocksView onSelect={handleSelect} />}
+            {view === 'virtual'     && <VirtualPortfolioView onSelect={handleSelect} />}
+
+            {activeStock && view !== 'stock_detail' && (
               <StockDetailPanel ticker={activeStock} onClose={() => setActiveStock(null)} />
             )}
           </div>

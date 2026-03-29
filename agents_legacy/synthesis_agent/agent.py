@@ -3,6 +3,7 @@
 from agents.base_agent import BaseAgent, AgentContext
 from core.logger import get_logger
 from core.config import settings
+from core.market_manager import MarketManager
 
 logger = get_logger(__name__)
 
@@ -50,11 +51,20 @@ class SynthesisAgent(BaseAgent):
         obs = context.observations
         ticker = context.ticker
         
+        # Get liquidity rank per user insight (US > EU > ASIA)
+        status = MarketManager.get_market_for_ticker(ticker)
+        liquidity_rank = "UNKNOWN"
+        if status == "US": liquidity_rank = "HIGH (DEEP_LIQUIDITY)"
+        elif status in ["EUROPE"]: liquidity_rank = "MEDIUM (STABLE)"
+        elif status in ["INDIA", "JAPAN", "CHINA", "HONG_KONG"]: liquidity_rank = "MODERATE (EMERGING)"
+        
         # Build giant specific prompt
         sys_prompt = f"You are AXIOM, an elite AI hedge fund manager analyzing {ticker}. You will receive data from 5 specialized agents. Synthesize this data strictly into a JSON structure."
         
         user_prompt = f"""
         TICKER: {ticker}
+        MARKET_REGION: {status}
+        LIQUIDITY_RANK: {liquidity_rank}
         
         DATA AGENT:
         {json.dumps(obs.get('DataAgent', {}), indent=2)}
@@ -122,7 +132,13 @@ class SynthesisAgent(BaseAgent):
         if "High" in risk_obs and confidence > 0.70:
             confidence = 0.70  # Cap confidence internally
             
-        context.confidence = confidence
+        # Liquidity Scaling (US > EU > ASIA)
+        status = MarketManager.get_market_for_ticker(context.ticker)
+        liquidity_multiplier = 1.0
+        if status == "US": liquidity_multiplier = 1.2
+        elif status in ["INDIA", "JAPAN", "CHINA", "HONG_KONG"]: liquidity_multiplier = 0.9
+        
+        context.confidence = min(0.99, confidence * liquidity_multiplier)
         context.reflection = res.get("self_critique", "Self critique completed.")
         return context
 
