@@ -70,3 +70,5 @@ ui/coverage/
 *.swp
 *.swo
 .DS_Store
+
+.Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF
