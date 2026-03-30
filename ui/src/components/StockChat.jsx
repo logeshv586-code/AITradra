@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE } from '../api_config';
 
 const SUGGESTED_QUESTIONS = {
   stock: [
@@ -28,7 +29,7 @@ export default function StockChat({ ticker, context, onClose }) {
   useEffect(() => {
     const createSession = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/chat/stock/${ticker}/session`, {
+        const res = await fetch(`${API_BASE}/api/chat/stock/${ticker}/session`, {
           method: "POST",
         });
         const data = await res.json();
@@ -69,8 +70,8 @@ export default function StockChat({ ticker, context, onClose }) {
     try {
       // Use session endpoint if we have a session, otherwise use basic endpoint
       const url = sessionId
-        ? `http://localhost:8000/api/chat/stock/${ticker}/session/${sessionId}`
-        : `http://localhost:8000/api/chat/stock/${ticker}`;
+        ? `${API_BASE}/api/chat/stock/${ticker}/session/${sessionId}`
+        : `${API_BASE}/api/chat/stock/${ticker}`;
 
       const res = await fetch(url, {
         method: "POST",

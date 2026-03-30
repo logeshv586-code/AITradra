@@ -152,6 +152,7 @@ class QueryRouter(BaseAgent):
 
         if ticker:
             tasks["history"] = self._get_history(ticker)
+            tasks["news"] = self._get_news(ticker)
 
         # Execute all in parallel
         keys = list(tasks.keys())
@@ -204,13 +205,19 @@ class QueryRouter(BaseAgent):
         history = knowledge_store.get_ohlcv_history(ticker, days=365)
         return history[:30]
 
+    async def _get_news(self, ticker: str) -> list:
+        """Fetch recent news from knowledge store."""
+        from gateway.knowledge_store import knowledge_store
+        news = knowledge_store.get_news_for_ticker(ticker, limit=10, days=14)
+        return news
+
     # ─── Fallback LLM Synthesis (V3 compat) ───────────────────────────────────
 
     async def _fallback_llm_synthesize(self, query: str, ticker: Optional[str],
                                         gathered_data: dict) -> str:
         """Fallback: Direct LLM synthesis without orchestrator (V3 behavior)."""
-        from llm.client import LLMClient
-        llm = LLMClient()
+        from llm.client import get_shared_llm
+        llm = get_shared_llm()
 
         prompt_parts = [f"USER QUESTION: {query}"]
         if ticker:

@@ -60,30 +60,22 @@ Be precise with price levels. Use data-driven analysis only."""
         ohlcv = meta.get("ohlcv_data", [])
         price_data = meta.get("price_data", {})
 
-        # Compute basic technical signals from raw data
-        tech_analysis = self._compute_technicals(ohlcv, price_data)
-
-        # LLM synthesis for deeper pattern recognition
-        prompt = f"""TICKER: {context.ticker}
-CURRENT PRICE DATA: {json.dumps(price_data, default=str)[:500]}
-RECENT OHLCV ({len(ohlcv)} bars): {json.dumps(ohlcv[:15], default=str)[:800]}
-COMPUTED TECHNICALS: {json.dumps(tech_analysis, default=str)}
-
-Analyze and return ONLY valid JSON with your technical analysis."""
-
-        try:
-            from llm.client import LLMClient
-            llm = LLMClient()
-            result = await llm.complete(prompt, system=self.system_prompt, temperature=0.15, max_tokens=800, expect_json=True)
-            if isinstance(result, dict):
-                context.result = result
-            else:
-                context.result = tech_analysis
-        except Exception as e:
-            logger.warning(f"TechnicalSpecialist LLM failed: {e}, using computed fallback")
-            context.result = tech_analysis
-
+        # Use pure data-driven analysis (fast, no LLM needed)
+        context.result = self._compute_technicals(ohlcv, price_data)
         context.actions_taken.append({"action": "technical_analysis"})
+
+        # Store insight in knowledge store for cross-agent sharing
+        try:
+            from gateway.knowledge_store import knowledge_store
+            if context.ticker and context.result:
+                knowledge_store.store_insight(
+                    ticker=context.ticker, agent_name="TechnicalSpecialist",
+                    insight_type="technical", content=str(context.result.get("summary", "")),
+                    confidence=context.result.get("confidence", 0.5)
+                )
+        except Exception:
+            pass
+
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:
@@ -198,28 +190,22 @@ Given price/portfolio data, return ONLY valid JSON:
         ohlcv = meta.get("ohlcv_data", [])
         price_data = meta.get("price_data", {})
 
-        risk_analysis = self._compute_risk(ohlcv, price_data)
-
-        prompt = f"""TICKER: {context.ticker}
-PRICE DATA: {json.dumps(price_data, default=str)[:500]}
-OHLCV BARS: {len(ohlcv)}
-COMPUTED RISK METRICS: {json.dumps(risk_analysis, default=str)}
-
-Provide a comprehensive risk analysis. Return ONLY valid JSON."""
-
-        try:
-            from llm.client import LLMClient
-            llm = LLMClient()
-            result = await llm.complete(prompt, system=self.system_prompt, temperature=0.15, max_tokens=800, expect_json=True)
-            if isinstance(result, dict):
-                context.result = result
-            else:
-                context.result = risk_analysis
-        except Exception as e:
-            logger.warning(f"RiskSpecialist LLM failed: {e}")
-            context.result = risk_analysis
-
+        # Use pure data-driven risk metrics (fast, no LLM needed)
+        context.result = self._compute_risk(ohlcv, price_data)
         context.actions_taken.append({"action": "risk_analysis"})
+
+        # Store insight in knowledge store
+        try:
+            from gateway.knowledge_store import knowledge_store
+            if context.ticker and context.result:
+                knowledge_store.store_insight(
+                    ticker=context.ticker, agent_name="RiskSpecialist",
+                    insight_type="risk", content=str(context.result.get("summary", "")),
+                    confidence=context.result.get("confidence", 0.5)
+                )
+        except Exception:
+            pass
+
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:
@@ -334,28 +320,22 @@ Given news data and market context, return ONLY valid JSON:
         insights = meta.get("insights_data", [])
         price_data = meta.get("price_data", {})
 
-        macro_analysis = self._compute_macro(news, insights, price_data)
-
-        prompt = f"""TICKER: {context.ticker}
-RECENT NEWS ({len(news)} articles): {json.dumps(news[:5], default=str)[:800]}
-PRIOR INSIGHTS: {json.dumps(insights[:3], default=str)[:400]}
-COMPUTED MACRO: {json.dumps(macro_analysis, default=str)}
-
-Provide macro analysis. Return ONLY valid JSON."""
-
-        try:
-            from llm.client import LLMClient
-            llm = LLMClient()
-            result = await llm.complete(prompt, system=self.system_prompt, temperature=0.2, max_tokens=800, expect_json=True)
-            if isinstance(result, dict):
-                context.result = result
-            else:
-                context.result = macro_analysis
-        except Exception as e:
-            logger.warning(f"MacroSpecialist LLM failed: {e}")
-            context.result = macro_analysis
-
+        # Use pure data-driven macro analysis (fast, no LLM needed)
+        context.result = self._compute_macro(news, insights, price_data)
         context.actions_taken.append({"action": "macro_analysis"})
+
+        # Store insight in knowledge store
+        try:
+            from gateway.knowledge_store import knowledge_store
+            if context.ticker and context.result:
+                knowledge_store.store_insight(
+                    ticker=context.ticker, agent_name="MacroSpecialist",
+                    insight_type="macro", content=str(context.result.get("summary", "")),
+                    confidence=context.result.get("confidence", 0.5)
+                )
+        except Exception:
+            pass
+
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:

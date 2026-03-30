@@ -228,9 +228,9 @@ async def lifespan(app: FastAPI):
     app.state.broker = BrokerRouter({"PAPER_TRADING": True})
     app.state.alerts = AlertManager()
 
-    # Cache for live data (TTL-based)
+    # Cache for live data (TTL-based) — always start fresh
     app.state.cache = {"watchlist": None, "watchlist_ts": 0, "indices": None, "indices_ts": 0}
-    app.state.last_seen = {}  # Persistent store for across-fetch fallbacks
+    app.state.last_seen = {}  # Start empty — will be populated by data engine
 
     logger.info("✅ AXIOM V2.0 ready — 14 agents loaded, all systems green")
     print("\n" + "="*60)
@@ -277,35 +277,62 @@ app.include_router(diagnostic_router)
 # ─── HELPER: Fetch yfinance data with caching ────────────────────────────────
 
 async def _fetch_yf_ticker(ticker: str) -> dict:
-    """Fetch live data for a single ticker (Mocked to avoid yfinance rate limits)."""
+    """Fetch real data for a single ticker using DataEngine."""
     last_seen = app.state.last_seen
-    
-    # Check if we have it in last_seen
-    if ticker in last_seen:
-        return last_seen[ticker]
-        
-    # Absolute fallback (minimal object with dummy data to keep UI alive)
-    dummy_prices = {"AAPL": 175.25, "NVDA": 825.40, "TSLA": 180.15, "MSFT": 415.60, "GOOGL": 145.30, "META": 485.20, "AMZN": 178.40, "BTC-USD": 65000, "ETH-USD": 3500}
-    dpx = dummy_prices.get(ticker, 100.0)
-    lat, lon = get_coords_for_ticker(ticker, "NMS")
-    res = {
-        "id": ticker, "name": ticker, "ex": "N/A",
-        "px": dpx, "chg": 0.05, "mcap": "N/A", "vol": "N/A",
-        "pe": "15.0", "sector": "Technology", "lat": lat, "lon": lon,
-        "ohlcv": [{"t": i, "c": dpx + (i*0.1)} for i in range(10)], 
-        "risk": {"var": "2.5%", "beta": 1.1, "vol": "Low"},
-        "fundamentals": {}, "stale": False
-    }
-    last_seen[ticker] = res
-    return res
+
+    # Check if we have fresh data in last_seen (TTL: 60s via background sync)
+    if ticker in last_seen and last_seen[ticker].get("px", 0) > 0:
+        cached = last_seen[ticker]
+        # Skip stale dummy data from old engine (all were $100, source=N/A)
+        src = cached.get("ex", cached.get("source_used", ""))
+        if src and src != "N/A" and not cached.get("stale", False):
+            return cached
+
+    # Fetch real data via DataEngine (knowledge store -> collector -> scrape)
+    try:
+        price_data = await data_engine.get_price_data(ticker)
+        px = price_data.get("px", 0)
+        chg = price_data.get("chg", 0)
+        lat, lon = get_coords_for_ticker(ticker)
+        res = {
+            "id": ticker, "name": ticker, "ex": price_data.get("source_used", "N/A"),
+            "px": px, "chg": chg, "mcap": format_market_cap(price_data.get("mktcap", 0)),
+            "vol": format_volume(price_data.get("volume", 0)),
+            "pe": str(price_data.get("pe", 0)), "sector": "Market",
+            "lat": lat, "lon": lon,
+            "ohlcv": price_data.get("ohlcv", []),
+            "risk": {"var": "2.5%", "beta": 1.1, "vol": "Medium"},
+            "fundamentals": {
+                "52w_high": price_data.get("week52_high", 0),
+                "52w_low": price_data.get("week52_low", 0),
+            },
+            "stale": price_data.get("is_estimated", False),
+            "pct_chg": chg,
+        }
+        last_seen[ticker] = res
+        return res
+    except Exception as e:
+        logger.warning(f"DataEngine failed for {ticker}: {e}")
+        # Minimal fallback so UI doesn't break
+        lat, lon = get_coords_for_ticker(ticker)
+        res = {
+            "id": ticker, "name": ticker, "ex": "N/A",
+            "px": 0, "chg": 0, "mcap": "N/A", "vol": "N/A",
+            "pe": "0", "sector": "Syncing...", "lat": lat, "lon": lon,
+            "ohlcv": [], "risk": {"var": "0%", "beta": 1.0, "vol": "Low"},
+            "fundamentals": {}, "stale": True, "pct_chg": 0,
+        }
+        last_seen[ticker] = res
+        return res
 
 
 async def _fetch_yf_index(symbol: str, name: str) -> dict:
-    """Fetch a single index value (Mocked)."""
-    # Provide simple fake index data
-    dummy_index = {"^GSPC": 5200.0, "^IXIC": 16400.0, "^DJI": 39500.0, "^FTSE": 7950.0, "^N225": 40000.0}
-    val = dummy_index.get(symbol, 1000.0)
-    return {"name": name, "value": val, "change": 0.5}
+    """Fetch index value from knowledge store or collector."""
+    try:
+        price_data = await data_engine.get_price_data(symbol)
+        return {"name": name, "value": round(price_data.get("px", 0), 2), "change": round(price_data.get("chg", 0), 2)}
+    except Exception:
+        return {"name": name, "value": 0, "change": 0}
 
 
 # ─── AXIOM v2 Endpoints ──────────────────────────────────────────────────────
@@ -450,28 +477,38 @@ async def knowledge_status():
 
 @app.get("/api/market/globe-data")
 async def get_globe_data():
-    """Lightweight endpoint just for globe pins."""
+    """Lightweight endpoint for globe pins — returns ALL watchlist stocks with real data."""
     from core.config import settings
     watchlist = settings.DEFAULT_WATCHLIST
-    
+
     results = []
     for ticker in watchlist:
+        # Check last_seen first (populated by background sync)
+        if hasattr(app.state, 'last_seen') and ticker in app.state.last_seen:
+            s = app.state.last_seen[ticker]
+            chg = s.get("chg", s.get("pct_chg", 0))
+            results.append({
+                "ticker": ticker, "lat": s.get("lat", 40.7), "lon": s.get("lon", -74.0),
+                "px": s.get("px", 0), "pct_chg": chg,
+                "signal": "BUY" if chg > 0.5 else ("SELL" if chg < -0.5 else "HOLD"),
+                "name": s.get("name", ticker),
+            })
+            continue
+
+        # Fall back to cache
         data, _ = cache.get(ticker, "price")
-        if not data:
-             # Fast fallback if nothing in cache
-             lat, lon = get_coords_for_ticker(ticker)
-             results.append({"ticker": ticker, "lat": lat, "lon": lon, "px": 0, "pct_chg": 0, "signal": "HOLD"})
-             continue
-             
         lat, lon = get_coords_for_ticker(ticker)
-        results.append({
-            "ticker": ticker,
-            "lat": lat,
-            "lon": lon,
-            "px": data.get("px", 0),
-            "pct_chg": data.get("pct_chg", 0),
-            "signal": "BUY" if data.get("pct_chg", 0) > 0 else "SELL", # Simple signal fallback
-        })
+        if data:
+            chg = data.get("pct_chg", data.get("chg", 0))
+            results.append({
+                "ticker": ticker, "lat": lat, "lon": lon,
+                "px": data.get("px", 0), "pct_chg": chg,
+                "signal": "BUY" if chg > 0.5 else ("SELL" if chg < -0.5 else "HOLD"),
+                "name": ticker,
+            })
+        else:
+            results.append({"ticker": ticker, "lat": lat, "lon": lon, "px": 0, "pct_chg": 0, "signal": "HOLD", "name": ticker})
+
     return results
 
 # ─── REST Endpoints ───────────────────────────────────────────────────────────
@@ -518,23 +555,24 @@ async def market_watchlist():
     if cache.get("watchlist"):
         return {"stocks": cache.get("watchlist"), "cached": True, "ts": cache.get("watchlist_ts")}
 
-    # 3. Instant Return: Seed dummy/last_seen data so the 3D Globe renders instantly with all nodes
+    # 3. Instant Return: Seed placeholder data so globe renders instantly
     from gateway.stock_geo import get_coords_for_ticker
     stocks = []
-    logger.info("[LIVE] Returning instantaneous placeholder map while background sync gathers live data...")
+    logger.info("[LIVE] Returning placeholder map while background sync fetches real data...")
     for t in settings.DEFAULT_WATCHLIST:
         if t in app.state.last_seen:
-            stocks.append(app.state.last_seen[t])
-        else:
-            lat, lon = get_coords_for_ticker(t)
-            dummy = {
-                "id": t, "name": t, "ex": "N/A", "px": 100.0, "chg": 0.05, 
-                "mcap": "N/A", "vol": "N/A", "pe": "0", "sector": "Syncing...", 
-                "lat": lat, "lon": lon, "ohlcv": [], "risk": {"var": "0%", "beta": 1.0, "vol": "Low"}, 
-                "fundamentals": {}, "stale": True
-            }
-            app.state.last_seen[t] = dummy
-            stocks.append(dummy)
+            cached = app.state.last_seen[t]
+            if cached.get("ex", "N/A") != "N/A" and not cached.get("stale", True):
+                stocks.append(cached)
+                continue
+        lat, lon = get_coords_for_ticker(t)
+        placeholder = {
+            "id": t, "name": t, "ex": "N/A", "px": 0, "chg": 0,
+            "mcap": "N/A", "vol": "N/A", "pe": "0", "sector": "Syncing...",
+            "lat": lat, "lon": lon, "ohlcv": [], "risk": {"var": "0%", "beta": 1.0, "vol": "Low"},
+            "fundamentals": {}, "stale": True, "pct_chg": 0,
+        }
+        stocks.append(placeholder)
             
     return {"stocks": stocks, "cached": False, "ts": now, "syncing": True}
 

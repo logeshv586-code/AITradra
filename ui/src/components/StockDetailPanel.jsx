@@ -6,7 +6,7 @@ import FreshnessBadge from './FreshnessBadge';
 import DummyInvestment from "./DummyInvestment";
 import { PieChart } from 'lucide-react';
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../api_config";
 
 export default function StockDetailPanel({ ticker, onClose }) {
   const tickerId = (typeof ticker === 'string' ? ticker : ticker?.id || '').toUpperCase();

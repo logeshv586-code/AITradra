@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Zap, Cpu, Sparkles, Loader2, Send, Shield, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { API_BASE } from "../api_config";
 
-const API_BASE = "http://localhost:8000";
 
 // Confidence bar component
 const ConfidenceBar = ({ value, label }) => {
@@ -47,20 +47,8 @@ export default function ChatPanel({ messages, onSend, stock, fullView = false })
     if (!q) return;
     setInput('');
     setLoading(true);
-    onSend(q, null);
-    try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: q, ticker: stock?.id || '' }),
-      });
-      const data = await res.json();
-      // Pass the full response data (including mythic metadata) via onSend
-      onSend(null, data.response, data);
-    } catch (err) {
-      onSend(null, 'Neural link interrupted. Reconnecting...');
-    }
-    setLoading(true); // Keep loading state until onSend reflects the new message? No, set to false
+    // Let parent handle the API call — we just send the user text
+    await onSend(q, null);
     setLoading(false);
   };
 

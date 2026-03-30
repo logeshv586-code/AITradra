@@ -96,6 +96,19 @@ class MythicOrchestrator:
         if len(self._episode_store) > 500:
             self._episode_store = self._episode_store[-250:]
 
+        # Store final synthesis in knowledge store for RAG
+        try:
+            from gateway.knowledge_store import knowledge_store
+            if ticker:
+                knowledge_store.store_insight(
+                    ticker=ticker, agent_name="MythicOrchestrator",
+                    insight_type="synthesis",
+                    content=response[:500] if response else "",
+                    confidence=final_confidence,
+                )
+        except Exception:
+            pass
+
         elapsed = (datetime.now() - start).total_seconds()
         logger.info(f"[Orchestrator] Pipeline complete in {elapsed:.1f}s. Consensus: {critique_result['revised_consensus']}, Confidence: {final_confidence}")
 
@@ -167,97 +180,57 @@ class MythicOrchestrator:
         critique: dict, confidence: float
     ) -> str:
         """Synthesize all context into a final response via LLM."""
-        from llm.client import LLMClient
-        llm = LLMClient()
+        from llm.client import get_shared_llm
+        llm = get_shared_llm()
 
-        # Build a rich prompt with all context
-        sections = [f"USER QUESTION: {query}"]
-        if ticker:
-            sections.append(f"TICKER: {ticker}")
-
-        # Price data
-        if "price_data" in gathered_data and gathered_data["price_data"]:
-            pd = gathered_data["price_data"]
-            sections.append(f"\n📊 CURRENT PRICE DATA:\n{json.dumps(pd, indent=2, default=str)[:500]}")
-
-        # Specialist outputs (structured summaries)
+        # Build a concise prompt optimized for small LLM
         tech = specialist_outputs.get("technical", {})
         risk = specialist_outputs.get("risk", {})
         macro = specialist_outputs.get("macro", {})
 
-        sections.append(f"""
-📈 SPECIALIST ANALYSIS:
-───────────────────────────
-TECHNICAL: Signal={tech.get('signal', 'N/A')} | {tech.get('summary', 'No analysis')}
-RISK: Level={risk.get('risk_level', 'N/A')} | VaR={risk.get('var_pct', 'N/A')}% | {risk.get('summary', 'No analysis')}
-MACRO: Outlook={macro.get('macro_outlook', 'N/A')} | Sentiment={macro.get('sentiment_score', 'N/A')} | {macro.get('summary', 'No analysis')}""")
+        consensus = critique.get('revised_consensus', 'NEUTRAL')
 
-        # Critique / consensus
-        sections.append(f"""
-🔍 CONSENSUS: {critique.get('revised_consensus', 'N/A')}
-Agreement: {critique.get('agreement_score', 0):.0%}
-Contradictions: {', '.join(critique.get('contradiction_notes', [])) or 'None'}
-Flags: {', '.join(critique.get('flags', [])) or 'None'}""")
+        prompt_parts = [
+            f"Question: {query}",
+            f"Ticker: {ticker or 'N/A'}",
+            f"Signal: {consensus} (Confidence: {confidence:.0%})",
+            f"Technical: {tech.get('signal', 'N/A')} - {tech.get('summary', 'N/A')[:150]}",
+            f"Risk: {risk.get('risk_level', 'N/A')} - VaR {risk.get('var_pct', 'N/A')}% - {risk.get('summary', 'N/A')[:150]}",
+            f"Macro: {macro.get('macro_outlook', 'N/A')} - Sentiment {macro.get('sentiment_score', 'N/A')} - {macro.get('summary', 'N/A')[:150]}",
+        ]
 
-        # News
+        # Add news headlines (max 3)
         news = gathered_data.get("news", [])
         if news:
-            news_block = "\n📰 RECENT NEWS:\n"
-            for n in news[:5]:
+            headlines = []
+            for n in news[:3]:
                 if isinstance(n, dict):
-                    headline = n.get("headline", n.get("title", n.get("txt", "")))
-                    url = n.get("url", "")
-                    news_block += f"- {headline}"
-                    if url:
-                        news_block += f" ({url})"
-                    news_block += "\n"
-            sections.append(news_block)
+                    h = n.get("headline", n.get("title", ""))
+                    if h:
+                        headlines.append(f"- {h[:80]}")
+            if headlines:
+                prompt_parts.append("Recent News:\n" + "\n".join(headlines))
 
-        # RAG results
-        rag = gathered_data.get("rag_results", [])
-        if rag:
-            rag_block = "\n📚 RAG KNOWLEDGE:\n"
-            for r in rag[:3]:
-                rag_block += f"- {json.dumps(r, default=str)[:200]}\n"
-            sections.append(rag_block)
+        full_prompt = "\n".join(prompt_parts)
 
-        # Knowledge insights
-        kr = gathered_data.get("knowledge_results", {})
-        if kr.get("insights"):
-            insights_block = "\n🧠 PRIOR INSIGHTS:\n"
-            for ins in kr["insights"][:3]:
-                if isinstance(ins, dict):
-                    insights_block += f"- [{ins.get('agent_name', '')}] {ins.get('content', '')[:150]}\n"
-            sections.append(insights_block)
-
-        full_prompt = "\n".join(sections)
-
-        system_prompt = f"""You are AXIOM MYTHIC — an autonomous trading intelligence system.
-You have access to multi-agent specialist analysis, a critique layer, and calibrated confidence scoring.
-
-RULES:
-- Answer using ONLY the provided multi-specialist data context.
-- Always cite news URLs when referencing news stories.
-- Be specific with numbers, percentages, and price levels.
-- Start with an overall consensus signal and confidence score.
-- Format response with clear sections using emoji headers.
-- Include the specialist agreement and any contradiction flags.
-- If specialists disagree, explain the disagreement and your reasoning.
-- End with calibrated confidence: {confidence:.0%}
-
-Current timestamp: {datetime.now().isoformat()}"""
+        system_prompt = (
+            "You are AXIOM, a trading intelligence AI. "
+            "Write a clear market analysis report based on the data provided. "
+            "Include: 1) Overall signal and confidence, 2) Technical outlook, "
+            "3) Risk assessment, 4) Macro/news impact, 5) Investment recommendation. "
+            "Be specific with numbers. Keep response under 300 words."
+        )
 
         try:
             response = await llm.complete(
                 prompt=full_prompt,
                 system=system_prompt,
                 temperature=0.3,
-                max_tokens=1500
+                max_tokens=600
             )
             return response
         except Exception as e:
             logger.error(f"[Orchestrator] Final synthesis failed: {e}")
-            # Fallback to structured response without LLM
             return self._build_fallback_response(
                 query, ticker, specialist_outputs, critique, confidence
             )

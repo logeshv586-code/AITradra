@@ -97,29 +97,13 @@ class CritiqueAgent:
         # ─── Compute specialist agreement ────────────────────────────────────
         agreement_score = 1.0 - (max(signals) - min(signals)) / 2.0
 
-        # ─── Build critique summary ──────────────────────────────────────────
-        try:
-            from llm.client import LLMClient
-            llm = LLMClient()
-            critique_prompt = f"""You are a financial reasoning auditor.
-Three specialists analyzed {ticker or 'a stock'}:
-- Technical: signal={tech_signal}, confidence={technical.get('confidence', 'N/A')}
-- Risk: level={risk_level}, VaR={risk.get('var_pct', 'N/A')}%
-- Macro: outlook={macro_outlook}, sentiment={macro.get('sentiment_score', 'N/A')}
-
-Contradictions found: {contradiction_notes or 'None'}
-Agreement score: {agreement_score:.2f}
-
-Provide a 2-sentence audit summary. Be concise and specific."""
-
-            audit_summary = await llm.complete(
-                critique_prompt,
-                system="You are a financial risk auditor. Be concise.",
-                temperature=0.1, max_tokens=200
-            )
-        except Exception as e:
-            logger.warning(f"Critique LLM failed: {e}")
-            audit_summary = f"Consensus: {consensus}. Agreement: {agreement_score:.0%}. {len(contradiction_notes)} contradictions found."
+        # Build audit summary from computed data (no LLM needed)
+        parts = [f"Consensus: {consensus} with {agreement_score:.0%} agreement."]
+        if contradiction_notes:
+            parts.append(f"{len(contradiction_notes)} contradiction(s) detected: {'; '.join(contradiction_notes[:2])}")
+        else:
+            parts.append("No contradictions detected — all specialists align.")
+        audit_summary = " ".join(parts)
 
         return {
             "revised_consensus": consensus,
