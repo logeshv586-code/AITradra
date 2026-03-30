@@ -38,33 +38,27 @@ class DataAgent(BaseAgent):
         self._add_thought(context, f"Acting: Fetching live data for {symbol}...")
         
         try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            # Get latest close price if currentPrice is missing
-            price = info.get("currentPrice") or info.get("regularMarketPrice")
-            if price is None:
-                hist = ticker.history(period="1d")
-                if not hist.empty:
-                    price = hist['Close'].iloc[-1]
+            from gateway.data_engine import data_engine
+            price_data = await data_engine.get_price_data(symbol)
+            px = price_data.get("px", 100)
             
             data = {
                 "symbol": symbol,
-                "name": info.get("longName"),
-                "price": round(float(price), 2) if price else 0.0,
-                "change_pct": round(float(info.get("regularMarketChangePercent", 0)), 2),
-                "volume": info.get("regularMarketVolume") or info.get("volume"),
-                "market_cap": info.get("marketCap"),
-                "sector": info.get("sector"),
-                "industry": info.get("industry"),
-                "exchange": info.get("exchange"),
+                "name": symbol,
+                "price": px,
+                "change_pct": price_data.get("pct_chg", 0),
+                "volume": price_data.get("volume", 0),
+                "market_cap": price_data.get("mktcap", 0),
+                "sector": "N/A",
+                "industry": "N/A",
+                "exchange": "N/A",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
             context.result = data
-            context.actions_taken.append({"action": "fetch_yfinance", "status": "success"})
+            context.actions_taken.append({"action": "fetch_data_engine", "status": "success"})
         except Exception as e:
             context.errors.append(str(e))
-            context.actions_taken.append({"action": "fetch_yfinance", "status": "failed", "error": str(e)})
+            context.actions_taken.append({"action": "fetch_data_engine", "status": "failed", "error": str(e)})
             
         return context
 

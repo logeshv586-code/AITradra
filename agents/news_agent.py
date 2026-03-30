@@ -33,20 +33,20 @@ class NewsAgent(BaseAgent):
         symbol = context.ticker
         self._add_thought(context, f"Acting: Fetching news for {symbol}...")
         try:
-            ticker = yf.Ticker(symbol)
-            news = ticker.news
+            from gateway.data_engine import data_engine
+            news = await data_engine.get_news(symbol, max_items=5)
             
             processed_news = []
-            for item in news[:5]:
+            for item in news:
                 processed_news.append({
-                    "title": item.get("title"),
-                    "publisher": item.get("publisher"),
-                    "link": item.get("link"),
-                    "timestamp": datetime.fromtimestamp(item.get("providerPublishTime"), timezone.utc).isoformat() if item.get("providerPublishTime") else None,
+                    "title": item.get("headline"),
+                    "publisher": item.get("source"),
+                    "link": item.get("url"),
+                    "timestamp": item.get("date"),
                     "sentiment": "Neutral" # Initial state
                 })
             context.result = processed_news
-            context.actions_taken.append({"action": "fetch_news", "count": len(processed_news)})
+            context.actions_taken.append({"action": "fetch_news_data_engine", "count": len(processed_news)})
         except Exception as e:
             context.errors.append(f"News fetch error: {str(e)}")
             

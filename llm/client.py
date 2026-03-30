@@ -11,6 +11,41 @@ class LLMClient:
     """Unified LLM client supporting local GGUF (via llama-cpp), NVIDIA NIM, Ollama, and fallback mock responses."""
     _local_llm = None  # Singleton for local GGUF model
 
+    @classmethod
+    def preload_local_gguf(cls):
+        """Preloads the local GGUF model into memory at startup."""
+        if cls._local_llm is not None:
+            return cls._local_llm is not False
+            
+        try:
+            from llama_cpp import Llama
+            
+            # Use absolute path for robustness
+            model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
+            if not os.path.exists(model_path):
+                logger.warning(f"Local GGUF model not found at {model_path}")
+                return False
+
+            logger.info(f"Loading local GGUF model from {model_path} into memory...")
+            try:
+                # n_ctx=512 for speed and stability on local CPU
+                cls._local_llm = Llama(
+                    model_path=os.path.abspath(model_path),
+                    n_ctx=512,
+                    n_threads=os.cpu_count() or 4,
+                    n_gpu_layers=0,
+                    verbose=False # Crucial: prevents UnicodeDecodeError in callback
+                )
+                logger.info("Local GGUF model loaded successfully.")
+                return True
+            except Exception as inner_e:
+                logger.error(f"FATAL: Llama failed to load architecture: {inner_e}")
+                cls._local_llm = False # Persistent failure marker to avoid re-loading
+                return False
+        except Exception as e:
+            logger.error(f"Local GGUF preload error: {e}")
+            return False
+
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
         self.base_url = base_url or settings.OLLAMA_URL
         self.model = model or settings.LLM_MODEL
@@ -29,8 +64,8 @@ class LLMClient:
             logger.info(f"NVIDIA API Key found. Using NvidiaNIMProvider with {self.nvidia_model}")
             self.provider_type = "nvidia"
         else:
-            logger.info(f"Using LM Studio local model: {self.lmstudio_model}")
-            self.provider_type = "lmstudio"
+            logger.info(f"Using Local GGUF Model (Fallback: LM Studio)")
+            self.provider_type = "local_gguf"
 
     async def complete(self, prompt: str, system: str = "", temperature: float = 0.1,
                        max_tokens: int = 2000, expect_json: bool = False, force_provider: str | None = None) -> str:
@@ -41,25 +76,16 @@ class LLMClient:
         if force_provider:
             providers = [force_provider]
         else:
-            # Prioritize local NVIDIA (via LM Studio) and GGUF in development
-            # NVIDIA Nim (nvidia) followed by local LM Studio (lmstudio) and Direct GGUF (local_gguf)
-            providers = ["nvidia", "lmstudio", "local_gguf"]
-            
-            # Only use Ollama in production (DEBUG=False)
-            if not settings.DEBUG:
-                providers.append("ollama")
+            # Prioritize local GGUF, then LM Studio
+            providers = ["local_gguf", "lmstudio"]
         
         for provider in providers:
             try:
                 result = None
                 if provider == "local_gguf":
                     result = await self._try_local_gguf(prompt, system, temperature, max_tokens)
-                elif provider == "nvidia" and self.nvidia_api_key:
-                    result = await self._try_nvidia(prompt, system, temperature, max_tokens)
                 elif provider == "lmstudio":
                     result = await self._try_lmstudio(prompt, system, temperature, max_tokens)
-                elif provider == "ollama":
-                    result = await self._try_ollama(prompt, system, temperature, max_tokens)
                 
                 if result and isinstance(result, str):
                     if expect_json:
@@ -82,32 +108,12 @@ class LLMClient:
     async def _try_local_gguf(self, prompt, system, temperature, max_tokens):
         """Uses llama-cpp-python to run the local GGUF model."""
         try:
-            from llama_cpp import Llama
             import anyio
             
             if LLMClient._local_llm is None:
-                # Use absolute path for robustness
-                model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf")
-                if not os.path.exists(model_path):
-                    logger.warning(f"Local GGUF model not found at {model_path}")
-                    return None
-
-                logger.info(f"Loading local GGUF model from {model_path}...")
-                try:
-                    # n_ctx=512 for speed and stability on local CPU
-                    LLMClient._local_llm = Llama(
-                        model_path=os.path.abspath(model_path),
-                        n_ctx=512,
-                        n_threads=os.cpu_count() or 4,
-                        n_gpu_layers=0,
-                        verbose=False # Crucial: prevents UnicodeDecodeError in callback
-                    )
-                except Exception as inner_e:
-                    logger.error(f"FATAL: Llama failed to load architecture (possible 'nemotron_h' conflict): {inner_e}")
-                    LLMClient._local_llm = False # Persistent failure marker to avoid re-loading
-                    return None
+                LLMClient.preload_local_gguf()
             
-            if LLMClient._local_llm is False:
+            if LLMClient._local_llm is False or LLMClient._local_llm is None:
                 return None
 
             full_prompt = f"<|system|>\n{system}\n<|user|>\n{prompt}\n<|assistant|>\n"

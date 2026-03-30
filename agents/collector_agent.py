@@ -28,7 +28,7 @@ from pathlib import Path
 
 import httpx
 import pandas as pd
-import yfinance as yf
+
 from bs4 import BeautifulSoup
 from core.config import settings
 from agents.base_agent import AgentContext
@@ -36,7 +36,6 @@ from agents.base_agent import AgentContext
 logger = logging.getLogger("agents.collector_agent")
 
 # ── Silence noisy third-party loggers ───────────────────────────────────────
-logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 logging.getLogger("peewee").setLevel(logging.CRITICAL)
 logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -150,19 +149,12 @@ def _period_to_days(period: str) -> int:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Layer 1 — yfinance
+# Layer 1 — yfinance (DISABLED to avoid rate limits)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
-    try:
-        t = yf.Ticker(ticker)
-        df = t.history(period=period, auto_adjust=True, actions=False)
-        if df is None or df.empty:
-            return None
-        return _normalize_df(df.copy(), "yfinance")
-    except Exception as e:
-        logger.debug(f"[Collector] yfinance failed for {ticker}: {e}")
-        return None
+    """Disabled yfinance fetching."""
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
