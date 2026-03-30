@@ -28,8 +28,9 @@ import {
   Coins
 } from "lucide-react";
 import VirtualPortfolioView from "./components/VirtualPortfolioView";
-
-const API_BASE = "http://localhost:8000";
+import DiagnosticView from "./components/DiagnosticView";
+import { Activity as Pulse } from "lucide-react";
+import { API_BASE, WS_BASE } from "./api_config";
 
 export default function App() {
   const [view, setView] = useState('globe');
@@ -146,7 +147,7 @@ export default function App() {
     setAnalysisComplete(false);
     setAgentLogs([]);
     
-    const ws = new WebSocket(`ws://localhost:8000/ws/analyze/${stock.id}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/analyze/${stock.id}`);
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
@@ -200,6 +201,7 @@ export default function App() {
     { id:'portfolio',   icon: PieChart,       label:'Portfolio'       },
     { id:'trending',    icon: TrendingUp,     label:'Trending Stocks' },
     { id:'virtual',     icon: Coins,          label:'Virtual Portfolio'},
+    { id:'diagnostics', icon: Pulse,          label:'System Diagnostics'},
   ];
 
   const showSidebar = (view === 'globe' || view === 'predictions' || view === 'watchlist') && (activeStock || agentLogs.length > 0);
@@ -298,6 +300,7 @@ export default function App() {
             {view === 'portfolio'   && <PortfolioInsightsView />}
             {view === 'trending'    && <TrendingStocksView onSelect={handleSelect} />}
             {view === 'virtual'     && <VirtualPortfolioView onSelect={handleSelect} />}
+            {view === 'diagnostics' && <DiagnosticView />}
 
             {activeStock && view !== 'stock_detail' && (
               <StockDetailPanel ticker={activeStock} onClose={() => setActiveStock(null)} />

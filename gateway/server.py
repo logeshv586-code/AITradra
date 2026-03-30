@@ -63,7 +63,7 @@ from agents.collector_agent import (
 )
 from gateway.session_manager import SessionManager, session_manager
 from gateway.knowledge_store import knowledge_store
-
+from gateway.diagnostic import router as diagnostic_router
 # V4 Mythic-Tier Architecture
 from agents.orchestrator import mythic_orchestrator
 from gateway.db_portability import router as db_portability_router
@@ -269,6 +269,9 @@ app.include_router(v3_router)
 
 # Include V4 DB Portability Router
 app.include_router(db_portability_router)
+
+# Include Diagnostic Router
+app.include_router(diagnostic_router)
 
 
 # ─── HELPER: Fetch yfinance data with caching ────────────────────────────────

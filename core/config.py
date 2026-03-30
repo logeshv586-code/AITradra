@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
+    # Server & UI
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+    UI_DIST_PATH: str = "ui/dist"
+
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./axiom.db"
 
