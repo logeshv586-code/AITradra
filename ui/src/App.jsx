@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Activity, Globe, List, Layers, Settings } from "lucide-react";
+import { Activity, Globe, List, Layers, Settings, Rocket, Activity as Pulse } from "lucide-react";
 import { T } from "./theme";
 import { AGENTS } from "./data";
 import LiveTickerBar from "./components/LiveTickerBar";
@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import VirtualPortfolioView from "./components/VirtualPortfolioView";
 import DiagnosticView from "./components/DiagnosticView";
-import { Activity as Pulse } from "lucide-react";
+import DeepResearchSuggestions from "./components/DeepResearchSuggestions";
 import { API_BASE, WS_BASE } from "./api_config";
 
 export default function App() {
@@ -201,6 +201,7 @@ export default function App() {
     { id:'portfolio',   icon: PieChart,       label:'Portfolio'       },
     { id:'trending',    icon: TrendingUp,     label:'Trending Stocks' },
     { id:'virtual',     icon: Coins,          label:'Virtual Portfolio'},
+    { id:'mission',     icon: Rocket,         label:'Mission Control' },
     { id:'diagnostics', icon: Pulse,          label:'System Diagnostics'},
   ];
 
@@ -299,8 +300,35 @@ export default function App() {
             )}
             {view === 'portfolio'   && <PortfolioInsightsView />}
             {view === 'trending'    && <TrendingStocksView onSelect={handleSelect} />}
-            {view === 'virtual'     && <VirtualPortfolioView onSelect={handleSelect} />}
-            {view === 'diagnostics' && <DiagnosticView />}
+            { view === 'virtual'     && <VirtualPortfolioView onSelect={handleSelect} />}
+            {view === 'mission'     && (
+              <div className="flex-1 overflow-y-auto p-12 custom-scrollbar animate-fade-in">
+                <div className="max-w-7xl mx-auto flex flex-col gap-12">
+                   <div className="flex flex-col gap-2">
+                    <h1 className="text-4xl font-extrabold tracking-tighter text-white font-mono uppercase bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                      🛰️ Mission Control
+                    </h1>
+                    <p className="text-sm text-slate-400 font-mono tracking-widest uppercase">
+                      Fleet-wide Consensus Engine & Deep Research Analysis
+                    </p>
+                  </div>
+
+                  {/* DEEP RESEARCH SUGGESTIONS */}
+                  <DeepResearchSuggestions />
+
+                  {/* AUTONOMOUS BUILD LOGS */}
+                  <div className="clay-card p-6 bg-black/40 border-indigo-500/10">
+                    <h3 className="text-[10px] font-bold tracking-widest text-slate-500 uppercase mb-4 font-mono">Mission Execution Logs</h3>
+                    <div className="flex flex-col gap-2 font-mono text-[10px]">
+                      <div className="text-indigo-400 opacity-80">[18:20:12] DeepResearchAgent triggered multi-agent sweep...</div>
+                      <div className="text-emerald-400 opacity-80">[18:20:45] Consensus check complete: 85% confidence threshold achieved.</div>
+                      <div className="text-slate-500">[18:21:00] Analyzing 14 specialist insights for high-conviction alignment...</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            { view === 'diagnostics' && <DiagnosticView />}
 
             {activeStock && view !== 'stock_detail' && (
               <StockDetailPanel ticker={activeStock} onClose={() => setActiveStock(null)} />
