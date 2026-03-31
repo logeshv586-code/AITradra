@@ -7,7 +7,7 @@ const getBaseUrl = () => {
         return import.meta.env.VITE_API_URL;
     }
     // Otherwise fallback to the backend port 8000 for standard AXIOM setup
-    return "http://localhost:8000";
+    return "http://127.0.0.1:8000";
 };
 
 const getWsUrl = () => {
