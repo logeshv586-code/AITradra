@@ -38,19 +38,28 @@ class McpNewsAgent(BaseAgent):
         self._add_thought(context, f"Checking knowledge store for recent news for {ticker}")
         
         from gateway.knowledge_store import knowledge_store
-        recent_news = knowledge_store.get_news_for_ticker(ticker, limit=20, days=3)
+        recent_news = knowledge_store.get_news_for_ticker(ticker, limit=20, days=7)
         
-        scraped = False
-        # If no recent news, trigger the Playwright scraper
+        rss_fetched = False
+        # If no recent news in KnowledgeStore, do a lightweight RSS fetch (NOT Playwright)
         if not recent_news:
-            self._add_thought(context, f"No recent news found for {ticker}. Triggering Playwright real-time scraper.")
+            self._add_thought(context, f"No recent news for {ticker}. Running lightweight RSS fetch (no browser).")
             try:
-                from scrapers.playwright_news import run_scraper
-                await run_scraper(query=f"{ticker} stock news", tickers=[ticker], headless=True)
-                recent_news = knowledge_store.get_news_for_ticker(ticker, limit=20, days=3)
-                scraped = True
+                from gateway.scrapers.rss_scraper import rss_scraper
+                import asyncio
+                await asyncio.to_thread(rss_scraper.fetch_all)
+                recent_news = knowledge_store.get_news_for_ticker(ticker, limit=20, days=7)
+                rss_fetched = True
             except Exception as e:
-                logger.warning(f"Live scraper failed for {ticker}: {e}")
+                logger.warning(f"RSS fetch failed for {ticker}: {e}")
+        
+        # If still no ticker-specific news, try general market news
+        if not recent_news:
+            self._add_thought(context, f"No ticker-specific news. Using general market news as context.")
+            try:
+                recent_news = knowledge_store.get_news_for_ticker("", limit=20, days=7)
+            except Exception:
+                pass
 
         final_news = []
         macro_sentiment, us_sentiment, sector_sentiment = 0.0, 0.0, 0.0
@@ -98,7 +107,7 @@ class McpNewsAgent(BaseAgent):
             "articles": final_news[:10]
         }
         
-        context.actions_taken.append({"action": "real_news_fetch", "scraped": scraped})
+        context.actions_taken.append({"action": "real_news_fetch", "rss_fetched": rss_fetched})
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:

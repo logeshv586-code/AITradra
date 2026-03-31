@@ -18,10 +18,23 @@ from playwright.async_api import async_playwright, Page, Browser
 from gateway.knowledge_store import knowledge_store
 
 def save_articles(articles: list[dict]):
-    """Save articles to the central KnowledgeStore."""
+    """Save articles to the central KnowledgeStore. Normalizes field names."""
     if not articles:
         return 0
-    return knowledge_store.store_news(articles)
+    # Normalize field names: scraper uses title/pub_date, KnowledgeStore expects headline/published_at
+    normalized = []
+    for a in articles:
+        normalized.append({
+            "headline": a.get("title") or a.get("headline", ""),
+            "summary": a.get("summary", ""),
+            "url": a.get("url", ""),
+            "source": a.get("source", ""),
+            "ticker": a.get("ticker", ""),
+            "published_at": a.get("pub_date") or a.get("published_at", ""),
+            "sentiment_score": a.get("sentiment_score", 0.0),
+        })
+    return knowledge_store.store_news(normalized)
+
 
 # ─────────────────────────────────────────────
 #  HELPERS

@@ -33,7 +33,7 @@ class RssScraper:
         self.last_fetch = {}      # feed_url -> datetime
 
     def fetch_all(self):
-        """Run every 5 minutes in background thread."""
+        """Run every 5 minutes in background thread. Persists to KnowledgeStore."""
         logger.info("Starting RSS fetch cycle...")
         all_articles = []
         for category, feeds in RSS_FEEDS.items():
@@ -50,7 +50,26 @@ class RssScraper:
             h = hashlib.md5(art['headline'].encode()).hexdigest()
             self.cache[h] = art
         
-        logger.info(f"RSS fetch complete. {len(deduped)} unique articles in cache.")
+        # Persist to KnowledgeStore so all agents can access the data
+        stored = 0
+        try:
+            from gateway.knowledge_store import knowledge_store
+            stored = knowledge_store.store_news(deduped)
+        except Exception as e:
+            logger.warning(f"Failed to persist RSS articles to KnowledgeStore: {e}")
+        
+        logger.info(f"RSS fetch complete. {len(deduped)} unique articles in cache, {stored} new stored to DB.")
+
+    def has_recent_data(self, max_age_hours: int = 12) -> bool:
+        """Check if we have data collected within the last N hours."""
+        try:
+            from gateway.knowledge_store import knowledge_store
+            status = knowledge_store.get_collection_status()
+            if status.get("total_news_articles", 0) > 0:
+                return True
+        except Exception:
+            pass
+        return len(self.cache) > 0
 
     def get_for_ticker(self, ticker: str) -> list[dict]:
         """Filter cached articles by ticker mention."""

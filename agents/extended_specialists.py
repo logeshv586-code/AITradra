@@ -12,7 +12,29 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-class SentimentSpecialist(BaseAgent):
+
+class _SpecialistBase(BaseAgent):
+    """Base class for specialist agents — provides default observe/think/plan/reflect."""
+
+    async def observe(self, context: AgentContext) -> AgentContext:
+        self._add_thought(context, f"{self.name}: Observing context for {context.ticker}")
+        return context
+
+    async def think(self, context: AgentContext) -> AgentContext:
+        self._add_thought(context, f"{self.name}: Analyzing available data")
+        return context
+
+    async def plan(self, context: AgentContext) -> AgentContext:
+        context.plan = [f"Run {self.name} analysis using LLM"]
+        return context
+
+    async def reflect(self, context: AgentContext) -> AgentContext:
+        has_result = context.result is not None
+        context.reflection = f"{self.name}: Analysis {'completed' if has_result else 'failed'}"
+        return context
+
+
+class SentimentSpecialist(_SpecialistBase):
     def __init__(self):
         super().__init__(name="SentimentSpecialist", timeout_seconds=60)
 
@@ -29,7 +51,7 @@ class SentimentSpecialist(BaseAgent):
         context.result = {"sentiment_analysis": res}
         return context
 
-class FundamentalSpecialist(BaseAgent):
+class FundamentalSpecialist(_SpecialistBase):
     def __init__(self):
         super().__init__(name="FundamentalSpecialist", timeout_seconds=60)
 
@@ -45,7 +67,7 @@ class FundamentalSpecialist(BaseAgent):
         context.result = {"fundamental_analysis": res}
         return context
 
-class SectorSpecialist(BaseAgent):
+class SectorSpecialist(_SpecialistBase):
     def __init__(self):
         super().__init__(name="SectorSpecialist", timeout_seconds=60)
 
@@ -60,7 +82,7 @@ class SectorSpecialist(BaseAgent):
         context.result = {"sector_analysis": res}
         return context
 
-class CatalystSpecialist(BaseAgent):
+class CatalystSpecialist(_SpecialistBase):
     def __init__(self):
         super().__init__(name="CatalystSpecialist", timeout_seconds=60)
 

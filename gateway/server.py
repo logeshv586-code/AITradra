@@ -174,23 +174,33 @@ async def lifespan(app: FastAPI):
     regime_detector_agent = RegimeDetectorAgent(memory=app.state.memory)
     backtest_agent = BacktestAgent(memory=app.state.memory)
 
-    # AXIOM v2 Scheduler
-    from gateway.scrapers.rss_scraper import rss_scraper
-    scheduler.add_job(rss_scraper.fetch_all, "interval", minutes=5)
-    asyncio.create_task(asyncio.to_thread(rss_scraper.fetch_all))
+    # ─── Market-Aware Scheduler ─────────────────────────────────────────────────
+    from core.market_scheduler import market_scheduler
+    app.state.market_scheduler = market_scheduler
 
-    # V4 Data Collection Scheduler
-    # Collect news every 5 minutes and index to RAG every 15 minutes
-    scheduler.add_job(collect_news_data, "interval", minutes=5, id="collect_news")
+    # Startup catch-up: if KnowledgeStore has no data, do a one-time RSS fetch NOW
+    await market_scheduler.startup_catchup()
+
+    # RSS feed collection (lightweight, uses feedparser, no browser)
+    from gateway.scrapers.rss_scraper import rss_scraper
+    scheduler.add_job(
+        market_scheduler.run_scheduled_news_collection,
+        "interval", minutes=10, id="smart_news"
+    )
+    
+    # Price collection — only runs during market hours (scheduler checks internally)
+    scheduler.add_job(
+        market_scheduler.run_scheduled_price_collection,
+        "interval", minutes=5, id="smart_prices"
+    )
+    
+    # RAG indexing — always useful
     scheduler.add_job(index_knowledge_to_rag, "interval", minutes=15, id="index_rag")
-    # Collect daily OHLCV data at startup and then daily
-    scheduler.add_job(collect_daily_data, "interval", hours=24, id="collect_daily")
 
     scheduler.start()
-    logger.info("⏰ Background scheduler started (RSS + News + RAG indexing + Daily OHLCV).")
+    logger.info("⏰ Market-aware scheduler started (news=10min, prices=5min market-hours-only, RAG=15min).")
 
-    # Trigger initial data collection in background (non-blocking)
-    asyncio.create_task(collect_news_data())
+    # Background: collect historical data if needed (non-blocking)
     asyncio.create_task(collect_historical_data())
     logger.info("📡 Initial data collection triggered in background.")
 
@@ -516,6 +526,23 @@ async def get_globe_data():
 @app.get("/health")
 async def health():
     return {"status": "healthy", "version": "4.0.0", "app": "AXIOM V4 Mythic", "agents": 14, "mythic_agents": 5}
+
+
+@app.get("/api/system/scheduler-status")
+async def scheduler_status():
+    """Returns market-aware scheduler state: what's open, when last scraped, etc."""
+    if hasattr(app.state, "market_scheduler"):
+        return app.state.market_scheduler.get_status()
+    return {"error": "Scheduler not initialized"}
+
+
+@app.get("/api/system/data-status")
+async def data_status():
+    """Returns KnowledgeStore data counts + freshness info."""
+    status = knowledge_store.get_collection_status()
+    if hasattr(app.state, "market_scheduler"):
+        status["scheduler"] = app.state.market_scheduler.get_status()
+    return status
 
 
 async def _background_watchlist_sync():
