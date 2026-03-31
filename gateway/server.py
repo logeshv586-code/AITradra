@@ -67,6 +67,7 @@ from gateway.diagnostic import router as diagnostic_router
 # V4 Mythic-Tier Architecture
 from agents.orchestrator import mythic_orchestrator
 from gateway.db_portability import router as db_portability_router
+from gateway.mission_control_router import router as mission_control_router
 
 # Global V3 instances for streaming
 data_agent = V3DataAgent()
@@ -265,8 +266,8 @@ app.include_router(v3_router)
 # Include V4 DB Portability Router
 app.include_router(db_portability_router)
 
-# Include Diagnostic Router
-app.include_router(diagnostic_router)
+# Include Mission Control Router
+app.include_router(mission_control_router)
 
 
 # ─── HELPER: Fetch yfinance data with caching ────────────────────────────────

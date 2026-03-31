@@ -94,6 +94,19 @@ class KnowledgeStore:
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS agent_episodes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                agent_name TEXT NOT NULL,
+                task TEXT NOT NULL,
+                status TEXT DEFAULT 'running',
+                state_json TEXT,
+                result_json TEXT,
+                error_log TEXT,
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS collection_status (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticker TEXT NOT NULL,
@@ -104,11 +117,33 @@ class KnowledgeStore:
                 UNIQUE(ticker, data_type)
             );
 
+            CREATE TABLE IF NOT EXISTS agent_health (
+                agent_name TEXT PRIMARY KEY,
+                last_seen TEXT DEFAULT (datetime('now')),
+                latency_ms INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'idle',
+                current_task TEXT,
+                error_count INTEGER DEFAULT 0,
+                version TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS research_suggestions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                score REAL,
+                signal TEXT,
+                reasoning TEXT,
+                breakdown_json TEXT,
+                perf_1m REAL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE INDEX IF NOT EXISTS idx_ohlcv_ticker_date ON daily_ohlcv(ticker, date);
             CREATE INDEX IF NOT EXISTS idx_news_ticker ON news_articles(ticker);
             CREATE INDEX IF NOT EXISTS idx_news_published ON news_articles(published_at);
             CREATE INDEX IF NOT EXISTS idx_snapshots_ticker ON market_snapshots(ticker, created_at);
             CREATE INDEX IF NOT EXISTS idx_insights_ticker ON agent_insights(ticker, created_at);
+            CREATE INDEX IF NOT EXISTS idx_episodes_session ON agent_episodes(session_id);
         """)
         conn.commit()
         logger.info(f"Knowledge store initialized at {self.db_path}")
@@ -279,6 +314,65 @@ class KnowledgeStore:
         )
         conn.commit()
 
+    # ─── Agent Episodes (Mission Control / Checkpoints) ───────────────────────
+
+    def store_episode_start(self, session_id: str, agent_name: str, task: str):
+        """Initialize a new agent episode."""
+        conn = self._get_conn()
+        conn.execute("""
+            INSERT INTO agent_episodes (session_id, agent_name, task, status)
+            VALUES (?, ?, ?, 'running')
+        """, (session_id, agent_name, task))
+        conn.commit()
+
+    def update_episode_checkpoint(self, session_id: str, agent_name: str, state_dict: dict):
+        """Update the current state of an episode for resuming."""
+        conn = self._get_conn()
+        conn.execute("""
+            UPDATE agent_episodes 
+            SET state_json = ?, updated_at = datetime('now')
+            WHERE session_id = ? AND agent_name = ?
+        """, (json.dumps(state_dict), session_id, agent_name))
+        conn.commit()
+
+    def complete_episode(self, session_id: str, agent_name: str, result: dict):
+        """Mark episode as complete and store result."""
+        conn = self._get_conn()
+        conn.execute("""
+            UPDATE agent_episodes 
+            SET status = 'complete', result_json = ?, updated_at = datetime('now')
+            WHERE session_id = ? AND agent_name = ?
+        """, (json.dumps(result), session_id, agent_name))
+        conn.commit()
+
+    def fail_episode(self, session_id: str, agent_name: str, error: str):
+        """Mark episode as failed and log error."""
+        conn = self._get_conn()
+        conn.execute("""
+            UPDATE agent_episodes 
+            SET status = 'failed', error_log = ?, updated_at = datetime('now')
+            WHERE session_id = ? AND agent_name = ?
+        """, (error, session_id, agent_name))
+        conn.commit()
+
+    def get_episode_state(self, session_id: str, agent_name: str) -> Optional[dict]:
+        """Retrieve the last checkpoint for an episode."""
+        conn = self._get_conn()
+        row = conn.execute("""
+            SELECT state_json FROM agent_episodes 
+            WHERE session_id = ? AND agent_name = ?
+            ORDER BY updated_at DESC LIMIT 1
+        """, (session_id, agent_name)).fetchone()
+        if row and row["state_json"]:
+            return json.loads(row["state_json"])
+        return None
+
+    def get_active_episodes(self) -> list[dict]:
+        """Get all currently running episodes."""
+        conn = self._get_conn()
+        rows = conn.execute("SELECT * FROM agent_episodes WHERE status = 'running'").fetchall()
+        return [dict(r) for r in rows]
+
     # ─── Collection Status ────────────────────────────────────────────────────
 
     def _update_collection_status(self, ticker: str, data_type: str, count: int):
@@ -342,4 +436,50 @@ class KnowledgeStore:
 
 
 # Global singleton
+
+    # ─── AGENT HEALTH ─────────────────────────────────────────────────────────
+
+    def update_agent_health(self, name: str, status: str, latency_ms: int = 0, task: str = None, error: bool = False):
+        """Update real-time health metrics for an agent."""
+        conn = self._get_conn()
+        now = datetime.now().isoformat()
+        err_inc = 1 if error else 0
+        
+        conn.execute("""
+            INSERT INTO agent_health (agent_name, last_seen, status, latency_ms, current_task, error_count)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(agent_name) DO UPDATE SET
+                last_seen = excluded.last_seen,
+                status = excluded.status,
+                latency_ms = excluded.latency_ms,
+                current_task = COALESCE(excluded.current_task, agent_health.current_task),
+                error_count = agent_health.error_count + ?
+        """, (name, now, status, latency_ms, task, err_inc, err_inc))
+        conn.commit()
+
+    def get_all_agent_health(self) -> list[dict]:
+        """Fetch health metrics for all agents."""
+        conn = self._get_conn()
+        cursor = conn.execute("SELECT * FROM agent_health ORDER BY agent_name ASC")
+        return [dict(row) for row in cursor.fetchall()]
+
+    # ─── RESEARCH SUGGESTIONS ──────────────────────────────────────────────────
+
+    def store_research_suggestion(self, ticker: str, score: float, signal: str, reasoning: str, breakdown: dict, perf_1m: float):
+        """Store a high-conviction research suggestion."""
+        conn = self._get_conn()
+        conn.execute("""
+            INSERT INTO research_suggestions (ticker, score, signal, reasoning, breakdown_json, perf_1m)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (ticker, score, signal, reasoning, json.dumps(breakdown), perf_1m))
+        conn.commit()
+
+    def get_latest_research_suggestions(self, limit: int = 5) -> list[dict]:
+        """Fetch latest deep research suggestions."""
+        conn = self._get_conn()
+        cursor = conn.execute("""
+            SELECT * FROM research_suggestions ORDER BY created_at DESC LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
 knowledge_store = KnowledgeStore()

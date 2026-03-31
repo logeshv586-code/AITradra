@@ -57,3 +57,5 @@ pandas-ta>=0.3.14b0
 vectorbt>=0.28.5
 backtrader>=1.9.78.123
 pyportfolioopt>=1.5.5
+PyIcons
+PyGithub>=2.5.0

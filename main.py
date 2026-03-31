@@ -57,6 +57,18 @@ async def main():
             index_knowledge_to_rag, 
             "interval", minutes=settings.RAG_REINDEX_INTERVAL_MIN, id="index_rag"
         )
+
+        # ─── Agentic Research & Deep Analysis ──────────────────────────────
+        from agents.base_agent import AgentContext
+        from agents.research_engine import DeepResearchAgent
+        deep_research_agent = DeepResearchAgent()
+
+        # Deep Research Agent: Daily at 9:30 AM EST (Market Open)
+        scheduler.add_job(
+            deep_research_agent.run,
+            "cron", hour=9, minute=30, timezone="US/Eastern", 
+            args=[AgentContext(task="Daily deep stock research sweep")], id="deep_research"
+        )
         
         scheduler.start()
         logger.info("📡 Background scheduler started with smart, market-aware rules.")

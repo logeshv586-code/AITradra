@@ -59,8 +59,13 @@ class BaseAgent(ABC):
             return []
 
     async def run(self, context: AgentContext) -> AgentContext:
-        """Execute the full Claude Flow loop — the ONLY entry point."""
-        self.logger.info(f"[{self.name}] Starting Claude Flow loop", task=context.task)
+        """Standard execution flow with integrated telemetry."""
+        from datetime import datetime
+        from gateway.knowledge_store import knowledge_store
+        
+        start_time = datetime.now()
+        knowledge_store.update_agent_health(self.name, "active", task=context.task)
+        
         try:
             context = await self._observe(context)
             context = await self._think(context)
@@ -68,12 +73,19 @@ class BaseAgent(ABC):
             context = await self._act_with_retry(context)
             context = await self._reflect(context)
             await self._improve(context)
+            
+            latency = int((datetime.now() - start_time).total_seconds() * 1000)
+            knowledge_store.update_agent_health(self.name, "idle", latency_ms=latency)
+            
+            return context
         except asyncio.TimeoutError:
             context.errors.append(f"Agent {self.name} timed out after {self.timeout_seconds}s")
             self.logger.error(f"Agent {self.name} timed out")
+            knowledge_store.update_agent_health(self.name, "error", error=True)
         except Exception as e:
             context.errors.append(f"Agent {self.name} failed: {str(e)}")
             self.logger.error(f"Agent {self.name} failed: {traceback.format_exc()}")
+            knowledge_store.update_agent_health(self.name, "error", error=True)
             await self._improve(context)
         return context
 

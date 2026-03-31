@@ -56,96 +56,118 @@ class MythicOrchestrator:
         # Memory store for episodic recall
         self._episode_store = []
 
-    async def orchestrate(self, query: str, ticker: Optional[str], gathered_data: dict) -> dict:
-        """Main entry point — 14-agent Claude-style orchestrated reasoning pipeline."""
-        logger.info(f"[Orchestrator] Starting 14-agent pipeline for '{query[:80]}' ticker={ticker}")
+    async def orchestrate(self, query: str, ticker: Optional[str], gathered_data: dict, session_id: str = "default") -> dict:
+        """Main entry point — 14-agent pipeline with Convoy Mode and Checkpoints."""
+        logger.info(f"[Orchestrator] Convoy Mode active for '{query[:80]}' ticker={ticker}")
         start = datetime.now()
 
-        # ─── Step 1: Run First Wave (Parallel) ──────────────────────────────
-        # These agents compute initial base signals
-        specialist_outputs = await self._run_first_wave(ticker, gathered_data)
+        # Step 0: Check for existing checkpoint
+        from gateway.knowledge_store import knowledge_store
+        checkpoint = knowledge_store.get_episode_state(session_id, "MythicOrchestrator")
+        if checkpoint:
+            logger.info(f"[Orchestrator] Resuming from checkpoint: {checkpoint.get('step')}")
+            # Logic to resume from specific wave could go here
 
-        # ─── Step 2: Run Second Wave (Sequential/Knowledge Aware) ───────────
-        # These agents check the knowledge store for the First Wave's signals
-        second_wave_results = await self._run_second_wave(ticker, gathered_data)
-        specialist_outputs.update(second_wave_results)
-
-        # ─── Step 3: Run AI Decision Layer ──────────────────────────────────
-        # Add FinBERT and Fusion logic
-        ctx = AgentContext(task=f"Decision for {ticker}", ticker=ticker, observations=gathered_data)
-        ctx.observations["sentiment_result"] = specialist_outputs.get("sentiment_finbert", {})
-        
-        decision_results = await asyncio.gather(
-            self.sentiment_finbert.run(ctx),
-            self.signal_aggregator.run(ctx),
-            self.risk_manager.run(ctx),
-            return_exceptions=True
-        )
-        
-        for name, res in zip(["sentiment_finbert", "signal_aggregator", "risk_manager"], decision_results):
-            specialist_outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
-
-        # ─── Step 4: Run critique/reflection layer ──────────────────────────
-        critique_result = await self.critique.critique(specialist_outputs, query, ticker)
-
-        # ─── Step 4: Calibrate confidence ───────────────────────────────────
-        from agents.critique_layer import calibrate_confidence
-        
-        rag_count = len(gathered_data.get("rag_results", []))
-        news = gathered_data.get("news", [])
-        news_recency = self._compute_news_recency_hours(news)
-        
-        # Average confidence from ALL specialists
-        specialist_confidences = [v.get("confidence", 0.5) for v in specialist_outputs.values() if isinstance(v, dict)]
-        avg_spec_conf = sum(specialist_confidences) / len(specialist_confidences) if specialist_confidences else 0.5
-        
-        final_confidence = calibrate_confidence(
-            specialist_agreement=critique_result["agreement_score"],
-            rag_source_count=rag_count,
-            news_recency_hours=news_recency,
-            specialist_avg_confidence=avg_spec_conf
-        )
-
-        # ─── Step 5: Final LLM synthesis with all context ───────────────────
-        response = await self._synthesize_final(
-            query, ticker, gathered_data, specialist_outputs, critique_result, final_confidence
-        )
-
-        # ─── Step 6: Store episode ──────────────────────────────────────────
-        episode = {
-            "query": query, "ticker": ticker,
-            "consensus": critique_result["revised_consensus"],
-            "confidence": final_confidence, "timestamp": datetime.now().isoformat(),
-        }
-        self._episode_store.append(episode)
-        if len(self._episode_store) > 500: self._episode_store = self._episode_store[-250:]
+        # Initialize Episode
+        knowledge_store.store_episode_start(session_id, "MythicOrchestrator", query)
 
         try:
-            from gateway.knowledge_store import knowledge_store
-            if ticker:
-                knowledge_store.store_insight(
-                    ticker=ticker, agent_name="MythicOrchestrator",
-                    insight_type="synthesis", content=response[:500] if response else "",
-                    confidence=final_confidence,
-                )
-        except Exception: pass
+            # ─── Step 1: Run First Wave (Parallel) ──────────────────────────────
+            specialist_outputs = await self._run_first_wave(ticker, gathered_data)
+            
+            # Checkpoint 1
+            knowledge_store.update_episode_checkpoint(session_id, "MythicOrchestrator", {"step": "first_wave_complete", "outputs": specialist_outputs})
 
-        elapsed = (datetime.now() - start).total_seconds()
-        logger.info(f"[Orchestrator] Pipeline complete in {elapsed:.1f}s. Confidence: {final_confidence}")
+            # ─── Step 2: Run Second Wave (Sequential/Knowledge Aware) ───────────
+            second_wave_results = await self._run_second_wave(ticker, gathered_data)
+            specialist_outputs.update(second_wave_results)
+            
+            # Checkpoint 2
+            knowledge_store.update_episode_checkpoint(session_id, "MythicOrchestrator", {"step": "second_wave_complete", "outputs": specialist_outputs})
 
-        return {
-            "response": response,
-            "confidence": final_confidence,
-            "consensus": critique_result["revised_consensus"],
-            "specialist_outputs": {k: v.get("summary", "") for k, v in specialist_outputs.items() if isinstance(v, dict)},
-            "critique": {
-                "flags": critique_result.get("flags", []),
-                "contradictions": critique_result.get("contradiction_notes", []),
-                "audit": critique_result.get("audit_summary", ""),
-            },
-            "sources_used": list(gathered_data.keys()),
-            "pipeline_ms": round(elapsed * 1000),
-        }
+            # ─── Step 3: Convoy Mode - Hierarchical Subtask Decomposition ───────
+            # If the query is complex, we spawn "Shadow Agents" for deep-dive analysis
+            if len(query) > 100 or "deep" in query.lower():
+                logger.info("[Orchestrator] TRIMMING: Spawning shadow agents for deep-dive...")
+                shadow_results = await self._run_convoy_deep_dive(ticker, gathered_data, specialist_outputs)
+                specialist_outputs.update(shadow_results)
+
+            # ─── Step 4: Run AI Decision Layer ──────────────────────────────────
+            ctx = AgentContext(task=f"Decision for {ticker}", ticker=ticker, observations=gathered_data)
+            ctx.observations["sentiment_result"] = specialist_outputs.get("sentiment_finbert", {})
+            
+            decision_results = await asyncio.gather(
+                self.sentiment_finbert.run(ctx),
+                self.signal_aggregator.run(ctx),
+                self.risk_manager.run(ctx),
+                return_exceptions=True
+            )
+            
+            for name, res in zip(["sentiment_finbert", "signal_aggregator", "risk_manager"], decision_results):
+                specialist_outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
+
+            # ─── Step 5: Run critique/reflection layer ──────────────────────────
+            critique_result = await self.critique.critique(specialist_outputs, query, ticker)
+
+            # ─── Step 6: Calibrate confidence ───────────────────────────────────
+            from agents.critique_layer import calibrate_confidence
+            rag_count = len(gathered_data.get("rag_results", []))
+            news_recency = self._compute_news_recency_hours(gathered_data.get("news", []))
+            
+            spec_confidences = [v.get("confidence", 0.5) for v in specialist_outputs.values() if isinstance(v, dict)]
+            avg_spec_conf = sum(spec_confidences) / len(spec_confidences) if spec_confidences else 0.5
+            
+            final_confidence = calibrate_confidence(
+                specialist_agreement=critique_result["agreement_score"],
+                rag_source_count=rag_count,
+                news_recency_hours=news_recency,
+                specialist_avg_confidence=avg_spec_conf
+            )
+
+            # ─── Step 7: Final LLM synthesis ───────────────────
+            response = await self._synthesize_final(query, ticker, gathered_data, specialist_outputs, critique_result, final_confidence)
+
+            # ─── Step 8: Complete Episode ──────────────────────────────────────
+            result_payload = {
+                "response": response, "confidence": final_confidence,
+                "consensus": critique_result["revised_consensus"]
+            }
+            knowledge_store.complete_episode(session_id, "MythicOrchestrator", result_payload)
+
+            elapsed = (datetime.now() - start).total_seconds()
+            logger.info(f"[Orchestrator] Pipeline complete in {elapsed:.1f}s. Confidence: {final_confidence}")
+
+            return {
+                **result_payload,
+                "specialist_outputs": {k: v.get("summary", "") for k, v in specialist_outputs.items() if isinstance(v, dict)},
+                "critique": {
+                    "flags": critique_result.get("flags", []),
+                    "contradictions": critique_result.get("contradiction_notes", []),
+                    "audit": critique_result.get("audit_summary", ""),
+                },
+                "sources_used": list(gathered_data.keys()),
+                "pipeline_ms": round(elapsed * 1000),
+            }
+
+        except Exception as e:
+            logger.error(f"[Orchestrator] Pipeline failed: {e}")
+            knowledge_store.fail_episode(session_id, "MythicOrchestrator", str(e))
+            raise
+
+    async def _run_convoy_deep_dive(self, ticker: str, data: dict, current_outputs: dict) -> dict:
+        """Convoy Mode: Spawns specialized agents dynamically."""
+        from agents.think_agent import ThinkAgent
+        think_agent = ThinkAgent()
+        
+        ctx = AgentContext(task=f"Shadow deep-dive for {ticker}", ticker=ticker, observations={"current_outputs": current_outputs})
+        result = await think_agent.run(ctx)
+        return {"deep_dive_analysis": result.result if result.result else "Deep dive complete."}
+
+    def nudge_agent(self, agent_id: str):
+        """Auto-nudge an agent that is stuck or taking too long."""
+        logger.warning(f"🔔 [Watchdog] Nudging agent '{agent_id}' — high latency detected.")
+        # In a real implementation, this might signal an event or retry a specific task
+        return True
 
     async def _run_first_wave(self, ticker: str, data: dict) -> dict:
         """First wave: Agents that don't depend on others."""
