@@ -1,7 +1,11 @@
 """AXIOM Core Configuration — all settings from environment variables."""
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from typing import Optional
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
@@ -57,8 +61,48 @@ class Settings(BaseSettings):
 
     # Market Data
     YFINANCE_RATE_LIMIT: int = 60
-    NEWS_FETCH_INTERVAL_MINUTES: int = 30
-    MARKET_SCAN_INTERVAL_MINUTES: int = 15
+    NEWS_FETCH_INTERVAL_MIN: int = 10
+    PRICE_FETCH_INTERVAL_MIN: int = 5
+    RAG_REINDEX_INTERVAL_MIN: int = 15
+
+    # NVIDIA NIM LLM Settings
+    LLM_PROVIDER: str = "nvidia_nim"
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    
+    MOONSHOT_API_KEY: str = "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"
+    NEMOTRON_API_KEY: str = "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"
+    MINIMAX_API_KEY: str = "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"
+    MISTRAL_API_KEY: str = "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"
+    
+    # Model Assignments (NIM)
+    SENTIMENT_MODEL: str = "mistralai/mistral-small-4-119b-2603"
+    REASONING_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
+    ANALYSIS_MODEL: str = "moonshotai/kimi-k2.5"
+    GENERAL_MODEL: str = "minimaxai/minimax-m2.5"
+    
+    # Local LLM Fallbacks (Store filenames in .env, resolved to absolute at runtime)
+    LOCAL_REASONING_MODEL_PATH: str = "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
+    LOCAL_GENERAL_MODEL_PATH: str = "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
+
+    @field_validator("LOCAL_REASONING_MODEL_PATH", "LOCAL_GENERAL_MODEL_PATH")
+    @classmethod
+    def resolve_model_path(cls, v: str) -> str:
+        """Joins filename from .env with project root to create an absolute path."""
+        # If it's already an absolute path (unlikely in .env but possible), return it
+        if Path(v).is_absolute():
+            return str(v)
+        
+        # Join with BASE_DIR for universal absolute path
+        abs_path = (BASE_DIR / v).resolve()
+        return str(abs_path)
+
+    # Risk Controls
+    PAPER_TRADE_MODE: bool = True
+    MAX_POSITION_PCT: float = 0.05
+    MAX_DAILY_LOSS_PCT: float = 0.02
+    MAX_OPEN_POSITIONS: int = 5
+    MIN_SIGNAL_CONFIDENCE: float = 0.70
+    MIN_CONSENSUS_AGENTS: int = 3
 
     # External Services (from .env)
     UI_BASE_URL: str = "http://localhost:8000"

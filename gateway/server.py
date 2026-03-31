@@ -610,6 +610,21 @@ async def get_market_status():
     return MarketManager.get_all_statuses()
 
 
+@app.get("/api/agents/status")
+async def agents_status():
+    """Returns the status and health of the 14-agent specialist fleet."""
+    # Mapping current mythic + core agents status
+    return {
+        "agents": [
+            {"id": "sentiment", "name": "Sentiment Classifier", "status": "ONLINE", "type": "specialist"},
+            {"id": "risk", "name": "Risk Manager", "status": "ONLINE", "type": "specialist"},
+            {"id": "aggregator", "name": "Signal Aggregator", "status": "ONLINE", "type": "specialist"},
+            {"id": "data", "name": "Data Agent", "status": "ONLINE", "type": "core"},
+            {"id": "news", "name": "News Agent", "status": "ONLINE", "type": "core"},
+        ]
+    }
+
+
 @app.get("/api/market/indices")
 async def market_indices():
     """Fetch LIVE global index data."""

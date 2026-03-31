@@ -31,17 +31,25 @@ class MythicOrchestrator:
         from agents.specialist_agents import TechnicalSpecialist, RiskSpecialist, MacroSpecialist
         from agents.extended_specialists import SentimentSpecialist, FundamentalSpecialist, SectorSpecialist, CatalystSpecialist
         from agents.critique_layer import CritiqueAgent
+        from agents.sentiment_classifier import SentimentClassifierAgent
+        from agents.risk_manager import RiskManagerAgent
+        from agents.signal_aggregator import SignalAggregatorAgent
         
         # Core Trio
         self.technical = TechnicalSpecialist()
         self.risk = RiskSpecialist()
         self.macro = MacroSpecialist()
         
-        # Extended Specialists
+        # Extended Specialists & AI Upgrades
         self.sentiment = SentimentSpecialist()
+        self.sentiment_finbert = SentimentClassifierAgent()
         self.fundamental = FundamentalSpecialist()
         self.sector = SectorSpecialist()
         self.catalysts = CatalystSpecialist()
+        
+        # Decision & Risk Layer
+        self.risk_manager = RiskManagerAgent()
+        self.signal_aggregator = SignalAggregatorAgent()
         
         self.critique = CritiqueAgent()
         
@@ -62,7 +70,22 @@ class MythicOrchestrator:
         second_wave_results = await self._run_second_wave(ticker, gathered_data)
         specialist_outputs.update(second_wave_results)
 
-        # ─── Step 3: Run critique/reflection layer ──────────────────────────
+        # ─── Step 3: Run AI Decision Layer ──────────────────────────────────
+        # Add FinBERT and Fusion logic
+        ctx = AgentContext(task=f"Decision for {ticker}", ticker=ticker, observations=gathered_data)
+        ctx.observations["sentiment_result"] = specialist_outputs.get("sentiment_finbert", {})
+        
+        decision_results = await asyncio.gather(
+            self.sentiment_finbert.run(ctx),
+            self.signal_aggregator.run(ctx),
+            self.risk_manager.run(ctx),
+            return_exceptions=True
+        )
+        
+        for name, res in zip(["sentiment_finbert", "signal_aggregator", "risk_manager"], decision_results):
+            specialist_outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
+
+        # ─── Step 4: Run critique/reflection layer ──────────────────────────
         critique_result = await self.critique.critique(specialist_outputs, query, ticker)
 
         # ─── Step 4: Calibrate confidence ───────────────────────────────────
@@ -202,10 +225,12 @@ class MythicOrchestrator:
         full_prompt = "\n".join(prompt_parts)
 
         system_prompt = (
-            "You are AXIOM, a premium multi-agent trading intelligence system. "
-            "Write a authoritative, data-driven synthesis of all agent signals. "
+            "You are AXIOM, a premium multi-agent trading intelligence system powered by NVIDIA NIM. "
+            "Write an authoritative, data-driven synthesis of all agent signals. "
             "Structure: 1) Executive Summary, 2) Technical/Risk alignment, "
-            "3) Macro/Fundamental context, 4) Investment Verdict. "
+            "3) Macro/Fundamental context, 4) Investment Verdict (BUY/SELL/HOLD). "
+            "IMPORTANT: If the Signal Aggregator shows a strong verdict, be extremely clear about it. "
+            "Provide specific price targets and stop-losses if available. "
             "Be extremely specific. Use professional financial tone. Keep under 400 words."
         )
 

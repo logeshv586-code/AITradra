@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react";
 import { API_BASE } from "../constants/config";
 
 export default function MarketStatusBadges() {

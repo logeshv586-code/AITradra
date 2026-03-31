@@ -47,17 +47,13 @@ openbb-econdb
 pytest>=8.3.0
 pytest-asyncio>=0.24.0
 
-# V2 OSS Infrastructure & Agents
-ccxt>=4.2.14
-hmmlearn>=0.3.3
-backtrader>=1.9.78.123
+# AI & Machine Learning
+transformers>=4.38.0
+torch>=2.2.0
+openai>=1.12.0
+
+# Trading & Analysis Upgrades
+pandas-ta>=0.3.14b0
 vectorbt>=0.28.5
-praw>=7.7.1
-snscrape>=0.7.0.20230622
-feedparser>=6.0.11
-kafka-python>=2.0.2
-psycopg2-binary>=2.9.9
+backtrader>=1.9.78.123
 pyportfolioopt>=1.5.5
-xgboost>=2.0.3
-lightgbm>=4.3.0
-scikit-learn>=1.4.1.post1

@@ -13,9 +13,10 @@ import os
 import asyncio
 import json
 import re
-import httpx
-from typing import Optional
+import requests
+from typing import Optional, Dict, Any
 from core.config import settings
+import httpx
 from core.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,131 +42,174 @@ def get_shared_llm():
 class LLMClient:
     """Unified LLM client with local NVIDIA Nemotron GGUF as primary provider."""
 
-    _local_llm = None
+    _local_reasoning_llm = None
+    _local_general_llm = None
     _load_attempted = False
 
     @classmethod
     def preload_local_gguf(cls) -> bool:
-        """Preloads the local GGUF model into memory at startup. Call once."""
+        """Preloads local GGUF models into memory. Loads both reasoning and general models."""
         if cls._load_attempted:
-            return cls._local_llm is not None
+            return cls._local_reasoning_llm is not None or cls._local_general_llm is not None
         cls._load_attempted = True
 
         try:
             from llama_cpp import Llama
             
-            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            target_model = settings.LLM_MODEL.lower()
+            n_gpu = -1 if os.getenv("USE_CUDA", "").lower() == "true" else 0
+            n_threads = max(os.cpu_count() - 2, 2)
+
+            # 1. Load Local Reasoning Model
+            reasoning_path = settings.LOCAL_REASONING_MODEL_PATH
+            if os.path.exists(reasoning_path):
+                logger.info(f"Loading local reasoning model: {os.path.basename(reasoning_path)}")
+                cls._local_reasoning_llm = Llama(
+                    model_path=os.path.abspath(reasoning_path),
+                    n_ctx=4096, n_threads=n_threads, n_gpu_layers=n_gpu, verbose=False
+                )
             
-            # Find the best match .gguf file in the root directory
-            model_path = None
-            for file in os.listdir(root_dir):
-                if file.lower().endswith(".gguf"):
-                    # Check if model name in filename
-                    if target_model in file.lower() or file.lower().startswith(target_model):
-                        model_path = os.path.join(root_dir, file)
-                        break
-            
-            # Fallback: exact match from config if no fuzzy match found
-            if not model_path:
-                potential_path = os.path.join(root_dir, f"{settings.LLM_MODEL}.gguf")
-                if os.path.exists(potential_path):
-                    model_path = potential_path
+            # 2. Load Local General Model
+            general_path = settings.LOCAL_GENERAL_MODEL_PATH
+            if os.path.exists(general_path):
+                logger.info(f"Loading local general model: {os.path.basename(general_path)}")
+                cls._local_general_llm = Llama(
+                    model_path=os.path.abspath(general_path),
+                    n_ctx=4096, n_threads=n_threads, n_gpu_layers=n_gpu, verbose=False
+                )
 
-            if not model_path or not os.path.exists(model_path):
-                logger.warning(f"No local GGUF model found matching '{settings.LLM_MODEL}' in {root_dir}")
-                # Try finding ANY .gguf file as a last resort
-                for file in os.listdir(root_dir):
-                    if file.lower().endswith(".gguf"):
-                        model_path = os.path.join(root_dir, file)
-                        logger.info(f"Using fallback GGUF model: {file}")
-                        break
-                
-                if not model_path:
-                    return False
-
-            logger.info(f"Loading GGUF model: {os.path.basename(model_path)}...")
-
-            n_gpu = 0
-            if os.getenv("USE_CUDA", "").lower() == "true":
-                n_gpu = -1
-
-            cls._local_llm = Llama(
-                model_path=os.path.abspath(model_path),
-                n_ctx=4096,
-                n_threads=max(os.cpu_count() - 2, 2),
-                n_gpu_layers=n_gpu,
-                verbose=False,
-                n_batch=512,
-            )
-            logger.info(f"Model loaded successfully: {os.path.basename(model_path)}")
-
-            global _GLOBAL_LLM_INSTANCE
-            _GLOBAL_LLM_INSTANCE = LLMClient()
-
-            return True
+            return cls._local_reasoning_llm is not None or cls._local_general_llm is not None
         except Exception as e:
             logger.error(f"GGUF preload failed: {e}")
-            cls._local_llm = None
             return False
 
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
         self.base_url = base_url or settings.OLLAMA_URL
         self.model = model or settings.LLM_MODEL
         self.timeout = settings.LLM_TIMEOUT
-
-        if LLMClient._local_llm is not None:
+        
+        # Determine provider
+        if settings.LLM_PROVIDER == "nvidia_nim":
+            self.provider = "nvidia_nim"
+        elif LLMClient._local_reasoning_llm is not None or LLMClient._local_general_llm is not None:
             self.provider = "local_gguf"
         else:
             self.provider = "ollama"
+            
         logger.info(f"LLM Client initialized using {self.provider} provider.")
 
-    async def complete(self, prompt: str, system: str = "", temperature: float = 0.1,
-                       max_tokens: int = 2048, expect_json: bool = False) -> str:
-        """Core completion method with automatic provider fallback."""
+    async def complete(self, prompt: str, system: str = "", temperature: Optional[float] = None,
+                       max_tokens: Optional[int] = None, expect_json: bool = False,
+                       role: str = "general") -> str:
+        """Core completion method with NIM -> Local -> Ollama fallback."""
+        
+        # 1. Try NVIDIA NIM (Primary)
+        if self.provider == "nvidia_nim":
+            content = await self._try_nvidia_nim(prompt, system, temperature, max_tokens, role)
+            if content:
+                return self._post_process(content, expect_json)
+            logger.warning(f"NIM failed for role '{role}', falling back to local GGUF.")
 
-        # 1. Try Local GGUF (Primary — fastest, private, no network)
-        if LLMClient._local_llm is not None:
-            res = await self._try_local_gguf(prompt, system, temperature, max_tokens)
+        # 2. Try Local GGUF (Safe Fallback)
+        if LLMClient._local_reasoning_llm is not None or LLMClient._local_general_llm is not None:
+            res = await self._try_local_gguf(prompt, system, temperature or 0.1, max_tokens or 2048, role)
             if res:
                 return self._post_process(res, expect_json)
 
-        # 2. Try Ollama (if running locally)
-        res = await self._try_ollama(prompt, system, temperature, max_tokens)
+        # 3. Try Ollama (Secondary Fallback)
+        res = await self._try_ollama(prompt, system, temperature or 0.1, max_tokens or 2048)
         if res:
             return self._post_process(res, expect_json)
 
-        # 3. Structured data-aware fallback (no LLM needed)
         return self._intelligent_fallback(prompt, system, expect_json)
 
+    def _get_role_config(self, role: str) -> Dict[str, Any]:
+        """Maps a role to specific model, tokens, temperature, and API KEY."""
+        if role == "sentiment":
+            return {"model": settings.SENTIMENT_MODEL, "tokens": 1024, "temp": 0.0, "key": settings.MISTRAL_API_KEY}
+        elif role == "reasoning":
+            return {"model": settings.REASONING_MODEL, "tokens": 4096, "temp": 0.1, "key": settings.NEMOTRON_API_KEY}
+        elif role == "analysis":
+            return {"model": settings.ANALYSIS_MODEL, "tokens": 8192, "temp": 0.2, "key": settings.MOONSHOT_API_KEY}
+        else:
+            return {"model": settings.GENERAL_MODEL, "tokens": 2048, "temp": 0.3, "key": settings.MINIMAX_API_KEY}
+
+    async def _try_nvidia_nim(self, prompt: str, system: str, 
+                               temperature: Optional[float], max_tokens: Optional[int], 
+                               role: str) -> Optional[str]:
+        """Inference using NVIDIA NIM with specialized keys per model."""
+        try:
+            config = self._get_role_config(role)
+            model = config["model"]
+            api_key = config["key"]
+            final_temp = temperature if temperature is not None else config["temp"]
+            final_tokens = max_tokens if max_tokens is not None else config["tokens"]
+
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system or "You are an expert financial assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": final_temp,
+                "max_tokens": final_tokens,
+                "stream": False
+            }
+            
+            # Reasoning features for specific models
+            if "nemotron" in model.lower() or "kimi" in model.lower():
+                payload["extra_body"] = {
+                    "chat_template_kwargs": {"enable_thinking": True},
+                    "reasoning_budget": final_tokens
+                }
+
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{settings.NVIDIA_BASE_URL}/chat/completions",
+                    headers=headers, json=payload
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+                return None
+        except Exception as e:
+            logger.error(f"NVIDIA NIM error: {e}")
+            return None
+
     async def _try_local_gguf(self, prompt: str, system: str,
-                                temperature: float, max_tokens: int) -> Optional[str]:
-        """Inference using local Qwen2.5 GGUF model via chat completion API."""
+                                temperature: float, max_tokens: int, role: str = "general") -> Optional[str]:
+        """Inference using local specialized GGUF models."""
         try:
             import anyio
-            if LLMClient._local_llm is None:
+            
+            # Select model based on role
+            model = LLMClient._local_reasoning_llm if role in ["reasoning", "analysis"] else LLMClient._local_general_llm
+            # Fallback to whatever is available
+            if model is None:
+                model = LLMClient._local_general_llm or LLMClient._local_reasoning_llm
+            
+            if model is None:
                 return None
 
-            sys_msg = system or "You are an expert financial analyst and market intelligence system."
+            sys_msg = system or "You are an expert financial analyst."
 
             def _infer():
-                output = LLMClient._local_llm.create_chat_completion(
+                output = model.create_chat_completion(
                     messages=[
                         {"role": "system", "content": sys_msg},
                         {"role": "user", "content": prompt},
                     ],
-                    max_tokens=max_tokens,
-                    temperature=max(temperature, 0.01),
+                    max_tokens=max_tokens, temperature=max(temperature, 0.01),
                 )
-                text = output["choices"][0]["message"]["content"].strip()
-                return text
+                return output["choices"][0]["message"]["content"].strip()
 
-            result = await anyio.to_thread.run_sync(_infer)
-            if result:
-                logger.info(f"GGUF inference OK ({len(result)} chars)")
-            return result if result else None
+            return await anyio.to_thread.run_sync(_infer)
         except Exception as e:
-            logger.error(f"Local GGUF inference error: {e}")
+            logger.error(f"Local GGUF error: {e}")
             return None
 
     async def _try_ollama(self, prompt: str, system: str,

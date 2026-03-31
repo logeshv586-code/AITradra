@@ -6,8 +6,8 @@ const getBaseUrl = () => {
     if (import.meta.env.VITE_API_URL) {
         return import.meta.env.VITE_API_URL;
     }
-    // Otherwise fallback to the current window location (perfect for unified port mode)
-    return window.location.origin;
+    // Otherwise fallback to the backend port 8000 for standard AXIOM setup
+    return "http://localhost:8000";
 };
 
 const getWsUrl = () => {
