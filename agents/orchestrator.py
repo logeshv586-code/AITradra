@@ -29,98 +29,92 @@ class MythicOrchestrator:
 
     def __init__(self):
         from agents.specialist_agents import TechnicalSpecialist, RiskSpecialist, MacroSpecialist
+        from agents.extended_specialists import SentimentSpecialist, FundamentalSpecialist, SectorSpecialist, CatalystSpecialist
         from agents.critique_layer import CritiqueAgent
         
+        # Core Trio
         self.technical = TechnicalSpecialist()
         self.risk = RiskSpecialist()
         self.macro = MacroSpecialist()
+        
+        # Extended Specialists
+        self.sentiment = SentimentSpecialist()
+        self.fundamental = FundamentalSpecialist()
+        self.sector = SectorSpecialist()
+        self.catalysts = CatalystSpecialist()
+        
         self.critique = CritiqueAgent()
         
         # Memory store for episodic recall
         self._episode_store = []
 
     async def orchestrate(self, query: str, ticker: Optional[str], gathered_data: dict) -> dict:
-        """
-        Main entry point — full orchestrated reasoning pipeline.
-        
-        Args:
-            query: User question
-            ticker: Stock ticker (optional)
-            gathered_data: Pre-fetched data from QueryRouter parallel fan-out:
-                - rag_results: list
-                - knowledge_results: dict
-                - price_data: dict
-                - news: list
-                - history: list (OHLCV)
-        
-        Returns:
-            {response, confidence, consensus, specialist_outputs, critique, sources_used}
-        """
-        logger.info(f"[Orchestrator] Starting mythic-tier pipeline for '{query[:80]}' ticker={ticker}")
+        """Main entry point — 14-agent Claude-style orchestrated reasoning pipeline."""
+        logger.info(f"[Orchestrator] Starting 14-agent pipeline for '{query[:80]}' ticker={ticker}")
         start = datetime.now()
 
-        # ─── Step 1: Dispatch to all 3 specialists in parallel ──────────────
-        specialist_outputs = await self._run_specialists(ticker, gathered_data)
+        # ─── Step 1: Run First Wave (Parallel) ──────────────────────────────
+        # These agents compute initial base signals
+        specialist_outputs = await self._run_first_wave(ticker, gathered_data)
 
-        # ─── Step 2: Run critique/reflection layer ──────────────────────────
+        # ─── Step 2: Run Second Wave (Sequential/Knowledge Aware) ───────────
+        # These agents check the knowledge store for the First Wave's signals
+        second_wave_results = await self._run_second_wave(ticker, gathered_data)
+        specialist_outputs.update(second_wave_results)
+
+        # ─── Step 3: Run critique/reflection layer ──────────────────────────
         critique_result = await self.critique.critique(specialist_outputs, query, ticker)
 
-        # ─── Step 3: Calibrate confidence ───────────────────────────────────
+        # ─── Step 4: Calibrate confidence ───────────────────────────────────
         from agents.critique_layer import calibrate_confidence
         
         rag_count = len(gathered_data.get("rag_results", []))
         news = gathered_data.get("news", [])
         news_recency = self._compute_news_recency_hours(news)
         
+        # Average confidence from ALL specialists
+        specialist_confidences = [v.get("confidence", 0.5) for v in specialist_outputs.values() if isinstance(v, dict)]
+        avg_spec_conf = sum(specialist_confidences) / len(specialist_confidences) if specialist_confidences else 0.5
+        
         final_confidence = calibrate_confidence(
             specialist_agreement=critique_result["agreement_score"],
             rag_source_count=rag_count,
             news_recency_hours=news_recency,
-            specialist_avg_confidence=sum(critique_result["specialist_confidences"].values()) / 3
+            specialist_avg_confidence=avg_spec_conf
         )
 
-        # ─── Step 4: Final LLM synthesis with all context ───────────────────
+        # ─── Step 5: Final LLM synthesis with all context ───────────────────
         response = await self._synthesize_final(
             query, ticker, gathered_data, specialist_outputs, critique_result, final_confidence
         )
 
-        # ─── Step 5: Store episode in memory ────────────────────────────────
+        # ─── Step 6: Store episode ──────────────────────────────────────────
         episode = {
-            "query": query,
-            "ticker": ticker,
+            "query": query, "ticker": ticker,
             "consensus": critique_result["revised_consensus"],
-            "confidence": final_confidence,
-            "timestamp": datetime.now().isoformat(),
+            "confidence": final_confidence, "timestamp": datetime.now().isoformat(),
         }
         self._episode_store.append(episode)
-        if len(self._episode_store) > 500:
-            self._episode_store = self._episode_store[-250:]
+        if len(self._episode_store) > 500: self._episode_store = self._episode_store[-250:]
 
-        # Store final synthesis in knowledge store for RAG
         try:
             from gateway.knowledge_store import knowledge_store
             if ticker:
                 knowledge_store.store_insight(
                     ticker=ticker, agent_name="MythicOrchestrator",
-                    insight_type="synthesis",
-                    content=response[:500] if response else "",
+                    insight_type="synthesis", content=response[:500] if response else "",
                     confidence=final_confidence,
                 )
-        except Exception:
-            pass
+        except Exception: pass
 
         elapsed = (datetime.now() - start).total_seconds()
-        logger.info(f"[Orchestrator] Pipeline complete in {elapsed:.1f}s. Consensus: {critique_result['revised_consensus']}, Confidence: {final_confidence}")
+        logger.info(f"[Orchestrator] Pipeline complete in {elapsed:.1f}s. Confidence: {final_confidence}")
 
         return {
             "response": response,
             "confidence": final_confidence,
             "consensus": critique_result["revised_consensus"],
-            "specialist_outputs": {
-                "technical_summary": specialist_outputs.get("technical", {}).get("summary", ""),
-                "risk_summary": specialist_outputs.get("risk", {}).get("summary", ""),
-                "macro_summary": specialist_outputs.get("macro", {}).get("summary", ""),
-            },
+            "specialist_outputs": {k: v.get("summary", "") for k, v in specialist_outputs.items() if isinstance(v, dict)},
             "critique": {
                 "flags": critique_result.get("flags", []),
                 "contradictions": critique_result.get("contradiction_notes", []),
@@ -130,48 +124,45 @@ class MythicOrchestrator:
             "pipeline_ms": round(elapsed * 1000),
         }
 
-    async def _run_specialists(self, ticker: Optional[str], gathered_data: dict) -> dict:
-        """Run all 3 specialist agents in parallel."""
-        ohlcv_data = gathered_data.get("history", [])
-        price_data = gathered_data.get("price_data", {})
-        news_data = gathered_data.get("news", [])
-        insights = gathered_data.get("knowledge_results", {}).get("insights", [])
-
-        # Build per-specialist contexts
-        tech_ctx = AgentContext(
-            task=f"Technical analysis for {ticker}",
-            ticker=ticker,
-            metadata={"ohlcv_data": ohlcv_data, "price_data": price_data}
-        )
-        risk_ctx = AgentContext(
-            task=f"Risk analysis for {ticker}",
-            ticker=ticker,
-            metadata={"ohlcv_data": ohlcv_data, "price_data": price_data}
-        )
-        macro_ctx = AgentContext(
-            task=f"Macro analysis for {ticker}",
-            ticker=ticker,
-            metadata={"news_data": news_data, "insights_data": insights, "price_data": price_data}
-        )
-
-        # Run all 3 in parallel
+    async def _run_first_wave(self, ticker: str, data: dict) -> dict:
+        """First wave: Agents that don't depend on others."""
+        ohlcv = data.get("history", [])
+        price = data.get("price_data", {})
+        news = data.get("news", [])
+        
+        ctx = AgentContext(task=f"Analyze {ticker}", ticker=ticker, metadata={"ohlcv_data": ohlcv, "price_data": price, "news_data": news})
+        
         results = await asyncio.gather(
-            self.technical.run(tech_ctx),
-            self.risk.run(risk_ctx),
-            self.macro.run(macro_ctx),
+            self.technical.run(ctx),
+            self.macro.run(ctx),
+            self.fundamental.run(ctx),
             return_exceptions=True
         )
-
+        
         outputs = {}
-        for i, (name, ctx_result) in enumerate(zip(
-            ["technical", "risk", "macro"], results
-        )):
-            if isinstance(ctx_result, Exception):
-                logger.warning(f"Specialist {name} failed: {ctx_result}")
-                outputs[name] = {"signal": "NEUTRAL", "confidence": 0.3, "summary": f"{name} analysis unavailable"}
-            else:
-                outputs[name] = ctx_result.result if ctx_result.result else {}
+        for name, res in zip(["technical", "macro", "fundamental"], results):
+            outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
+        return outputs
 
+    async def _run_second_wave(self, ticker: str, data: dict) -> dict:
+        """Second wave: Agents that benefit from First Wave's stored insights."""
+        ohlcv = data.get("history", [])
+        price = data.get("price_data", {})
+        news = data.get("news", [])
+        
+        ctx = AgentContext(task=f"Advanced analyze {ticker}", ticker=ticker, metadata={"ohlcv_data": ohlcv, "price_data": price, "news_data": news})
+        
+        results = await asyncio.gather(
+            self.risk.run(ctx),
+            self.sentiment.run(ctx),
+            self.sector.run(ctx),
+            self.catalysts.run(ctx),
+            return_exceptions=True
+        )
+        
+        outputs = {}
+        for name, res in zip(["risk", "sentiment", "sector", "catalysts"], results):
+            outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
         return outputs
 
     async def _synthesize_final(
@@ -179,61 +170,53 @@ class MythicOrchestrator:
         gathered_data: dict, specialist_outputs: dict,
         critique: dict, confidence: float
     ) -> str:
-        """Synthesize all context into a final response via LLM."""
+        """Synthesize all 14-agent contexts into a final response."""
         from llm.client import get_shared_llm
         llm = get_shared_llm()
-
-        # Build a concise prompt optimized for small LLM
-        tech = specialist_outputs.get("technical", {})
-        risk = specialist_outputs.get("risk", {})
-        macro = specialist_outputs.get("macro", {})
 
         consensus = critique.get('revised_consensus', 'NEUTRAL')
 
         prompt_parts = [
             f"Question: {query}",
             f"Ticker: {ticker or 'N/A'}",
-            f"Signal: {consensus} (Confidence: {confidence:.0%})",
-            f"Technical: {tech.get('signal', 'N/A')} - {tech.get('summary', 'N/A')[:150]}",
-            f"Risk: {risk.get('risk_level', 'N/A')} - VaR {risk.get('var_pct', 'N/A')}% - {risk.get('summary', 'N/A')[:150]}",
-            f"Macro: {macro.get('macro_outlook', 'N/A')} - Sentiment {macro.get('sentiment_score', 'N/A')} - {macro.get('summary', 'N/A')[:150]}",
+            f"Overall Consensus: {consensus} (Confidence: {confidence:.0%})",
+            "\nSpecialist Agent Analysis:"
         ]
 
-        # Add news headlines (max 3)
+        # Dynamically add all specialist summaries
+        for name, output in specialist_outputs.items():
+            if isinstance(output, dict):
+                sig = output.get('signal', output.get('risk_level', output.get('macro_outlook', 'N/A')))
+                summ = output.get('summary', 'Analysis complete.')[:200]
+                prompt_parts.append(f"- {name.upper()}: {sig} | {summ}")
+
+        # Add news headlines (max 5)
         news = gathered_data.get("news", [])
         if news:
-            headlines = []
-            for n in news[:3]:
+            prompt_parts.append("\nRecent Market Catalysts:")
+            for n in news[:5]:
                 if isinstance(n, dict):
                     h = n.get("headline", n.get("title", ""))
-                    if h:
-                        headlines.append(f"- {h[:80]}")
-            if headlines:
-                prompt_parts.append("Recent News:\n" + "\n".join(headlines))
+                    if h: prompt_parts.append(f"- {h[:100]}")
 
         full_prompt = "\n".join(prompt_parts)
 
         system_prompt = (
-            "You are AXIOM, a trading intelligence AI. "
-            "Write a clear market analysis report based on the data provided. "
-            "Include: 1) Overall signal and confidence, 2) Technical outlook, "
-            "3) Risk assessment, 4) Macro/news impact, 5) Investment recommendation. "
-            "Be specific with numbers. Keep response under 300 words."
+            "You are AXIOM, a premium multi-agent trading intelligence system. "
+            "Write a authoritative, data-driven synthesis of all agent signals. "
+            "Structure: 1) Executive Summary, 2) Technical/Risk alignment, "
+            "3) Macro/Fundamental context, 4) Investment Verdict. "
+            "Be extremely specific. Use professional financial tone. Keep under 400 words."
         )
 
         try:
-            response = await llm.complete(
-                prompt=full_prompt,
-                system=system_prompt,
-                temperature=0.3,
-                max_tokens=600
+            return await llm.complete(
+                prompt=full_prompt, system=system_prompt,
+                temperature=0.2, max_tokens=1000
             )
-            return response
         except Exception as e:
             logger.error(f"[Orchestrator] Final synthesis failed: {e}")
-            return self._build_fallback_response(
-                query, ticker, specialist_outputs, critique, confidence
-            )
+            return self._build_fallback_response(query, ticker, specialist_outputs, critique, confidence)
 
     def _build_fallback_response(self, query, ticker, specialists, critique, confidence):
         """Build a structured response when LLM is unavailable."""

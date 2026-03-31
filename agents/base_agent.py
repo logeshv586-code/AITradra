@@ -47,6 +47,17 @@ class BaseAgent(ABC):
         context.thoughts.append(thought)
         self.logger.info(f"[{self.name}] THOUGHT: {thought}")
 
+    async def _get_cross_agent_insights(self, ticker: str, hours: int = 24) -> list:
+        """Retrieve recent insights from other agents stored in the knowledge store."""
+        try:
+            from gateway.knowledge_store import knowledge_store
+            insights = knowledge_store.get_recent_insights(ticker=ticker, hours=hours)
+            # Filter out own insights
+            return [i for i in insights if i.get("agent_name") != self.name]
+        except Exception as e:
+            self.logger.warning(f"[{self.name}] Failed to fetch cross-agent insights: {e}")
+            return []
+
     async def run(self, context: AgentContext) -> AgentContext:
         """Execute the full Claude Flow loop — the ONLY entry point."""
         self.logger.info(f"[{self.name}] Starting Claude Flow loop", task=context.task)

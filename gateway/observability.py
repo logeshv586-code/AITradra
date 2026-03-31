@@ -12,7 +12,9 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 # Global Langfuse setup
-langfuse_host = os.getenv("LANGFUSE_HOST", "http://localhost:3000")
+from core.config import settings
+
+langfuse_host = getattr(settings, "LANGFUSE_HOST", "http://localhost:3000")
 langfuse_public = os.getenv("LANGFUSE_PUBLIC_KEY", "pk-lf-local")
 langfuse_secret = os.getenv("LANGFUSE_SECRET_KEY", "sk-lf-local")
 

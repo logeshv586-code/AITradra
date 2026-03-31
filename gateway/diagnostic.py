@@ -7,6 +7,8 @@ from memory.mem0_manager import Mem0Manager
 from gateway.data_engine_v2 import data_engine
 from gateway.security import input_guard
 
+from core.config import settings
+
 router = APIRouter()
 
 @router.get("/api/system/diagnostic")
@@ -33,7 +35,7 @@ async def system_diagnostic():
     try:
         start = time.time()
         async with httpx.AsyncClient() as client:
-            r = await client.get("http://localhost:6333/collections", timeout=1.5)
+            r = await client.get(f"{settings.QDRANT_URL}/collections", timeout=1.5)
             if r.status_code == 200:
                 colls = r.json().get("result", {}).get("collections", [])
                 qdrant_status = {
@@ -50,7 +52,7 @@ async def system_diagnostic():
     try:
         start = time.time()
         async with httpx.AsyncClient() as client:
-            r = await client.get("http://localhost:8888", timeout=1.5)
+            r = await client.get(settings.SEARXNG_URL, timeout=1.5)
             if r.status_code == 200:
                 searxng_status = {
                     "status": "online",
@@ -65,7 +67,7 @@ async def system_diagnostic():
     try:
         start = time.time()
         async with httpx.AsyncClient() as client:
-            r = await client.get("http://localhost:3000/api/public/health", timeout=1.5)
+            r = await client.get(f"{settings.LANGFUSE_HOST}/api/public/health", timeout=1.5)
             if r.status_code == 200:
                 langfuse_status = {
                     "status": "online",

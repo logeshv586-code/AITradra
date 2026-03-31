@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { T } from "../theme";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../constants/config";
 
 const StatCard = ({ title, value, subValue, icon: Icon, color }) => (
   <div className="clay-card p-4 flex flex-col gap-2 min-w-[200px] flex-1">

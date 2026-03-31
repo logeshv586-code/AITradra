@@ -152,8 +152,8 @@ async def lifespan(app: FastAPI):
     await app.state.memory.initialize()
     
     # Preload the 4B Nemotron Model into RAM so all agents/UI endpoints share it natively
-    logger.info("🧠 Preloading LLM globally...")
-    await asyncio.to_thread(LLMClient.preload_local_gguf)
+    logger.info("🧠 Preloading LLM globally in background...")
+    asyncio.create_task(asyncio.to_thread(LLMClient.preload_local_gguf))
     app.state.llm = LLMClient()
 
     # V1 Core Agents

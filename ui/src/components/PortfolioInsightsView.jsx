@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { PieChart, Loader2, TrendingUp, TrendingDown, BarChart3, ShieldCheck, Shield, AlertTriangle } from "lucide-react";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../constants/config";
 
 const SECTOR_COLORS = [
   "#6366f1", "#a855f7", "#ec4899", "#ef4444", "#f97316",

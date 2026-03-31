@@ -53,16 +53,38 @@ class LLMClient:
 
         try:
             from llama_cpp import Llama
+            
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            target_model = settings.LLM_MODEL.lower()
+            
+            # Find the best match .gguf file in the root directory
+            model_path = None
+            for file in os.listdir(root_dir):
+                if file.lower().endswith(".gguf"):
+                    # Check if model name in filename
+                    if target_model in file.lower() or file.lower().startswith(target_model):
+                        model_path = os.path.join(root_dir, file)
+                        break
+            
+            # Fallback: exact match from config if no fuzzy match found
+            if not model_path:
+                potential_path = os.path.join(root_dir, f"{settings.LLM_MODEL}.gguf")
+                if os.path.exists(potential_path):
+                    model_path = potential_path
 
-            model_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
-            )
-            if not os.path.exists(model_path):
-                logger.warning(f"Local GGUF model not found at {model_path}")
-                return False
+            if not model_path or not os.path.exists(model_path):
+                logger.warning(f"No local GGUF model found matching '{settings.LLM_MODEL}' in {root_dir}")
+                # Try finding ANY .gguf file as a last resort
+                for file in os.listdir(root_dir):
+                    if file.lower().endswith(".gguf"):
+                        model_path = os.path.join(root_dir, file)
+                        logger.info(f"Using fallback GGUF model: {file}")
+                        break
+                
+                if not model_path:
+                    return False
 
-            logger.info(f"Loading Qwen2.5-1.5B-Instruct GGUF from {model_path}...")
+            logger.info(f"Loading GGUF model: {os.path.basename(model_path)}...")
 
             n_gpu = 0
             if os.getenv("USE_CUDA", "").lower() == "true":
@@ -76,7 +98,7 @@ class LLMClient:
                 verbose=False,
                 n_batch=512,
             )
-            logger.info("Qwen2.5-1.5B-Instruct GGUF loaded successfully.")
+            logger.info(f"Model loaded successfully: {os.path.basename(model_path)}")
 
             global _GLOBAL_LLM_INSTANCE
             _GLOBAL_LLM_INSTANCE = LLMClient()

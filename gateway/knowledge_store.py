@@ -248,6 +248,18 @@ class KnowledgeStore:
         """, (ticker, limit)).fetchall()
         return [dict(r) for r in rows]
 
+    def get_recent_insights(self, ticker: str, hours: int = 24, limit: int = 50) -> list[dict]:
+        """Get insights for a ticker within the last N hours."""
+        conn = self._get_conn()
+        cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        rows = conn.execute("""
+            SELECT agent_name, insight_type, content, confidence, source_urls, created_at
+            FROM agent_insights 
+            WHERE ticker = ? AND created_at >= ?
+            ORDER BY created_at DESC LIMIT ?
+        """, (ticker, cutoff, limit)).fetchall()
+        return [dict(r) for r in rows]
+
     def get_unindexed_insights(self, limit: int = 100) -> list[dict]:
         conn = self._get_conn()
         rows = conn.execute("""

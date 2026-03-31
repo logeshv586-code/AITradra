@@ -14,65 +14,14 @@ from typing import Optional
 from playwright.async_api import async_playwright, Page, Browser
 
 # Use the same data directory as the rest of the application
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "stock_news.db")
+# Use the central KnowledgeStore
+from gateway.knowledge_store import knowledge_store
 
-# ─────────────────────────────────────────────
-#  DATABASE SETUP
-# ─────────────────────────────────────────────
-
-def init_db(db_path: str = DB_PATH):
-    os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    conn = sqlite3.connect(db_path)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS articles (
-            id          TEXT PRIMARY KEY,
-            title       TEXT NOT NULL,
-            summary     TEXT,
-            url         TEXT,
-            source      TEXT,
-            ticker      TEXT,
-            scraped_at  TEXT,
-            pub_date    TEXT
-        )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_ticker ON articles(ticker)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_date  ON articles(scraped_at)")
-    conn.commit()
-    conn.close()
-
-def save_articles(articles: list[dict], db_path: str = DB_PATH):
-    conn = sqlite3.connect(db_path)
-    inserted = 0
-    for a in articles:
-        uid = hashlib.md5((a.get("url", "") + a.get("title", "")).encode()).hexdigest()
-        try:
-            conn.execute(
-                "INSERT OR IGNORE INTO articles VALUES (?,?,?,?,?,?,?,?)",
-                (uid, a["title"], a.get("summary",""), a.get("url",""),
-                 a.get("source",""), a.get("ticker",""),
-                 datetime.now().isoformat(), a.get("pub_date",""))
-            )
-            inserted += conn.execute("SELECT changes()").fetchone()[0]
-        except Exception:
-            pass
-    conn.commit()
-    conn.close()
-    return inserted
-
-def fetch_articles(ticker: str = None, days: int = 7, db_path: str = DB_PATH) -> list[dict]:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    if ticker:
-        rows = conn.execute(
-            "SELECT * FROM articles WHERE ticker LIKE ? ORDER BY scraped_at DESC LIMIT 200",
-            (f"%{ticker.upper()}%",)
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM articles ORDER BY scraped_at DESC LIMIT 300"
-        ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
+def save_articles(articles: list[dict]):
+    """Save articles to the central KnowledgeStore."""
+    if not articles:
+        return 0
+    return knowledge_store.store_news(articles)
 
 # ─────────────────────────────────────────────
 #  HELPERS
@@ -317,12 +266,11 @@ async def scrape_seeking_alpha_rss(page: Page, ticker: str) -> list[dict]:
 #  MASTER SCRAPER
 # ─────────────────────────────────────────────
 
-async def run_scraper(query: str, tickers: list[str] = None, db_path: str = DB_PATH, headless: bool = True) -> int:
+async def run_scraper(query: str, tickers: list[str] = None, headless: bool = True) -> int:
     """
-    Runs all scrapers and saves results to DB.
+    Runs all scrapers and saves results to the central KnowledgeStore.
     Returns total new articles saved.
     """
-    init_db(db_path)
     tickers = tickers or []
     all_articles = []
 
@@ -372,8 +320,8 @@ async def run_scraper(query: str, tickers: list[str] = None, db_path: str = DB_P
 
         await browser.close()
 
-    saved = save_articles(all_articles, db_path)
-    print(f"\n✅ Scraped {len(all_articles)} articles | {saved} new saved to DB")
+    saved = save_articles(all_articles)
+    print(f"\n✅ Scraped {len(all_articles)} articles | {saved} new saved to KnowledgeStore")
     return saved
 
 if __name__ == "__main__":

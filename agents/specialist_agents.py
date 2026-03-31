@@ -59,17 +59,67 @@ Be precise with price levels. Use data-driven analysis only."""
         meta = context.metadata
         ohlcv = meta.get("ohlcv_data", [])
         price_data = meta.get("price_data", {})
+        ticker = context.ticker
 
-        # Use pure data-driven analysis (fast, no LLM needed)
-        context.result = self._compute_technicals(ohlcv, price_data)
-        context.actions_taken.append({"action": "technical_analysis"})
+        self._add_thought(context, f"Analyzing technical data for {ticker} using LLM")
 
-        # Store insight in knowledge store for cross-agent sharing
+        # ─── Step 1: Get insights from other agents ─────────────────────────
+        other_insights = await self._get_cross_agent_insights(ticker) if ticker else []
+        insight_context = ""
+        if other_insights:
+            self._add_thought(context, f"Factoring in {len(other_insights)} insights from other agents")
+            insight_context = "\nInsights from other specialists:\n" + "\n".join(
+                [f"- {i['agent_name']} ({i['insight_type']}): {i['content'][:200]}" for i in other_insights[:5]]
+            )
+
+        # ─── Step 2: Prepare LLM Prompt ─────────────────────────────────────
+        from llm.client import get_shared_llm
+        llm = get_shared_llm()
+
+        # Prepare a concise data summary for the LLM
+        recent_bars = ohlcv[:10] if ohlcv else []
+        data_summary = f"Recent Close Prices: {[b.get('close', b.get('c')) for b in recent_bars]}\n"
+        data_summary += f"Current Price Change: {price_data.get('chg', 0)}%"
+
+        prompt = f"""TICKER: {ticker}
+{data_summary}
+{insight_context}
+
+Analyze the technical chart patterns and indicators for this asset.
+Consider the insights from other agents if provided.
+
+Return ONLY valid JSON:
+{{
+  "signal": "BULLISH|BEARISH|NEUTRAL",
+  "confidence": 0.0-1.0,
+  "patterns": ["identified pattern1", "pattern2"],
+  "support_levels": [price1, price2],
+  "resistance_levels": [price1, price2],
+  "indicators": {{
+    "trend": "UP|DOWN|SIDEWAYS",
+    "momentum": "STRONG|WEAK|FADING",
+    "volume_signal": "ACCUMULATION|DISTRIBUTION|NEUTRAL"
+  }},
+  "summary": "Technical analysis summary explaining the reasoning."
+}}"""
+
+        try:
+            res = await llm.complete(prompt=prompt, system=self.system_prompt, expect_json=True, temperature=0.2)
+            if isinstance(res, dict) and "signal" in res:
+                context.result = res
+            else:
+                context.result = self._compute_technicals(ohlcv, price_data)
+        except Exception:
+            context.result = self._compute_technicals(ohlcv, price_data)
+
+        context.actions_taken.append({"action": "technical_analysis_llm"})
+
+        # Store insight in knowledge store
         try:
             from gateway.knowledge_store import knowledge_store
-            if context.ticker and context.result:
+            if ticker and context.result:
                 knowledge_store.store_insight(
-                    ticker=context.ticker, agent_name="TechnicalSpecialist",
+                    ticker=ticker, agent_name=self.name,
                     insight_type="technical", content=str(context.result.get("summary", "")),
                     confidence=context.result.get("confidence", 0.5)
                 )
@@ -189,17 +239,62 @@ Given price/portfolio data, return ONLY valid JSON:
         meta = context.metadata
         ohlcv = meta.get("ohlcv_data", [])
         price_data = meta.get("price_data", {})
+        ticker = context.ticker
 
-        # Use pure data-driven risk metrics (fast, no LLM needed)
-        context.result = self._compute_risk(ohlcv, price_data)
-        context.actions_taken.append({"action": "risk_analysis"})
+        self._add_thought(context, f"Assessing risk for {ticker} using LLM")
 
-        # Store insight in knowledge store
+        # ─── Step 1: Get insights from other agents (especially Technical) ──
+        other_insights = await self._get_cross_agent_insights(ticker) if ticker else []
+        insight_context = ""
+        if other_insights:
+            self._add_thought(context, f"Factoring in {len(other_insights)} insights from other agents")
+            insight_context = "\nInsights from other specialists:\n" + "\n".join(
+                [f"- {i['agent_name']} ({i['insight_type']}): {i['content'][:200]}" for i in other_insights[:5]]
+            )
+
+        # ─── Step 2: Prepare LLM Prompt ─────────────────────────────────────
+        from llm.client import get_shared_llm
+        llm = get_shared_llm()
+
+        prompt = f"""TICKER: {ticker}
+Current Data: {str(price_data)[:500]}
+{insight_context}
+
+Perform a deep risk analysis. Assess volatility, potential drawdown, and stress scenarios.
+Consider technical signals from other agents if available.
+
+Return ONLY valid JSON:
+{{
+  "risk_level": "LOW|MEDIUM|HIGH|EXTREME",
+  "confidence": 0.0-1.0,
+  "var_pct": 2.5,
+  "max_drawdown_pct": 15.0,
+  "beta": 1.2,
+  "volatility_regime": "LOW|NORMAL|HIGH|CRISIS",
+  "stress_scenarios": [
+    {{"scenario": "description", "impact_pct": -10.0}}
+  ],
+  "risk_flags": ["flag1", "flag2"],
+  "summary": "Risk assessment reasoning summary."
+}}"""
+
+        try:
+            res = await llm.complete(prompt=prompt, system=self.system_prompt, expect_json=True, temperature=0.1)
+            if isinstance(res, dict) and "risk_level" in res:
+                context.result = res
+            else:
+                context.result = self._compute_risk(ohlcv, price_data)
+        except Exception:
+            context.result = self._compute_risk(ohlcv, price_data)
+
+        context.actions_taken.append({"action": "risk_analysis_llm"})
+
+        # Store insight
         try:
             from gateway.knowledge_store import knowledge_store
-            if context.ticker and context.result:
+            if ticker and context.result:
                 knowledge_store.store_insight(
-                    ticker=context.ticker, agent_name="RiskSpecialist",
+                    ticker=ticker, agent_name=self.name,
                     insight_type="risk", content=str(context.result.get("summary", "")),
                     confidence=context.result.get("confidence", 0.5)
                 )
@@ -319,17 +414,62 @@ Given news data and market context, return ONLY valid JSON:
         news = meta.get("news_data", [])
         insights = meta.get("insights_data", [])
         price_data = meta.get("price_data", {})
+        ticker = context.ticker
 
-        # Use pure data-driven macro analysis (fast, no LLM needed)
-        context.result = self._compute_macro(news, insights, price_data)
-        context.actions_taken.append({"action": "macro_analysis"})
+        self._add_thought(context, f"Analyzing macro context for {ticker} using LLM")
 
-        # Store insight in knowledge store
+        # ─── Step 1: Get recent insights from other agents ───────────────────
+        other_insights = await self._get_cross_agent_insights(ticker) if ticker else []
+        insight_context = ""
+        if other_insights:
+            self._add_thought(context, f"Factoring in {len(other_insights)} insights from other agents")
+            insight_context = "\nInsights from other specialists:\n" + "\n".join(
+                [f"- {i['agent_name']} ({i['insight_type']}): {i['content'][:200]}" for i in other_insights[:5]]
+            )
+
+        # ─── Step 2: Prepare LLM Prompt ─────────────────────────────────────
+        from llm.client import get_shared_llm
+        llm = get_shared_llm()
+
+        headlines = [n.get('headline', n.get('title', '')) for n in news[:8] if isinstance(n, dict)]
+        
+        prompt = f"""TICKER: {ticker}
+Recent News: {headlines}
+{insight_context}
+
+Analyze the macro environment, news sentiment, and upcoming catalysts.
+Incorporate insights from other agents to see how macro aligns with technicals/risk.
+
+Return ONLY valid JSON:
+{{
+  "macro_outlook": "BULLISH|BEARISH|NEUTRAL",
+  "confidence": 0.0-1.0,
+  "sentiment_score": -1.0 to 1.0,
+  "rate_impact": "POSITIVE|NEGATIVE|NEUTRAL",
+  "earnings_signal": "BEAT|MISS|IN_LINE|NO_DATA",
+  "sector_rotation": "INTO|OUT_OF|NEUTRAL",
+  "catalysts": ["catalyst1", "catalyst2"],
+  "news_summary": "Summary of news themes",
+  "summary": "Macro assessment reasoning summary."
+}}"""
+
+        try:
+            res = await llm.complete(prompt=prompt, system=self.system_prompt, expect_json=True, temperature=0.3)
+            if isinstance(res, dict) and "macro_outlook" in res:
+                context.result = res
+            else:
+                context.result = self._compute_macro(news, insights, price_data)
+        except Exception:
+            context.result = self._compute_macro(news, insights, price_data)
+
+        context.actions_taken.append({"action": "macro_analysis_llm"})
+
+        # Store insight
         try:
             from gateway.knowledge_store import knowledge_store
-            if context.ticker and context.result:
+            if ticker and context.result:
                 knowledge_store.store_insight(
-                    ticker=context.ticker, agent_name="MacroSpecialist",
+                    ticker=ticker, agent_name=self.name,
                     insight_type="macro", content=str(context.result.get("summary", "")),
                     confidence=context.result.get("confidence", 0.5)
                 )

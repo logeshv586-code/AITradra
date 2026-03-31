@@ -56,9 +56,17 @@ class Settings(BaseSettings):
     WEEKLY_REPORT_DAY: str = "sunday"
 
     # Market Data
-    YFINANCE_RATE_LIMIT_PER_MIN: int = 60
+    YFINANCE_RATE_LIMIT: int = 60
     NEWS_FETCH_INTERVAL_MINUTES: int = 30
     MARKET_SCAN_INTERVAL_MINUTES: int = 15
+
+    # External Services (from .env)
+    UI_BASE_URL: str = "http://localhost:8000"
+    QDRANT_URL: str = "http://localhost:6333"
+    SEARXNG_URL: str = "http://localhost:8888"
+    LANGFUSE_HOST: str = "http://localhost:3000"
+    LANGFUSE_PUBLIC_KEY: str = "pk-lf-local"
+    LANGFUSE_SECRET_KEY: str = "sk-lf-local"
 
     # Watchlist (Expanded for comprehensive global visibility)
     DEFAULT_WATCHLIST: list[str] = [
@@ -86,6 +94,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 settings = Settings()

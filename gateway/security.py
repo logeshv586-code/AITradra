@@ -4,6 +4,7 @@ No HTTP call needed if installed as Python package.
 """
 import sys
 import os
+from core.config import settings
 from fastapi import HTTPException
 from core.logger import get_logger
 
@@ -35,7 +36,7 @@ class InputGuard:
         except ImportError:
             # Fall back to HTTP if running as Docker service
             self._mode = "http"
-            self._endpoint = os.getenv("PROMPT_GUARD_URL", "http://localhost:8082")
+            self._endpoint = getattr(settings, "PROMPT_GUARD_URL", "http://localhost:8082")
             logger.info(f"PromptGuard falling back to HTTP mode via {self._endpoint}")
             self._guard = None
         

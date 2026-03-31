@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Newspaper, ExternalLink, Loader2, Filter, AlertTriangle, Info, Zap } from "lucide-react";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../constants/config";
 
 const IMPACT_CONFIG = {
   HIGH:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.25)", icon: AlertTriangle },

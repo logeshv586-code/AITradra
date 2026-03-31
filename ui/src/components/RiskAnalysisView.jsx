@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { ShieldAlert, Activity, Loader2, AlertTriangle, Shield, ShieldCheck } from "lucide-react";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../constants/config";
 
 const RISK_CONFIG = {
   LOW:    { color: "#22c55e", bg: "rgba(34,197,94,0.10)", icon: ShieldCheck, label: "LOW RISK" },

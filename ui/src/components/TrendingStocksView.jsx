@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Flame, TrendingUp, TrendingDown, Activity, Loader2, ArrowUpRight, Zap } from "lucide-react";
 import { Sparkline } from "./Shared";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../constants/config";
 
 function TrendCard({ stock, rank, type, onSelect }) {
   const isGainer = type === "gainer";

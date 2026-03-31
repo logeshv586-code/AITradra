@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { Globe, Timer } from "lucide-react";
-import { T } from "../theme";
+import { API_BASE } from "../constants/config";
 
 export default function MarketStatusBadges() {
   const [statuses, setStatuses] = useState(null);
@@ -9,7 +7,7 @@ export default function MarketStatusBadges() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/market/status");
+        const res = await fetch(`${API_BASE}/api/market/status`);
         const data = await res.json();
         setStatuses(data);
         setLoading(false);

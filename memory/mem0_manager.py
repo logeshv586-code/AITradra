@@ -6,6 +6,7 @@ from mem0 import Memory
 import os
 import asyncio
 from core.logger import get_logger
+from core.config import settings
 
 logger = get_logger(__name__)
 
@@ -26,24 +27,24 @@ class Mem0Manager:
             "llm": {
                 "provider": "ollama", # Using Ollama provider logic but pointing to our local GGUF/Ollama endpoint
                 "config": {
-                    "model": os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
-                    "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-                    "temperature": 0.1,
-                    "max_tokens": 2000,
+                    "model": settings.LLM_MODEL,
+                    "ollama_base_url": settings.OLLAMA_URL,
+                    "temperature": settings.LLM_TEMPERATURE,
+                    "max_tokens": settings.LLM_MAX_TOKENS,
                 }
             },
             "embedder": {
                 "provider": "ollama",
                 "config": {
-                    "model": "nomic-embed-text", # Best free embedding model
-                    "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                    "model": settings.EMBEDDING_MODEL,
+                    "ollama_base_url": settings.OLLAMA_URL,
                 }
             },
             "vector_store": {
                 "provider": "qdrant",
                 "config": {
-                    "host": os.getenv("QDRANT_HOST", "localhost"),
-                    "port": 6333,
+                    "host": settings.QDRANT_URL.split("://")[-1].split(":")[0],
+                    "port": int(settings.QDRANT_URL.split(":")[-1]),
                     "collection_name": "aitradra_memories",
                     "embedding_model_dims": 768, # nomic-embed-text dims
                 }

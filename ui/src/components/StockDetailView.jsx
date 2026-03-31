@@ -4,7 +4,7 @@ import { T } from "../theme";
 import { GlassCard } from "./Shared";
 import AdvancedCandlestickChart from "./CandlestickChart";
 
-const API_BASE = "http://localhost:8000";
+import { API_BASE } from "../constants/config";
 
 export default function StockDetailView({ stock, isAnalyzing, analysisComplete, agentLogs }) {
   const [news, setNews] = useState([]);
