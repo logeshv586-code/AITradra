@@ -52,6 +52,7 @@ class Mem0Manager:
             "history_db_path": os.path.join(os.path.dirname(os.path.abspath(__file__)), "mem0_history.db")
         }
         
+        self.initialized = False
         try:
             self.memory = Memory.from_config(config)
             self.initialized = True

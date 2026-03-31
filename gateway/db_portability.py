@@ -16,10 +16,11 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from core.logger import get_logger
 
-logger = get_logger(__name__)
+from core.config import settings
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "axiom_knowledge.db")
-BACKUP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "db_backups")
+DB_PATH = settings.KNOWLEDGE_DB_PATH
+BACKUP_DIR = os.path.join(settings.DATA_DIR, "backups")
+
 
 router = APIRouter(prefix="/api/db", tags=["DB Portability"])
 

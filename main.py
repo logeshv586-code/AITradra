@@ -6,6 +6,7 @@ import uvicorn
 import asyncio
 import os
 import sys
+from core.config import settings
 from core.logger import get_logger
 from llm.client import LLMClient
 from memory.mem0_manager import Mem0Manager
@@ -32,29 +33,42 @@ async def main():
         logger.error("Memory system failed to initialize. Critical components may be offline.")
     
     # 3. Setup Scheduler (Background Intelligence)
-    logger.info("⏰ Configuring Background Intelligence Scheduler...")
-    # RSS Scraper
-    scheduler.add_job(rss_scraper.fetch_all, "interval", minutes=5, id="rss_sync")
-    # News Intel
-    scheduler.add_job(collect_news_data, "interval", minutes=5, id="collect_news")
-    # RAG Indexing
-    scheduler.add_job(index_knowledge_to_rag, "interval", minutes=15, id="index_rag")
-    # Daily OHLCV
-    scheduler.add_job(collect_daily_data, "interval", hours=24, id="collect_daily")
-    
-    # Trigger initial data collection in background (non-blocking)
-    asyncio.create_task(collect_news_data())
-    asyncio.create_task(collect_historical_data())
-    
-    logger.info("📡 Background tasks scheduled and initial collection triggered.")
+    if not scheduler.running:
+        from core.market_scheduler import market_scheduler
+        logger.info("⏰ Configuring Smart Market-Aware Scheduler...")
+        
+        # One-time startup catch-up (if KnowledgeStore is empty)
+        await market_scheduler.startup_catchup()
+
+        # Smart News Collection (RSS-first, frequency based on market hours)
+        scheduler.add_job(
+            market_scheduler.run_scheduled_news_collection, 
+            "interval", minutes=settings.NEWS_FETCH_INTERVAL_MIN, id="smart_news"
+        )
+        
+        # Smart Price Collection (Only runs during market hours)
+        scheduler.add_job(
+            market_scheduler.run_scheduled_price_collection, 
+            "interval", minutes=settings.PRICE_FETCH_INTERVAL_MIN, id="smart_prices"
+        )
+        
+        # RAG Indexing (Always useful, frequency from settings)
+        scheduler.add_job(
+            index_knowledge_to_rag, 
+            "interval", minutes=settings.RAG_REINDEX_INTERVAL_MIN, id="index_rag"
+        )
+        
+        scheduler.start()
+        logger.info("📡 Background scheduler started with smart, market-aware rules.")
     
     # 4. Start Gateway API
-    logger.info("🌐 Launching AXIOM Gateway API...")
+    logger.info(f"🌐 Launching AXIOM Gateway API on {settings.HOST}:{settings.PORT}")
+
     config = uvicorn.Config(
         app, 
-        host="0.0.0.0", 
-        port=8000, 
-        log_level="info",
+        host=settings.HOST, 
+        port=settings.PORT, 
+        log_level=settings.LOG_LEVEL.lower(),
         lifespan="on"
     )
     server = uvicorn.Server(config)
@@ -64,7 +78,8 @@ async def main():
     except KeyboardInterrupt:
         logger.info("AXIOM V4 shutting down gracefully...")
     finally:
-        scheduler.shutdown()
+        if scheduler.running:
+            scheduler.shutdown()
         logger.info("AXIOM V4 system offline.")
 
 if __name__ == "__main__":

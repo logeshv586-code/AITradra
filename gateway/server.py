@@ -20,25 +20,25 @@ from llm.client import LLMClient
 from agents.base_agent import AgentContext
 
 # V1 Core Agents (Legacy)
-from agents_legacy.data_agent.agent import DataAgent
-from agents_legacy.news_agent.agent import NewsAgent
-from agents_legacy.trend_agent.agent import TrendAgent
-from agents_legacy.risk_agent.agent import RiskAgent
-from agents_legacy.ml_agent.agent import MLAgent
-from agents_legacy.synthesis_agent.agent import SynthesisAgent
+from agents.legacy.data_agent.agent import DataAgent
+from agents.legacy.news_agent.agent import NewsAgent
+from agents.legacy.trend_agent.agent import TrendAgent
+from agents.legacy.risk_agent.agent import RiskAgent
+from agents.legacy.ml_agent.agent import MLAgent
+from agents.legacy.synthesis_agent.agent import SynthesisAgent
 
 # V2 Profit Agents (Legacy)
-from agents_legacy.arbitrage_agent.agent import ArbitrageAgent
-from agents_legacy.portfolio_agent.agent import PortfolioAgent
-from agents_legacy.macro_agent.agent import MacroAgent
-from agents_legacy.social_sentiment_agent.agent import SocialSentimentAgent
-from agents_legacy.earnings_agent.agent import EarningsAgent
-from agents_legacy.options_flow_agent.agent import OptionsFlowAgent
-from agents_legacy.regime_detector_agent.agent import RegimeDetectorAgent
-from agents_legacy.backtest_agent.agent import BacktestAgent
+from agents.legacy.arbitrage_agent.agent import ArbitrageAgent
+from agents.legacy.portfolio_agent.agent import PortfolioAgent
+from agents.legacy.macro_agent.agent import MacroAgent
+from agents.legacy.social_sentiment_agent.agent import SocialSentimentAgent
+from agents.legacy.earnings_agent.agent import EarningsAgent
+from agents.legacy.options_flow_agent.agent import OptionsFlowAgent
+from agents.legacy.regime_detector_agent.agent import RegimeDetectorAgent
+from agents.legacy.backtest_agent.agent import BacktestAgent
 
 # V2 Infrastructure (Legacy)
-from agents_legacy.orchestrator.graph import AgentOrchestrator
+from agents.legacy.orchestrator.graph import AgentOrchestrator
 from brokers.broker_router import BrokerRouter
 from alerts.alert_manager import AlertManager
 
@@ -181,24 +181,9 @@ async def lifespan(app: FastAPI):
     # Startup catch-up: if KnowledgeStore has no data, do a one-time RSS fetch NOW
     await market_scheduler.startup_catchup()
 
-    # RSS feed collection (lightweight, uses feedparser, no browser)
-    from gateway.scrapers.rss_scraper import rss_scraper
-    scheduler.add_job(
-        market_scheduler.run_scheduled_news_collection,
-        "interval", minutes=10, id="smart_news"
-    )
-    
-    # Price collection — only runs during market hours (scheduler checks internally)
-    scheduler.add_job(
-        market_scheduler.run_scheduled_price_collection,
-        "interval", minutes=5, id="smart_prices"
-    )
-    
-    # RAG indexing — always useful
-    scheduler.add_job(index_knowledge_to_rag, "interval", minutes=15, id="index_rag")
+    # The background scheduler and jobs are now managed globally in main.py
+    # to avoid ConflictingIdErrors and ensure single-source-of-truth orchestration.
 
-    scheduler.start()
-    logger.info("⏰ Market-aware scheduler started (news=10min, prices=5min market-hours-only, RAG=15min).")
 
     # Background: collect historical data if needed (non-blocking)
     asyncio.create_task(collect_historical_data())

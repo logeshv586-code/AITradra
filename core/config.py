@@ -22,8 +22,22 @@ class Settings(BaseSettings):
     PORT: int = 8000
     UI_DIST_PATH: str = "ui/dist"
 
-    # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./axiom.db"
+    # Infrastructure & Paths
+    DATA_DIR: str = "data"
+    KNOWLEDGE_DB_NAME: str = "axiom_knowledge.db"
+    MARKET_DATA_DB_NAME: str = "market_data.sqlite3"
+
+    # Database URLs
+    DATABASE_URL: str = "sqlite+aiosqlite:///data/axiom_knowledge.db"
+    
+    @property
+    def KNOWLEDGE_DB_PATH(self) -> str:
+        return str((BASE_DIR / self.DATA_DIR / self.KNOWLEDGE_DB_NAME).resolve())
+    
+    @property
+    def MARKET_DATA_DB_PATH(self) -> str:
+        return str((BASE_DIR / self.DATA_DIR / self.MARKET_DATA_DB_NAME).resolve())
+
 
     # ChromaDB
     CHROMADB_HOST: str = "localhost"

@@ -12,8 +12,11 @@ class SmartCache:
     Never deletes old data — marks it stale instead.
     """
 
-    def __init__(self, db_path="market_data.sqlite3"):
-        self.db_path = db_path
+    def __init__(self, db_path=None):
+        if db_path is None:
+            self.db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "market_data.sqlite3")
+        else:
+            self.db_path = db_path
         self._init_db()
 
     def _init_db(self):

@@ -16,7 +16,9 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "axiom_knowledge.db")
+from core.config import settings
+
+DB_PATH = settings.KNOWLEDGE_DB_PATH
 
 
 class EpisodicStore:
