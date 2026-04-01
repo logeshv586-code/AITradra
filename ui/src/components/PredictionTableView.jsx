@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Minus, ArrowUpDown, Loader2, BarChart3, Search } from "lucide-react";
 
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../api_config";
 
 const DIRECTION_CONFIG = {
   UP:       { icon: TrendingUp,   color: "#22c55e", bg: "rgba(34,197,94,0.10)",  border: "rgba(34,197,94,0.25)", label: "BULLISH" },

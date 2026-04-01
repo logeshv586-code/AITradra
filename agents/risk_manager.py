@@ -44,7 +44,6 @@ class RiskManagerAgent(BaseAgent):
     async def act(self, context: AgentContext) -> AgentContext:
         ticker = context.ticker
         portfolio = context.observations.get("portfolio", {})
-        current_data = context.observations.get("price_data", {})
         
         # 1. Check if we already have too many positions
         open_positions = portfolio.get("open_positions", [])
@@ -66,21 +65,47 @@ class RiskManagerAgent(BaseAgent):
             }
             return context
 
-        # 3. Calculate Position Size
-        total_value = portfolio.get("total_value", 100000.0) # Default to 100k if not provided
-        suggested_pos_size = total_value * self.max_pos_pct
+        # 3. Calculate Conviction-Based Position Size
+        # Determine conviction from orchestrator context
+        consensus = context.observations.get("consensus", "NEUTRAL")
+        confidence = context.observations.get("confidence", 0.7) # Static default fallback
+        
+        # Sizing multiplier based on confidence
+        if confidence >= 0.85:
+            multiplier = 1.0   # Full sizing for high conviction
+        elif confidence >= 0.70:
+            multiplier = 0.6   # Conservative sizing
+        elif confidence >= 0.50:
+            multiplier = 0.25  # Experimental sizing
+        else:
+            multiplier = 0.0   # Block if very low confidence
+
+        if multiplier == 0:
+             context.result = {
+                "decision": "BLOCK",
+                "reason": f"Conviction threshold too low ({confidence*100}%) for trade approval.",
+                "risk_score": 0.9
+            }
+             return context
+
+        total_value = portfolio.get("total_value", 100000.0)
+        base_pos_size = total_value * self.max_pos_pct
+        suggested_pos_size = base_pos_size * multiplier
         
         context.result = {
             "decision": "APPROVE",
-            "reason": f"Trade within risk parameters for {ticker}.",
+            "reason": f"Conviction-based sizing approved for {ticker} (Conf: {confidence*100}%).",
             "suggested_position_size": round(suggested_pos_size, 2),
+            "sizing_multiplier": multiplier,
             "max_position_pct": self.max_pos_pct,
-            "risk_score": 0.2
+            "confidence": confidence,
+            "risk_score": 0.2 + (1.0 - confidence) * 0.5
         }
         
-        self._add_thought(context, f"Risk Manager approved {ticker}. Position size capped at {self.max_pos_pct*100}%.")
+        self._add_thought(context, f"Risk Manager applied conviction multiplier of {multiplier*100}% for {ticker} based on {confidence*100}% confidence.")
         
         return context
+
 
     async def reflect(self, context: AgentContext) -> AgentContext:
         """Verify the risk assessment."""

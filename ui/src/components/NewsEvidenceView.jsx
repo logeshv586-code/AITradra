@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Newspaper, ExternalLink, Loader2, Filter, AlertTriangle, Info, Zap } from "lucide-react";
 
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../api_config";
 
 const IMPACT_CONFIG = {
   HIGH:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.25)", icon: AlertTriangle },
@@ -44,38 +44,32 @@ export default function NewsEvidenceView() {
   );
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="flex-1 p-4 overflow-y-auto no-scrollbar animate-fade-in">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-white/5 pb-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-purple-500/10 rounded-2xl border border-purple-500/30 shadow-lg">
-                <Newspaper size={24} className="text-purple-400" />
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-white/5 pb-4">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/30 shadow-lg soft-glow">
+                <Newspaper size={20} className="text-indigo-400" />
               </div>
               <div>
-                <h2 className="text-3xl font-black text-white tracking-tighter uppercase">News & Evidence</h2>
-                <p className="text-[10px] font-mono text-slate-500 tracking-[0.3em] uppercase mt-1">
-                  {stats.total || 0} CACHED ARTICLES • {stats.high || 0} HIGH IMPACT
+                <h1 className="text-2xl font-black text-white tracking-tighter uppercase font-mono">Archive // Evidence</h1>
+                <p className="text-[9px] font-mono text-slate-500 tracking-[0.4em] uppercase mt-0.5">
+                  Nexus Intelligence • {stats.total || 0} CACHED ARTICLES
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Impact Stats */}
-          <div className="flex gap-3">
+
+          {/* 🧠 Skeuomorphic Filter Toggle */}
+          <div className="skeuo-toggle p-1 h-9">
             {["ALL", "HIGH", "MEDIUM", "LOW"].map(f => {
               const isActive = filter === f;
-              const cfg = IMPACT_CONFIG[f];
-              const color = cfg ? cfg.color : "#6366f1";
               return (
                 <button key={f} onClick={() => setFilter(f)}
-                  className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                  style={{
-                    background: isActive ? `${color}20` : "transparent",
-                    border: `1px solid ${isActive ? `${color}40` : "rgba(255,255,255,0.05)"}`,
-                    color: isActive ? color : "#64748b",
-                  }}>
+                  className={`skeuo-toggle-item !px-3.5 flex items-center h-full text-[9px] tracking-widest ${isActive ? 'active' : 'text-slate-500 opacity-60 hover:opacity-100'}`}>
                   {f}
                 </button>
               );
@@ -83,8 +77,9 @@ export default function NewsEvidenceView() {
           </div>
         </div>
 
+
         {/* Articles Grid */}
-        <div className="grid gap-4">
+        <div className="grid gap-2.5">
           {filtered.length === 0 ? (
             <div className="text-center py-20 text-slate-600">
               <Newspaper size={48} className="mx-auto mb-4 opacity-30" />
@@ -97,35 +92,38 @@ export default function NewsEvidenceView() {
               const ImpactIcon = impact.icon;
               return (
                 <a key={i} href={article.url || "#"} target="_blank" rel="noopener noreferrer"
-                  className="clay-card p-5 group hover:scale-[1.005] transition-all block"
-                  style={{ borderLeft: `3px solid ${impact.color}30` }}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
+                  className="clay-card p-3 group hover:scale-[1.002] transition-all block"
+                  style={{ borderLeft: `2.5px solid ${impact.color}40` }}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 space-y-1.5">
                       {/* Impact + Source + Time */}
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[8px] font-black tracking-widest"
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[7px] font-black tracking-widest"
                           style={{ background: impact.bg, color: impact.color, border: `1px solid ${impact.border}` }}>
-                          <ImpactIcon size={9} /> {article.impact}
+                          <ImpactIcon size={8} /> {article.impact}
                         </span>
-                        <span className="text-[10px] text-indigo-400 font-bold">{article.source}</span>
+                        <span className="text-[10px] text-indigo-400/80 font-black tracking-widest uppercase">{article.source}</span>
                         {article.published_at && (
-                          <span className="text-[9px] text-slate-600 font-mono">{article.published_at}</span>
+                          <span className="text-[9px] text-slate-600 font-mono italic">{article.published_at}</span>
                         )}
                       </div>
                       {/* Headline */}
-                      <h3 className="text-sm font-bold text-white leading-snug group-hover:text-indigo-300 transition-colors">
+                      <h3 className="text-[14px] font-black text-white leading-tight group-hover:text-indigo-400 transition-all font-sans tracking-tight">
                         {article.headline}
                       </h3>
                       {/* Summary */}
                       {article.summary && (
-                        <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">{article.summary}</p>
+                        <p className="text-[11px] text-slate-400 leading-relaxed font-medium line-clamp-1 max-w-4xl border-l border-white/5 pl-3 ml-1">{article.summary}</p>
                       )}
                     </div>
                     {article.url && (
-                      <ExternalLink size={14} className="text-slate-600 group-hover:text-indigo-400 transition-colors shrink-0 mt-1" />
+                      <div className="skeuo-button w-7 h-7 !p-0 !rounded-lg opacity-60 group-hover:opacity-100 group-hover:scale-105">
+                        <ExternalLink size={12} className="text-indigo-400" />
+                      </div>
                     )}
                   </div>
                 </a>
+
               );
             })
           )}

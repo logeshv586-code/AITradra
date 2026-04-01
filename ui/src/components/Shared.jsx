@@ -3,11 +3,12 @@ import { T } from "../theme";
 
 export function GlassCard({ children, className = '', glowCol = 'transparent', interactive = false, style = {}, ...props }) {
   return (
-    <div className={`clay-card ${interactive ? 'interactive' : ''} ${className}`}
+    <div className={`glass-card ${interactive ? 'interactive' : ''} ${className}`}
          style={{
            ...style
          }}
          {...props}>
+
       <div className="scanline" />
       {interactive && (
         <div className="absolute inset-0 opacity-0 hover:opacity-[0.06] transition-opacity duration-500 pointer-events-none rounded-[inherit]"

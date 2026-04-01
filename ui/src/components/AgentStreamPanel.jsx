@@ -11,17 +11,15 @@ export default function AgentStreamPanel({ logs, isAnalyzing }) {
   const completedSteps = logs.length;
 
   return (
-    <div className="flex flex-col glass-morphism border-l border-white/5 h-[45%] relative" style={{ 
-      background: 'rgba(10, 14, 26, 0.75)',
+    <div className="flex flex-col border-l border-white/5 h-[45%] relative overflow-hidden" style={{ 
+      background: 'rgba(10, 14, 26, 0.45)',
       backdropFilter: 'blur(32px)',
     }}>
-      {/* Holographic Overlay */}
-      <div className="absolute inset-0 pointer-events-none glass-holo opacity-40 z-0" />
 
       {/* Header */}
       <div className="px-6 py-4 flex items-center justify-between flex-shrink-0 border-b border-white/5 relative z-10 bg-black/20">
         <div className="flex items-center gap-4">
-          <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/30 clay-organic">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center">
             <Terminal size={14} className="text-indigo-400" />
           </div>
           <div>
@@ -77,15 +75,13 @@ export default function AgentStreamPanel({ logs, isAnalyzing }) {
               if (!a) return null;
               const Icon = a.icon;
               return (
-                <div key={log.id} className="animate-slide-in group border-l-2 pl-5 py-1 transition-all hover:bg-white/[0.02] rounded-r-xl"
-                  style={{ borderColor: `${a.color}30` }}>
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shadow-lg"
-                      style={{ background: `${a.color}20`, border: `1px solid ${a.color}40` }}>
+                <div key={log.id} className="animate-slide-in group border-l-2 pl-5 py-2 transition-all hover:bg-white/[0.03] rounded-r-xl border-white/10 hover:border-indigo-500/50">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-6 h-6 rounded-lg flex items-center justify-center bg-white/5 border border-white/10">
                       <Icon size={12} style={{ color: a.color }} />
                     </div>
-                    <span className="font-black font-mono text-[11px] tracking-widest uppercase" style={{ color: a.color }}>{a.name}</span>
-                    <span className="text-[8px] font-mono text-slate-600 ml-auto">
+                    <span className="font-bold font-mono text-[11px] tracking-widest uppercase opacity-80" style={{ color: a.color }}>{a.name}</span>
+                    <span className="text-[9px] font-mono text-slate-600 ml-auto tabular-nums">
                       {new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                     </span>
                   </div>

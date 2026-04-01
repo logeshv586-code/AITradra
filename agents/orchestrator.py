@@ -56,9 +56,15 @@ class MythicOrchestrator:
         # Memory store for episodic recall
         self._episode_store = []
 
-    async def orchestrate(self, query: str, ticker: Optional[str], gathered_data: dict, session_id: str = "default") -> dict:
+    async def orchestrate(
+        self, query: str, ticker: Optional[str], gathered_data: dict, 
+        session_id: str = "default", research_mode: str = "QUICK",
+        history: list = []
+    ) -> dict:
+
         """Main entry point — 14-agent pipeline with Convoy Mode and Checkpoints."""
-        logger.info(f"[Orchestrator] Convoy Mode active for '{query[:80]}' ticker={ticker}")
+        logger.info(f"[Orchestrator] Mode: {research_mode} | Convoy Mode active for '{query[:80]}' ticker={ticker}")
+
         start = datetime.now()
 
         # Step 0: Check for existing checkpoint
@@ -79,35 +85,46 @@ class MythicOrchestrator:
             knowledge_store.update_episode_checkpoint(session_id, "MythicOrchestrator", {"step": "first_wave_complete", "outputs": specialist_outputs})
 
             # ─── Step 2: Run Second Wave (Sequential/Knowledge Aware) ───────────
-            second_wave_results = await self._run_second_wave(ticker, gathered_data)
-            specialist_outputs.update(second_wave_results)
+            if research_mode in ("DEEP", "INSTITUTIONAL"):
+                second_wave_results = await self._run_second_wave(ticker, gathered_data)
+                specialist_outputs.update(second_wave_results)
+            
+
             
             # Checkpoint 2
             knowledge_store.update_episode_checkpoint(session_id, "MythicOrchestrator", {"step": "second_wave_complete", "outputs": specialist_outputs})
 
             # ─── Step 3: Convoy Mode - Hierarchical Subtask Decomposition ───────
-            # If the query is complex, we spawn "Shadow Agents" for deep-dive analysis
-            if len(query) > 100 or "deep" in query.lower():
-                logger.info("[Orchestrator] TRIMMING: Spawning shadow agents for deep-dive...")
+            # If the query is complex or research_mode is INSTITUTIONAL, we spawn "Shadow Agents"
+            if research_mode == "INSTITUTIONAL" or (research_mode == "DEEP" and (len(query) > 100 or "deep" in query.lower())):
+                logger.info(f"[Orchestrator] {research_mode}: Spawning shadow agents for deep-dive...")
                 shadow_results = await self._run_convoy_deep_dive(ticker, gathered_data, specialist_outputs)
                 specialist_outputs.update(shadow_results)
 
-            # ─── Step 4: Run AI Decision Layer ──────────────────────────────────
-            ctx = AgentContext(task=f"Decision for {ticker}", ticker=ticker, observations=gathered_data)
-            ctx.observations["sentiment_result"] = specialist_outputs.get("sentiment_finbert", {})
-            
-            decision_results = await asyncio.gather(
-                self.sentiment_finbert.run(ctx),
-                self.signal_aggregator.run(ctx),
-                self.risk_manager.run(ctx),
-                return_exceptions=True
-            )
-            
-            for name, res in zip(["sentiment_finbert", "signal_aggregator", "risk_manager"], decision_results):
-                specialist_outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
+
+            if research_mode in ("DEEP", "INSTITUTIONAL"):
+                ctx = AgentContext(task=f"Decision for {ticker}", ticker=ticker, observations=gathered_data, metadata={"history": history})
+                ctx.observations["sentiment_result"] = specialist_outputs.get("sentiment_finbert", {})
+                
+                decision_results = await asyncio.gather(
+                    self.sentiment_finbert.run(ctx),
+                    self.signal_aggregator.run(ctx),
+                    self.risk_manager.run(ctx),
+                    return_exceptions=True
+                )
+                
+                for name, res in zip(["sentiment_finbert", "signal_aggregator", "risk_manager"], decision_results):
+                    specialist_outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
+            else:
+                # Minimal Decision Layer for QUICK mode
+                specialist_outputs["signal_aggregator"] = {"signal": gathered_data.get("price_data", {}).get("chg", 0) >= 0 and "BULLISH" or "BEARISH", "summary": "Quick consensus."}
+
 
             # ─── Step 5: Run critique/reflection layer ──────────────────────────
-            critique_result = await self.critique.critique(specialist_outputs, query, ticker)
+            critique_result = {"agreement_score": 0.8, "revised_consensus": "NEUTRAL", "flags": [], "contradiction_notes": [], "audit_summary": "Quick scan."}
+            if research_mode in ("DEEP", "INSTITUTIONAL"):
+                critique_result = await self.critique.critique(specialist_outputs, query, ticker)
+
 
             # ─── Step 6: Calibrate confidence ───────────────────────────────────
             from agents.critique_layer import calibrate_confidence

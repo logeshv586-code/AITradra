@@ -11,7 +11,7 @@ import {
   Shield,
   Search
 } from "lucide-react";
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../api_config";
 
 const ResearchCard = ({ suggestion, onActivate }) => {
   const [showDetail, setShowDetail] = useState(false);

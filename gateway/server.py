@@ -102,6 +102,9 @@ from gateway.crew_orchestrator import OmniCrewManager
 class ChatRequest(BaseModel):
     message: str
     ticker: Optional[str] = ""
+    research_mode: Optional[str] = "QUICK"
+    history: Optional[List[Dict]] = []
+
 
 class SimulationInitRequest(BaseModel):
     initial_balance: float
@@ -784,9 +787,14 @@ async def chat_endpoint(request: Request):
     # Route through the intelligent QueryRouter → MythicOrchestrator
     ctx = AgentContext(
         task=user_msg,
-        ticker=ticker.upper() if ticker else None
+        ticker=ticker.upper() if ticker else None,
+        metadata={
+            "research_mode": body.get("research_mode", "QUICK"),
+            "history": body.get("history", [])
+        }
     )
     result = await query_router.run(ctx)
+
     
     if isinstance(result.result, dict):
         response = result.result.get("response", "")

@@ -8,28 +8,31 @@ import {
   PlayCircle,
   RefreshCw,
   Plus,
-  Shield
+  Shield,
+  Zap,
+  PieChart
 } from "lucide-react";
 import { T } from "../theme";
 
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../api_config";
 
 const StatCard = ({ title, value, subValue, icon: Icon, color }) => (
-  <div className="clay-card p-4 flex flex-col gap-2 min-w-[200px] flex-1">
+  <div className="glass-card p-5 flex flex-col gap-3 min-w-[200px] flex-1 interactive animate-slide-up">
     <div className="flex items-center justify-between">
-      <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">{title}</span>
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/5 border border-white/10">
-        <Icon size={14} style={{ color }} />
+      <span className="text-[10px] font-bold tracking-[0.2em] text-slate-500 uppercase">{title}</span>
+      <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-indigo-500/10 border border-indigo-400/20 soft-glow">
+        <Icon size={16} style={{ color }} />
       </div>
     </div>
-    <div className="text-xl font-mono font-bold text-white tracking-tight">{value}</div>
+    <div className="text-2xl font-mono font-black text-white tracking-tighter">{value}</div>
     {subValue && (
-      <div className="text-[10px] font-mono font-bold" style={{ color }}>
-        {subValue}
+      <div className="text-[10px] font-mono font-bold flex items-center gap-1" style={{ color }}>
+        <TrendingUp size={10} /> {subValue}
       </div>
     )}
   </div>
 );
+
 
 export default function VirtualPortfolioView({ onSelect }) {
   const [data, setData] = useState(null);
@@ -96,32 +99,35 @@ export default function VirtualPortfolioView({ onSelect }) {
   if (!data?.initialized) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in">
-        <div className="clay-card p-10 max-w-md w-full flex flex-col items-center gap-6 text-center">
-          <div className="w-16 h-16 rounded-3xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mb-2">
-            <Wallet size={32} className="text-indigo-400" />
+        <div className="glass-card p-12 max-w-lg w-full flex flex-col items-center gap-8 text-center bg-black/40">
+          <div className="w-20 h-20 rounded-[32px] bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mb-2 soft-glow">
+            <Wallet size={40} className="text-indigo-400" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight text-white font-mono uppercase">Initialize Virtual Portfolio</h2>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Test OMNI-AXIOM's mythic-tier signals with zero risk. Set your starting dummy balance to begin the simulation.
+          <div className="space-y-2">
+            <h2 className="text-3xl font-black tracking-tighter text-white font-mono uppercase">VIRTUAL TERMINAL</h2>
+            <p className="text-[11px] text-slate-500 font-mono tracking-widest uppercase">SYTEM_SIMULATION_V4.0</p>
+          </div>
+          <p className="text-sm text-slate-400 leading-relaxed max-w-xs">
+            Deploy OMNI-AXIOM's institutional-grade intelligence with zero risk exposure.
           </p>
           
-          <div className="w-full flex flex-col gap-2 items-start mt-4">
-            <label className="text-[10px] font-bold tracking-widest text-slate-500 uppercase ml-1">Virtual Balance (₹ or $)</label>
+          <div className="w-full flex flex-col gap-3 items-start mt-4">
+            <label className="text-[10px] font-black tracking-[0.3em] text-indigo-400/60 uppercase ml-1">ALLOCATION_RESERVE (USD/INR)</label>
             <input 
               type="number" 
               value={initialBalance}
               onChange={(e) => setInitialBalance(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-mono focus:outline-none focus:border-indigo-500/50 transition-colors"
-              placeholder="e.g. 2000"
+              className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white font-mono text-lg focus:outline-none focus:border-indigo-500/50 transition-all shadow-inner"
+              placeholder="e.g. 50000"
             />
           </div>
 
           <button 
             onClick={initializeSimulation}
-            className="w-full mt-4 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold font-mono tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20"
+            className="skeuo-button w-full h-16 py-0 text-sm tracking-[0.2em] gap-3"
           >
-            <PlayCircle size={18} />
-            START SIMULATION
+            <PlayCircle size={20} />
+            INIT_SIMULATION
           </button>
         </div>
       </div>
@@ -133,63 +139,75 @@ export default function VirtualPortfolioView({ onSelect }) {
       <div className="max-w-7xl mx-auto flex flex-col gap-8">
         
         {/* DASHBOARD HEADER */}
-        <div className="flex items-end justify-between">
+        <div className="flex items-end justify-between border-b border-white/5 pb-8 mb-4">
           <div>
-            <div className="flex items-center gap-2 text-indigo-400 mb-1">
-              <RefreshCw size={12} className={isRefreshing ? "animate-spin" : ""} />
-              <span className="text-[10px] font-bold tracking-[0.2em] uppercase">SYSTEM.SIM_STATUS: ONLINE</span>
+            <div className="flex items-center gap-2 text-indigo-400/60 mb-2">
+              <div className={`w-2 h-2 rounded-full ${isRefreshing ? "animate-spin border-t-2 border-indigo-400" : "bg-emerald-500 soft-glow"}`} />
+              <span className="text-[10px] font-black tracking-[0.3em] uppercase font-mono">SIMULATION_CORE_V4::STABLE</span>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white font-mono uppercase">💰 Virtual Portfolio</h1>
+            <h1 className="text-4xl font-black tracking-tighter text-white font-mono uppercase bg-gradient-to-r from-white to-slate-500 bg-clip-text text-transparent">
+              🏦 Virtual Portfolio
+            </h1>
           </div>
-          <div className="flex gap-4">
-            <button className="clay-btn-secondary px-4 py-2 flex items-center gap-2" onClick={handleUpdate}>
+          <div className="flex gap-3">
+            <button className="skeuo-button h-10 px-5 gap-2 text-[10px] tracking-widest font-mono" onClick={handleUpdate}>
               <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
-              REFRESH
+              FORCE_SYNC
+            </button>
+            <button className="skeuo-button h-10 px-5 gap-2 text-[10px] tracking-widest font-mono !bg-indigo-600/20 !border-indigo-400/30">
+              <Zap size={14} className="text-indigo-400" />
+              AUTO_DEPLOY
             </button>
           </div>
         </div>
 
+
         {/* SUMMARY STATS */}
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           <StatCard 
-            title="Total Balance" 
-            value={`₹${(data.total_balance ?? 0).toFixed(2)}`} 
-            subValue={(data.profit_loss_percentage ?? 0) >= 0 ? `+${(data.profit_loss_percentage ?? 0).toFixed(2)}%` : `${(data.profit_loss_percentage ?? 0).toFixed(2)}%`}
+            title="Equity Value" 
+            value={`$${(data.total_balance ?? 0).toLocaleString()}`} 
+            subValue={(data.profit_loss_percentage ?? 0) >= 0 ? `${(data.profit_loss_percentage ?? 0).toFixed(2)}%` : `${(data.profit_loss_percentage ?? 0).toFixed(2)}%`}
             icon={Wallet} 
             color={(data.profit_loss_percentage ?? 0) >= 0 ? T.buy : T.sell} 
           />
           <StatCard 
-            title="Available Cash" 
-            value={`₹${(data.available_cash ?? 0).toFixed(2)}`} 
+            title="Available Liquidity" 
+            value={`$${(data.available_cash ?? 0).toLocaleString()}`} 
             icon={RefreshCw} 
             color="#94a3b8" 
           />
           <StatCard 
-            title="Invested Amount" 
-            value={`₹${(data.invested_amount ?? 0).toFixed(2)}`} 
+            title="Deployed Capital" 
+            value={`$${(data.invested_amount ?? 0).toLocaleString()}`} 
             icon={TrendingUp} 
             color="#818cf8" 
           />
           <StatCard 
-            title="Total P/L" 
-            value={`${(data.total_profit_loss ?? 0) >= 0 ? "+" : ""}₹${(data.total_profit_loss ?? 0).toFixed(2)}`} 
+            title="Floating P/L" 
+            value={`${(data.total_profit_loss ?? 0) >= 0 ? "+" : ""}$${(data.total_profit_loss ?? 0).toLocaleString()}`} 
             icon={(data.total_profit_loss ?? 0) >= 0 ? TrendingUp : TrendingDown} 
             color={(data.total_profit_loss ?? 0) >= 0 ? T.buy : T.sell} 
           />
            <StatCard 
-            title="AI Accuracy" 
+            title="Algorithm Reliability" 
             value={`${(data.accuracy_metrics?.accuracy_score ?? 100).toFixed(1)}%`} 
-            subValue={`${data.accuracy_metrics?.total_trades ?? 0} TRADES TOTAL`}
+            subValue={`${data.accuracy_metrics?.total_trades ?? 0} OPERATIONS`}
             icon={Shield} 
-            color={T.accent} 
+            color="#6366f1" 
           />
         </div>
 
+
         {/* POSITIONS TABLE */}
-        <div className="clay-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
-            <h3 className="text-xs font-bold tracking-widest text-white uppercase font-mono">Current Positions</h3>
+        <div className="glass-card bg-black/20 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <div className="px-8 py-6 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+              <h3 className="text-sm font-black tracking-[0.2em] text-white uppercase font-mono">Institutional Holdings</h3>
+            </div>
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -212,23 +230,23 @@ export default function VirtualPortfolioView({ onSelect }) {
                   </tr>
                 ) : (
                   data.positions.map((pos) => (
-                    <tr key={pos.ticker} className="hover:bg-white/5 transition-colors cursor-pointer group" onClick={() => onSelect(pos.ticker)}>
+                    <tr key={pos.ticker} className="hover:bg-white/[0.04] transition-colors cursor-pointer group border-b border-white/[0.04]" onClick={() => onSelect(pos.ticker)}>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center font-bold text-[10px] text-white">
+                          <div className="w-9 h-9 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center font-bold text-[11px] text-white shadow-inner">
                             {pos.ticker[0]}
                           </div>
-                          <span className="font-bold text-white group-hover:text-indigo-400 transition-colors">{pos.ticker}</span>
+                          <span className="font-bold text-white group-hover:text-indigo-400 transition-colors tracking-tight">{pos.ticker}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-300">₹{pos.buy_price.toFixed(2)}</td>
-                      <td className="px-6 py-4 font-mono text-xs text-white">₹{(pos.current_price || pos.buy_price).toFixed(2)}</td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-400">{pos.quantity.toFixed(4)}</td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-300">₹{pos.invested_value.toFixed(2)}</td>
-                      <td className="px-6 py-4 font-mono text-xs text-white font-bold">₹{(pos.current_value || pos.invested_value).toFixed(2)}</td>
+                      <td className="px-6 py-4 font-mono text-[11px] text-slate-400">₹{(pos.buy_price || 0).toLocaleString()}</td>
+                      <td className="px-6 py-4 font-mono text-[11px] text-white">₹{(pos.current_price || pos.buy_price || 0).toLocaleString()}</td>
+                      <td className="px-6 py-4 font-mono text-[11px] text-slate-500">{ (pos.quantity || 0).toFixed(4) }</td>
+                      <td className="px-6 py-4 font-mono text-[11px] text-slate-400">₹{(pos.invested_value || 0).toLocaleString()}</td>
+                      <td className="px-6 py-4 font-mono text-[11px] text-white font-black">₹{(pos.current_value || pos.invested_value || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 font-mono font-bold text-xs" style={{ color: (pos.profit_loss || 0) >= 0 ? T.buy : T.sell }}>
-                          {(pos.profit_loss || 0) >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                        <div className="flex items-center gap-2 font-mono font-black text-[11px]" style={{ color: (pos.profit_loss || 0) >= 0 ? T.buy : T.sell }}>
+                          {(pos.profit_loss || 0) >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                           {((pos.profit_loss || 0) >= 0 ? "+" : "")}{(pos.profit_loss || 0).toFixed(2)} ({(pos.profit_loss_pct || 0).toFixed(2)}%)
                         </div>
                       </td>
@@ -240,44 +258,73 @@ export default function VirtualPortfolioView({ onSelect }) {
           </div>
         </div>
 
-        {/* PERFORMANCE SECTION */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-           <div className="clay-card p-6">
-              <h3 className="text-xs font-bold tracking-widest text-white uppercase font-mono mb-4">Trade History</h3>
-              <div className="flex flex-col gap-3">
-                {data.history.slice(-5).reverse().map((h, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/10">
-                    <div className="flex items-center gap-3">
-                      <div className={`px-2 py-0.5 rounded text-[8px] font-bold tracking-widest ${h.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+        {/* PERFORMANCE SECTION grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+           <div className="glass-card p-8 lg:col-span-2 bg-black/20 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="text-sm font-black tracking-[0.2em] text-white uppercase font-mono">Audit Log :: Transactions</h3>
+                <span className="text-[10px] text-slate-500 font-mono tracking-widest">{data.history.length} ENTRIES</span>
+              </div>
+              <div className="flex flex-col gap-4">
+                {data.history.slice(-8).reverse().map((h, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-white/[0.02] border border-white/5 hover:border-indigo-500/30 hover:bg-white/[0.04] transition-all group">
+                    <div className="flex items-center gap-5">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[9px] tracking-widest ${h.type === 'BUY' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
                         {h.type}
                       </div>
-                      <span className="font-bold text-xs text-white uppercase">{h.ticker}</span>
+                      <div>
+                        <div className="text-[12px] font-black text-white group-hover:text-indigo-400 transition-colors uppercase font-mono tracking-tight">{h.ticker}</div>
+                        <div className="text-[8px] font-mono text-slate-600 mt-0.5 uppercase tracking-tighter">
+                          {new Date(h.timestamp).toLocaleString(undefined, {hour:'2-digit', minute:'2-digit', second:'2-digit'})} // NODE_EXEC_01
+                        </div>
+                      </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] font-mono font-bold text-white">₹{h.amount.toFixed(2)}</div>
-                      <div className="text-[8px] text-slate-500 font-mono">{new Date(h.timestamp).toLocaleString()}</div>
+                      <div className="text-[13px] font-mono font-black text-white whitespace-nowrap">₹ {(h.amount || 0).toLocaleString()}</div>
+                      <div className="text-[8px] text-slate-700 font-mono uppercase tracking-[0.2em] mt-1">SETTLED</div>
                     </div>
                   </div>
                 ))}
                 {data.history.length === 0 && (
-                   <span className="text-[10px] text-slate-500 font-mono text-center py-8">NO TRANSACTION HISTORY YET</span>
+                   <div className="text-center py-16 opacity-30 grayscale">
+                      <RefreshCw size={32} className="mx-auto mb-4" />
+                      <span className="text-[10px] text-slate-500 font-mono tracking-widest">ZERO_HISTORY_DATA_AVAILABLE</span>
+                   </div>
                 )}
               </div>
            </div>
            
-           <div className="clay-card p-6 flex flex-col items-center justify-center gap-4 text-center">
-              <h3 className="text-xs font-bold tracking-widest text-white uppercase font-mono self-start mb-2">Mythic Insight</h3>
-              <div className="w-20 h-20 rounded-full border-4 border-indigo-500/30 border-t-indigo-400 flex items-center justify-center">
-                 <span className="text-xl font-mono font-bold text-indigo-400">{(data.accuracy_metrics?.accuracy_score ?? 100).toFixed(0)}%</span>
+           <div className="glass-card p-8 flex flex-col items-center justify-center gap-6 text-center bg-black/30 border-indigo-500/20 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+              <div className="flex flex-col items-center gap-2 self-start mb-4">
+                <div className="w-1.5 h-6 bg-indigo-500 rounded-full mb-1" />
+                <h3 className="text-sm font-black tracking-[0.2em] text-white uppercase font-mono">Mythic_Engine</h3>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-xs">
-                Your AI-guided accuracy score represents the delta between mythic predictions and your simulated outcomes.
-              </p>
-              <div className="px-4 py-2 rounded-xl bg-indigo-500/10 border border-indigo-400/20 text-[10px] font-mono text-indigo-300 font-bold uppercase tracking-widest">
-                Accuracy Level: {(data.accuracy_metrics?.accuracy_score ?? 100) > 70 ? 'PREDICTIVE_STABLE' : 'CALIBRATING'}
+              
+              <div className="relative">
+                <div className="w-32 h-32 rounded-full border-2 border-indigo-500/10 flex items-center justify-center relative">
+                   <div className="absolute inset-0 rounded-full border-t-2 border-indigo-400 animate-spin transition-all duration-1000" />
+                   <span className="text-3xl font-mono font-black text-white tracking-tighter drop-shadow-glow">{(data.accuracy_metrics?.accuracy_score ?? 100).toFixed(0)}%</span>
+                </div>
+                {/* Orbital dots */}
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full soft-glow animate-pulse" />
               </div>
+
+              <div className="space-y-3">
+                <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                  CALIBRATING PREDICTIVE ACCURACY AGAINST LIVE MARKET DELTAS.
+                </p>
+                <div className="px-6 py-3 rounded-2xl bg-indigo-500/5 border border-indigo-400/20 text-[10px] font-mono text-indigo-400 font-black uppercase tracking-[0.2em] shadow-inner">
+                  LVL: {(data.accuracy_metrics?.accuracy_score ?? 100) > 70 ? 'PREDICTIVE_STABLE' : 'CALIBRATING'}
+                </div>
+              </div>
+
+              <button className="skeuo-button w-full mt-4 h-12 gap-2 text-[10px] tracking-widest uppercase">
+                <Shield size={14} className="text-indigo-400" />
+                DEPLOY_RISK_SHIELD
+              </button>
            </div>
         </div>
+
 
       </div>
     </div>

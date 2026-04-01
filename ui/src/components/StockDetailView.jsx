@@ -4,7 +4,7 @@ import { T } from "../theme";
 import { GlassCard } from "./Shared";
 import AdvancedCandlestickChart from "./CandlestickChart";
 
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../api_config";
 
 export default function StockDetailView({ stock, isAnalyzing, analysisComplete, agentLogs }) {
   const [news, setNews] = useState([]);
@@ -51,21 +51,22 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 py-2">
           <div className="space-y-3">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-[24px] flex items-center justify-center text-2xl font-black shadow-2xl transition-all"
+              <div className="w-16 h-16 rounded-[24px] flex items-center justify-center text-xl font-black shadow-2xl transition-all glass-card soft-glow"
                 style={{ 
                   background: `linear-gradient(135deg, ${col}25, ${col}10)`,
                   border: `1px solid ${col}40`,
                   color: col,
-                  boxShadow: `0 0 20px ${col}15`
                 }}>
                 {(stock.id || '?')[0]}
               </div>
+
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-4xl font-black text-white tracking-tighter uppercase">{stock.name || stock.id}</h1>
-                  <span className="clay-badge border-dashed uppercase py-1 px-3" style={{ color: T.muted, fontSize: 10 }}>
+                  <h1 className="text-4xl font-black text-white tracking-tighter uppercase font-mono">{stock.name || stock.id}</h1>
+                  <span className="glass-card font-mono text-[9px] tracking-widest uppercase py-1 px-3 border-indigo-500/20 text-slate-500">
                     {stock.ex || 'N/A'} // TICKER:{stock.id}
                   </span>
+
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-4xl font-mono font-black text-white tracking-tighter">
@@ -86,36 +87,38 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-[22px] border border-white/5 backdrop-blur-xl">
+          <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-[28px] border border-white/5 backdrop-blur-xl shadow-2xl">
             {[['MARKET_CAP', stock.mcap || 'N/A'],['VOL_24H', stock.vol || 'N/A'],['SECTOR_ID', stock.sector || 'N/A']].map(([l,v]) => (
-              <div key={l} className="px-6 py-4 flex flex-col items-center min-w-[120px]">
-                <span className="text-[9px] uppercase tracking-[0.2em] mb-2 text-slate-500 font-black">{l}</span>
-                <span className="font-mono text-sm text-white font-bold truncate max-w-[120px]">{v}</span>
+              <div key={l} className="px-6 py-4 flex flex-col items-center min-w-[130px] glass-panel rounded-2xl">
+                <span className="text-[9px] uppercase tracking-[0.3em] mb-2 text-slate-500 font-black font-mono">{l}</span>
+                <span className="font-mono text-[13px] text-white font-black truncate max-w-[120px]">{v}</span>
               </div>
             ))}
           </div>
+
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Visualizers */}
           <div className="lg:col-span-2 space-y-8">
-            <div className="clay-card p-6 overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-10">
-                <Activity size={80} />
+            <div className="glass-card p-8 overflow-hidden animate-slide-up">
+              <div className="absolute top-0 right-0 p-8 opacity-5">
+                <Activity size={120} />
               </div>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
-                    <BarChart2 size={16} className="text-indigo-400" />
+              <div className="flex items-center justify-between mb-8 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 soft-glow">
+                    <BarChart2 size={20} className="text-indigo-400" />
                   </div>
-                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Advanced Technical Latency</h3>
+                  <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">Advanced Technical Delta</h3>
                 </div>
-                <div className="flex gap-2">
+                <div className="skeuo-toggle p-1 h-10">
                   {['1H','4H','1D','1W'].map(t => (
-                    <button key={t} className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${t==='1D' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-white'}`}>{t}</button>
+                    <button key={t} className={`skeuo-toggle-item !px-4 h-full text-[9px] ${t==='1D' ? 'active' : 'text-slate-500 opacity-60'}`}>{t}</button>
                   ))}
                 </div>
               </div>
+
               {stock.ohlcv && stock.ohlcv.length > 0 ? (
                 <AdvancedCandlestickChart data={stock.ohlcv} />
               ) : (
@@ -127,13 +130,14 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
             </div>
 
             {/* Analysis Results / Past Predictions */}
-            <div className="clay-card p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-purple-500/10 rounded-xl border border-purple-500/20">
-                  <Terminal size={16} className="text-purple-400" />
+            <div className="glass-card p-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-purple-500/10 rounded-2xl border border-purple-500/20 soft-glow">
+                  <Terminal size={20} className="text-purple-400" />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Neural Synaptic Recall // ANALYSIS</h3>
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">Neural Synaptic Recall // ANALYSIS</h3>
               </div>
+
               <div className="grid grid-cols-1 gap-4">
                 {pastPredictions.map((p,i) => (
                   <div key={i} className="flex gap-5 p-4 rounded-2xl transition-all border border-transparent hover:border-white/5 hover:bg-white/[0.02]" style={{ background: 'rgba(0,0,0,0.2)' }}>
@@ -163,8 +167,9 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
           {/* Analysis Sidebar */}
           <div className="space-y-8">
             {/* AI Core Synthesis & 6-Step Flow Trace */}
-            <div className={`clay-card relative overflow-hidden transition-all duration-700 ${isAnalyzing ? 'animate-cyber-pulse scale-[1.02]' : ''}`}>
+            <div className={`glass-card relative overflow-hidden transition-all duration-700 animate-slide-up ${isAnalyzing ? 'animate-cyber-pulse scale-[1.02]' : ''}`} style={{ animationDelay: '0.2s' }}>
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-shimmer" />
+
               
               <div className="p-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent">
                 <div className="flex items-center justify-between mb-6">
@@ -238,21 +243,24 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
                   {conclusionText}
                 </div>
                 {analysisComplete && (
-                  <button className="w-full py-4 bg-gradient-to-r from-indigo-700 to-indigo-600 hover:from-indigo-600 hover:to-indigo-500 text-white font-black text-[10px] rounded-2xl transition-all shadow-2xl shadow-indigo-900/40 uppercase tracking-[0.2em] mt-2 border border-white/10">
-                    Deploy Strategic Position
+                  <button className="skeuo-button w-full h-14 text-[10px] tracking-[0.2em] mt-4">
+                    <ShieldAlert size={16} className="text-indigo-400" />
+                    DEPLOY_STRATEGIC_POSITION
                   </button>
                 )}
+
               </div>
             </div>
 
             {/* Risk Engineering */}
-            <div className="clay-card p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                  <ShieldAlert size={16} className="text-amber-400" />
+            <div className="glass-card p-8 animate-slide-up" style={{ animationDelay: '0.3s' }}>
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 soft-glow">
+                  <ShieldAlert size={20} className="text-amber-400" />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">Risk Engineering Grid</h3>
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">Risk Engineering Grid</h3>
               </div>
+
               <div className="space-y-6">
                 <div className="space-y-2">
                   <div className="flex justify-between text-[10px] font-black uppercase">
@@ -282,16 +290,17 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
             </div>
 
             {/* Live News Catalysts */}
-            <div className="clay-card p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20">
-                  <Newspaper size={16} className="text-cyan-400" />
+            <div className="glass-card p-8 animate-slide-up" style={{ animationDelay: '0.4s' }}>
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 soft-glow">
+                  <Newspaper size={20} className="text-cyan-400" />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white">
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">
                   Spectral Catalyst Index
-                  <span className="text-indigo-500 ml-2 text-[8px] font-mono">LIVE</span>
+                  <span className="text-indigo-500 ml-3 text-[9px] font-mono animate-pulse">LIVE</span>
                 </h3>
               </div>
+
               <div className="space-y-5">
                 {newsLoading ? (
                   <div className="flex items-center justify-center py-8 gap-2">

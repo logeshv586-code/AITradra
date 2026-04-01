@@ -22,7 +22,31 @@
   --muted2: #475569;
   --radius: 16px;
 
-  /* ── Claymorphism Tokens ───────────────────────────────────── */
+  /* ── Refined Design Tokens (Linear/Raycast Style) ────────────── */
+  --glass-bg: rgba(13, 17, 28, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-blur: blur(16px);
+  --glass-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1),
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+  /* ── Skeuomorphism Tokens (Sleek Hybrid) ───────────────────── */
+  --skeuo-bg: linear-gradient(180deg, #1e293b 0%, #111827 100%);
+  --skeuo-shadow: 
+    0 1px 1px rgba(255, 255, 255, 0.05) inset,
+    0 1px 2px rgba(0, 0, 0, 0.2);
+  --skeuo-inset:
+    inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  --skeuo-radius: 8px;
+
+  /* ── Premium Chat Bubbles ──────────────────────────────────── */
+  --chat-user-bg: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+  --chat-ai-bg: rgba(30, 41, 59, 0.5);
+  --chat-border: rgba(255, 255, 255, 0.08);
+
+  /* ── Legacy Claymorphism (to be replaced) ─────────────────── */
   --clay-bg: rgba(18, 24, 44, 0.80);
   --clay-bg-light: rgba(28, 36, 60, 0.85);
   --clay-inner-light: rgba(255, 255, 255, 0.06);
@@ -44,6 +68,7 @@
     inset 4px 4px 10px rgba(0, 0, 0, 0.45),
     inset -2px -2px 8px rgba(255, 255, 255, 0.03);
 }
+
 
 *, *::before, *::after {
   margin: 0;
@@ -180,11 +205,37 @@ html, body, #root {
   50% { filter: brightness(1.15); }
 }
 
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glass-focus {
+  0% { border-color: var(--glass-border); background: var(--glass-bg); }
+  100% { border-color: rgba(99, 102, 241, 0.3); background: rgba(15, 23, 42, 0.65); }
+}
+
 .animate-slide-in { animation: slideInFromRight 0.3s ease-out forwards; }
 .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
 .animate-float { animation: float 3s ease-in-out infinite; }
 .animate-clay-breathe { animation: clay-breathe 4s ease-in-out infinite; }
 .animate-soft-pulse { animation: soft-pulse 2s ease-in-out infinite; }
+.animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-scale-in { animation: scale-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.glass-hover:hover {
+  animation: glass-focus 0.3s forwards;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+.soft-glow {
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+}
 
 /* ─── Professional Data Animations ─────────────────────────────────────── */
 @keyframes cyber-pulse {
@@ -232,368 +283,133 @@ html, body, #root {
   animation: shimmer 2s infinite;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   CLAYMORPHISM COMPONENT CLASSES
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ─── Clay Card (Primary container) ──────────────────────────────────── */
-.clay-card {
-  position: relative;
-  border-radius: var(--clay-radius);
-  background: var(--clay-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: var(--clay-shadow);
-  transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  overflow: hidden;
-  border: 1px solid var(--clay-border);
-}
-
-.clay-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
-  z-index: 1;
-}
-
-.clay-card.interactive:hover {
-  box-shadow: var(--clay-shadow-hover);
-  transform: translateY(-3px);
-}
-
-.clay-card.interactive:active {
-  transform: translateY(0px) scale(0.99);
-  box-shadow: var(--clay-shadow-inset);
-}
-
-/* ─── Clay Surface (backgrounds, headers, panels) ──────────────────── */
-.clay-surface {
-  background: var(--clay-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow:
-    inset 1px 1px 3px rgba(255,255,255,0.04),
-    inset -1px -1px 4px rgba(0,0,0,0.30),
-    0 4px 16px rgba(0,0,0,0.25);
-  border: 1px solid var(--clay-border);
-}
-
-/* ─── Clay Inset (recessed areas: inputs, stat panels) ──────────────── */
-.clay-inset {
-  background: rgba(8, 12, 24, 0.50);
-  border-radius: 14px;
-  box-shadow: var(--clay-shadow-inset);
-  border: 1px solid rgba(255,255,255,0.03);
-}
-
-/* ─── Glass Card (backward compatibility) ─────────────────────────── */
+/* ─── Premium Glass Card ────────────────────────────────────────── */
 .glass-card {
   position: relative;
-  overflow: hidden;
-  border-radius: var(--clay-radius);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  background: var(--clay-bg);
-  border: 1px solid var(--clay-border);
-  box-shadow: var(--clay-shadow);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius);
   transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  overflow: hidden;
 }
 
 .glass-card.interactive:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--clay-shadow-hover);
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
 }
 
-.glass-morphism {
-  background: var(--clay-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--clay-border);
-  box-shadow: var(--clay-shadow);
-  border-radius: var(--clay-radius);
+/* ─── Premium Glass Panel ───────────────────────────────────────── */
+.glass-panel {
+  background: rgba(10, 14, 26, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.02);
 }
 
-/* ─── Clay Buttons ────────────────────────────────────────────────────── */
-.btn-primary {
-  padding: 10px 20px;
-  border-radius: 14px;
-  font-size: 11px;
-  font-weight: 700;
-  background: linear-gradient(135deg, rgba(99,102,241,0.35), rgba(99,102,241,0.20));
+/* ─── Skeuomorphic Button ───────────────────────────────────────── */
+.skeuo-button {
+  background: var(--skeuo-bg);
+  box-shadow: var(--skeuo-shadow);
+  border-radius: var(--skeuo-radius);
   color: white;
-  border: 1px solid rgba(99,102,241,0.30);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  box-shadow:
-    4px 4px 10px rgba(0,0,0,0.30),
-    -2px -2px 6px rgba(99,102,241,0.08),
-    inset 1px 1px 2px rgba(255,255,255,0.06),
-    inset -1px -1px 3px rgba(0,0,0,0.20);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.btn-primary:hover {
-  box-shadow:
-    6px 6px 14px rgba(0,0,0,0.40),
-    -3px -3px 8px rgba(99,102,241,0.12),
-    inset 1px 1px 2px rgba(255,255,255,0.08),
-    inset -1px -1px 3px rgba(0,0,0,0.15);
-  transform: translateY(-2px);
-  background: linear-gradient(135deg, rgba(99,102,241,0.45), rgba(99,102,241,0.25));
-}
-
-.btn-primary:active {
-  transform: translateY(0px);
-  box-shadow: var(--clay-shadow-inset);
-}
-
-.btn-ghost {
-  padding: 10px 20px;
-  border-radius: 14px;
-  font-size: 11px;
-  font-weight: 700;
-  background: var(--clay-bg);
-  color: var(--muted);
-  border: 1px solid var(--clay-border);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  box-shadow:
-    4px 4px 10px rgba(0,0,0,0.25),
-    -2px -2px 6px rgba(255,255,255,0.02),
-    inset 1px 1px 2px rgba(255,255,255,0.03),
-    inset -1px -1px 3px rgba(0,0,0,0.20);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.btn-ghost:hover {
-  color: var(--text);
-  border-color: rgba(255,255,255,0.10);
-  box-shadow:
-    6px 6px 14px rgba(0,0,0,0.35),
-    -3px -3px 8px rgba(255,255,255,0.03),
-    inset 1px 1px 2px rgba(255,255,255,0.05),
-    inset -1px -1px 3px rgba(0,0,0,0.15);
-  transform: translateY(-2px);
-}
-
-.btn-ghost:active {
-  transform: translateY(0px);
-  box-shadow: var(--clay-shadow-inset);
-}
-
-/* ─── Clay Badge (status pills, signals) ──────────────────────────── */
-.clay-badge {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: 10px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  background: var(--clay-bg);
-  box-shadow:
-    3px 3px 8px rgba(0,0,0,0.30),
-    -1px -1px 4px rgba(255,255,255,0.02),
-    inset 1px 1px 2px rgba(255,255,255,0.04),
-    inset -1px -1px 3px rgba(0,0,0,0.25);
-  border: 1px solid var(--clay-border);
-  transition: all 0.2s ease;
+  justify-content: center;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 10px 20px;
 }
 
-/* ─── Clay Input ─────────────────────────────────────────────────────── */
-.clay-input {
-  width: 100%;
-  padding: 12px 16px;
-  border-radius: 14px;
-  font-size: 12px;
-  background: rgba(8, 12, 24, 0.55);
-  border: 1px solid rgba(255,255,255,0.05);
-  color: var(--text);
-  box-shadow: var(--clay-shadow-inset);
-  outline: none;
+.skeuo-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 
+    inset 2px 2px 4px rgba(255, 255, 255, 0.08),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.7),
+    0 6px 16px rgba(0, 0, 0, 0.6);
+  filter: brightness(1.1);
+}
+
+.skeuo-button:active {
+  transform: translateY(1px);
+  box-shadow: var(--skeuo-inset);
+  filter: brightness(0.9);
+}
+
+/* ─── Skeuomorphic Toggle ───────────────────────────────────────── */
+.skeuo-toggle {
+  background: rgba(8, 12, 24, 0.6);
+  box-shadow: var(--skeuo-inset);
+  border-radius: 20px;
+  padding: 4px;
+  display: inline-flex;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.skeuo-toggle-item {
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
-.clay-input:focus {
-  border-color: rgba(99,102,241,0.35);
-  box-shadow:
-    var(--clay-shadow-inset),
-    0 0 0 3px rgba(99,102,241,0.10);
+.skeuo-toggle-item.active {
+  background: var(--skeuo-bg);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.clay-input::placeholder {
-  color: rgba(148, 163, 184, 0.4);
+/* ─── Premium Chat Bubble Enhancements ───────────────────────── */
+.chat-bubble-ai {
+  background: var(--chat-ai-bg);
+  border: 1px solid var(--chat-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
-/* ─── Clay Header Bar ─────────────────────────────────────────────── */
-.clay-header {
-  background: var(--clay-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid var(--clay-border);
-  box-shadow:
-    0 4px 16px rgba(0,0,0,0.30),
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    inset 0 -1px 0 rgba(0,0,0,0.20);
+.chat-bubble-user {
+  background: var(--chat-user-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
 }
 
-/* ─── Clay Sidebar ─────────────────────────────────────────────────── */
-.clay-sidebar {
-  background: var(--clay-bg);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-right: 1px solid var(--clay-border);
-  box-shadow:
-    4px 0 16px rgba(0,0,0,0.25),
-    inset 1px 0 0 rgba(255,255,255,0.03),
-    inset -1px 0 0 rgba(0,0,0,0.20);
+.input-glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
 }
 
-/* ─── Clay Nav Button ───────────────────────────────────────────────── */
-.clay-nav-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: transparent;
+.input-glass:focus-within {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.2),
+    0 0 20px rgba(99, 102, 241, 0.1);
 }
 
-.clay-nav-btn:hover {
-  background: rgba(99,102,241,0.08);
-  box-shadow:
-    3px 3px 8px rgba(0,0,0,0.25),
-    -1px -1px 4px rgba(255,255,255,0.02),
-    inset 1px 1px 2px rgba(255,255,255,0.03),
-    inset -1px -1px 3px rgba(0,0,0,0.20);
-}
-
-.clay-nav-btn.active {
-  background: rgba(99,102,241,0.15);
-  border-color: rgba(99,102,241,0.25);
-  box-shadow:
-    4px 4px 10px rgba(0,0,0,0.30),
-    -2px -2px 6px rgba(99,102,241,0.06),
-    inset 1px 1px 2px rgba(255,255,255,0.05),
-    inset -1px -1px 3px rgba(0,0,0,0.20),
-    0 0 20px rgba(99,102,241,0.15);
-}
-
-/* ─── Clay Ticker Strip ────────────────────────────────────────────── */
-.clay-ticker {
-  background: rgba(10, 14, 26, 0.85);
-  box-shadow:
-    inset 2px 2px 6px rgba(0,0,0,0.35),
-    inset -1px -1px 4px rgba(255,255,255,0.02),
-    0 2px 8px rgba(0,0,0,0.20);
-  border-bottom: 1px solid var(--clay-border);
-}
-
-/* ─── Clay Chat Bubble ────────────────────────────────────────────── */
-.clay-bubble {
-  border-radius: 18px;
-  padding: 12px 16px;
-  max-width: 90%;
-  box-shadow:
-    3px 3px 8px rgba(0,0,0,0.30),
-    -1px -1px 4px rgba(255,255,255,0.02),
-    inset 1px 1px 2px rgba(255,255,255,0.04),
-    inset -1px -1px 3px rgba(0,0,0,0.25);
-  transition: all 0.2s ease;
-}
-
-.clay-bubble.user {
-  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(99,102,241,0.12));
-  border: 1px solid rgba(99,102,241,0.20);
-  border-bottom-right-radius: 6px;
-}
-
-.clay-bubble.ai {
-  background: var(--clay-bg);
-  border: 1px solid var(--clay-border);
-  border-bottom-left-radius: 6px;
-}
-
-/* ─── Clay Chip Button ────────────────────────────────────────────── */
-.clay-chip {
-  white-space: nowrap;
-  padding: 7px 14px;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 700;
-  background: var(--clay-bg);
-  border: 1px solid var(--clay-border);
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  box-shadow:
-    3px 3px 8px rgba(0,0,0,0.25),
-    -1px -1px 4px rgba(255,255,255,0.02),
-    inset 1px 1px 2px rgba(255,255,255,0.03),
-    inset -1px -1px 3px rgba(0,0,0,0.20);
-}
-
-.clay-chip:hover {
-  color: var(--text);
-  border-color: rgba(99,102,241,0.25);
-  box-shadow:
-    4px 4px 10px rgba(0,0,0,0.30),
-    -2px -2px 6px rgba(99,102,241,0.05),
-    inset 1px 1px 2px rgba(255,255,255,0.05),
-    inset -1px -1px 3px rgba(0,0,0,0.15);
-  transform: translateY(-1px);
-}
-
-.clay-chip:active {
-  transform: translateY(0px);
-  box-shadow: var(--clay-shadow-inset);
-}
-
-/* ─── Clay Table ─────────────────────────────────────────────────────── */
-.clay-table-header {
-  background: rgba(14, 20, 38, 0.90);
-  box-shadow: var(--clay-shadow-inset);
-}
-
-.clay-table-row {
-  transition: all 0.25s ease;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
-}
-
-.clay-table-row:hover {
-  background: rgba(99,102,241,0.04);
-  box-shadow: inset 0 0 20px rgba(99,102,241,0.03);
-}
-
-/* ─── Clay Progress Bar ──────────────────────────────────────────────── */
-.clay-progress-track {
-  width: 100%;
-  height: 8px;
-  border-radius: 10px;
-  overflow: hidden;
-  background: rgba(8, 12, 24, 0.60);
-  box-shadow: var(--clay-shadow-inset);
-  border: 1px solid rgba(255,255,255,0.03);
-}
-
-.clay-progress-fill {
-  height: 100%;
-  border-radius: 10px;
-  transition: width 0.5s ease;
+/* ─── Premium Transitions ───────────────────────────────────────── */
+.premium-transition {
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* ─── Selection ────────────────────────────────────────────────────────── */
 ::selection {
   background: rgba(99, 102, 241, 0.3);
 }
+

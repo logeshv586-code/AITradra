@@ -5,16 +5,25 @@ import { computeMA } from "../data";
 export default function AdvancedCandlestickChart({ data }) {
   const [hover, setHover] = useState(null);
   const ref = useRef(null);
-  const D = data.slice(-60);
+  if (!data || data.length === 0) return (
+    <div className="h-60 flex items-center justify-center text-[10px] font-mono text-slate-500 uppercase tracking-widest bg-black/20 rounded-2xl border border-white/5">
+      Awaiting Data Stream...
+    </div>
+  );
+
+  const D = data.slice(-Math.min(60, data.length));
   const ma20 = computeMA(D, 20);
   const ma50 = computeMA(D, 50);
 
   const priceMin = Math.min(...D.map(d => d.l)) * 0.998;
   const priceMax = Math.max(...D.map(d => d.h)) * 1.002;
-  const volMax = Math.max(...D.map(d => d.v));
-  const pRange = priceMax - priceMin;
+  const volMax = Math.max(...D.map(d => d.v)) || 1;
+  const pRange = (priceMax - priceMin) || 1;
   const W = 720, PH = 160, VH = 35, GAP = 8, TH = PH + GAP + VH;
-  const py = v => PH - ((v - priceMin) / pRange) * PH;
+  const py = v => {
+    const val = PH - ((v - priceMin) / pRange) * PH;
+    return isNaN(val) ? 0 : val;
+  };
 
   const handleMove = (e) => {
     if (!ref.current) return;

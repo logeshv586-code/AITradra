@@ -1,7 +1,17 @@
 import React, { useState } from "react";
-import { List, ArrowUpRight, ArrowDownRight, Search, Activity, Zap, Loader2 } from "lucide-react";
-import { T } from "../theme";
-import { Sparkline } from "./Shared";
+import { List, ArrowUpRight, ArrowDownRight, Search, Activity, Zap, Info, TrendingUp, TrendingDown, Layers, Loader2 } from "lucide-react";
+
+/**
+ * THEME DEFINITION
+ * High-contrast, vibrant UI colors for a financial dashboard.
+ */
+const T = {
+  buy: "#22c55e",  // emerald-500
+  sell: "#ef4444", // red-500
+  warn: "#f59e0b", // amber-500
+  accent: "#6366f1", // indigo-500
+  bg: "#020617",    // slate-950
+};
 
 const FILTERS = ['All Markets', 'US Tech', 'Asia-Pac', 'EU', 'Crypto', 'India'];
 
@@ -13,11 +23,41 @@ const SECTOR_FILTER_MAP = {
   'India': ['NSI', 'BSE'],
 };
 
+/**
+ * MINI SPARKLINE COMPONENT
+ * Renders a simple SVG trend line.
+ */
+const MiniSparkline = ({ data = [], color, w = 100, h = 30 }) => {
+  if (!data || data.length < 2) return <div className="h-[30px] w-[100px] bg-white/5 rounded animate-pulse" />;
+  
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data.map((val, i) => ({
+    x: (i / (data.length - 1)) * w,
+    y: h - ((val - min) / range) * h
+  }));
+
+  const pathData = `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`;
+
+  return (
+    <svg width={w} height={h} className="overflow-visible">
+      <path
+        d={pathData}
+        fill="none"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+      />
+    </svg>
+  );
+};
+
 export default function WatchlistView({ onSelect, stocks = [], marketIndices = [], loading = false }) {
   const [activeFilter, setActiveFilter] = useState('All Markets');
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortCol, setSortCol] = useState(null);
-  const [sortDir, setSortDir] = useState('desc');
 
   const filtered = stocks.filter(s => {
     const matchesSearch = s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -29,201 +69,223 @@ export default function WatchlistView({ onSelect, stocks = [], marketIndices = [
     const matchesFilter = filterKeys.some(f => 
       (s.sector || '').toLowerCase().includes(f.toLowerCase()) ||
       (s.ex || '').includes(f) ||
-      (s.id || '').includes('-USD') && activeFilter === 'Crypto'
+      ((s.id || '').includes('-USD') && activeFilter === 'Crypto')
     );
     return matchesSearch && matchesFilter;
   });
 
-  const sorted = sortCol ? [...filtered].sort((a, b) => {
-    const va = sortCol === 'px' ? (a.px || 0) : sortCol === 'chg' ? (a.chg || 0) : sortCol === 'vol' ? parseInt(a.vol) || 0 : 0;
-    const vb = sortCol === 'px' ? (b.px || 0) : sortCol === 'chg' ? (b.chg || 0) : sortCol === 'vol' ? parseInt(b.vol) || 0 : 0;
-    return sortDir === 'asc' ? va - vb : vb - va;
-  }) : filtered;
-
-  const handleSort = (col) => {
-    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    else { setSortCol(col); setSortDir('desc'); }
-  };
-
-  const bullish = stocks.filter(s => (s.chg || 0) >= 0).length;
-  const bearish = stocks.length - bullish;
-  const avgChange = stocks.length > 0 ? (stocks.reduce((s, x) => s + (x.chg || 0), 0) / stocks.length).toFixed(2) : '0.00';
-
-  const sectors = [...new Set(sorted.map(s => s.sector || 'Others'))];
+  const sectors = [...new Set(filtered.map(s => s.sector || 'Others'))];
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in">
-      <div className="max-w-7xl mx-auto space-y-10">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 border-b border-white/5 pb-8">
-          <div className="space-y-3">
-            <div className="flex items-center gap-5">
-              <div className="p-3.5 bg-indigo-500/10 rounded-2xl border border-indigo-500/30 clay-organic shadow-lg">
-                <List size={24} className="text-indigo-400" />
+    <div className="flex-1 p-4 md:p-8 overflow-y-auto no-scrollbar animate-fade-in selection:bg-indigo-500/30">
+      <div className="max-w-7xl mx-auto space-y-12">
+        
+        {/* HEADER SECTION: Glassmorphism + Layout Spacing */}
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-10 border-b border-white/5 pb-10">
+          <div className="flex items-center gap-6">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative p-5 bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center">
+                <Layers size={32} className="text-indigo-400" />
               </div>
-              <div>
-                <h2 className="text-4xl font-black text-white tracking-tighter uppercase text-shadow-glow">Asset Command</h2>
-                <p className="text-[11px] font-mono text-slate-500 tracking-[0.3em] uppercase mt-2 flex items-center gap-3">
-                  <Activity size={12} className="text-indigo-500" />
-                  {stocks.length} INSTRUMENTS // {loading ? 'FETCHING_STREAM' : 'NETWORK_LIVE'}
-                </p>
-              </div>
+            </div>
+            <div>
+              <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-mono italic">
+                Asset<span className="text-indigo-500">Command</span>
+              </h1>
+              <p className="text-[10px] font-mono text-slate-500 tracking-[0.5em] uppercase mt-2 flex items-center gap-3">
+                <Activity size={12} className="text-indigo-500 animate-pulse" />
+                {loading ? 'SYNCHRONIZING_NODES...' : `System Live // ${stocks.length} Global Nodes Connected`}
+              </p>
             </div>
           </div>
 
-          {/* Index Summary Metrics */}
-          <div className="flex gap-4 p-2 bg-black/40 rounded-[24px] border border-white/10 shadow-2xl overflow-x-auto no-scrollbar">
+          {/* SKEUOMORPHIC INDICES PANEL */}
+          <div className="flex gap-4 p-2 bg-black/40 rounded-[32px] border border-white/5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.6)] backdrop-blur-2xl overflow-x-auto no-scrollbar">
             {(marketIndices.length > 0 ? marketIndices : [
-              { name: 'S&P 500', value: 5241, change: 1.2 },
-              { name: 'NASDAQ', value: 16428, change: 0.8 },
-              { name: 'DOW J', value: 39475, change: -0.2 }
+              { name: 'S&P 500', value: 0, change: 0 },
+              { name: 'NASDAQ', value: 0, change: 0 },
+              { name: 'DOW J', value: 0, change: 0 }
             ]).map((idx) => (
-              <div key={idx.name} className="px-6 py-4 flex flex-col items-start min-w-[140px] clay-inset bg-white/5">
-                <span className="text-[9px] uppercase tracking-[0.2em] mb-2 text-slate-500 font-black">{idx.name}</span>
-                <span className="font-mono text-base font-black flex items-center gap-2" style={{ color: (idx.change || 0) >= 0 ? T.buy : T.sell }}>
-                  {(idx.value || 0).toLocaleString()}
-                  <span className="text-[10px] opacity-80">{(idx.change || 0) >= 0 ? '↑' : '↓'} {Math.abs(idx.change || 0)}%</span>
-                </span>
+              <div key={idx.name} className="px-6 py-4 flex flex-col items-start min-w-[160px] bg-gradient-to-b from-white/5 to-transparent rounded-2xl border border-white/5 shadow-lg">
+                <span className="text-[9px] uppercase tracking-[0.3em] mb-2 text-slate-500 font-black font-mono">{idx.name}</span>
+                <div className="font-mono text-xl font-black flex items-center gap-3">
+                  <span className="text-white">{(idx.value || 0).toLocaleString()}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${idx.change >= 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                    {idx.change >= 0 ? '+' : ''}{idx.change}%
+                  </span>
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </header>
 
-        {/* Toolbar */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex gap-3 flex-wrap">
+        {/* TOOLBAR: Skeuomorphic Toggles + Glass Input */}
+        <section className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex p-1.5 bg-slate-950 rounded-2xl border border-white/5 shadow-[inset_0_2px_8px_rgba(0,0,0,0.8)] overflow-x-auto no-scrollbar">
             {FILTERS.map(f => (
-              <button key={f} onClick={() => setActiveFilter(f)}
-                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  activeFilter === f
-                    ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-900/50 scale-105'
-                    : 'text-slate-500 hover:text-white hover:bg-white/10 border border-white/5'
-                }`}>
-                {f}
+              <button 
+                key={f} 
+                onClick={() => setActiveFilter(f)}
+                className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all duration-300 whitespace-nowrap ${
+                  activeFilter === f 
+                  ? 'bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)] scale-105 z-10' 
+                  : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {f.toUpperCase()}
               </button>
             ))}
           </div>
-          <div className="relative group min-w-[300px]">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" />
+
+          <div className="relative group w-full md:w-[400px]">
+            <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-400 transition-colors z-10" />
             <input
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              placeholder="SEARCH ASSET CODENAME..."
-              className="clay-input pl-11 pr-5 py-3.5 w-full text-xs font-mono tracking-wider"
+              value={searchTerm} 
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="SEARCH INSTRUMENTS..."
+              className="bg-slate-900/50 backdrop-blur-md pl-14 pr-6 h-14 w-full text-xs font-mono tracking-widest rounded-2xl outline-none border border-white/5 focus:border-indigo-500/50 focus:bg-slate-900/80 transition-all shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] text-white"
             />
           </div>
-        </div>
+        </section>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-24 gap-6">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-              <Zap size={24} className="absolute inset-0 m-auto text-indigo-400 animate-pulse" />
-            </div>
-            <span className="text-sm text-slate-400 font-mono tracking-widest animate-pulse">SYNCHRONIZING GLOBAL ORDER BOOKS...</span>
-          </div>
-        )}
-
-        {/* Data List (Grouped by Sector) */}
-        {!loading && sectors.map(sector => {
-          const sectorStocks = sorted.filter(s => (s.sector || 'Others') === sector);
-          if (sectorStocks.length === 0) return null;
-          
-          return (
-            <div key={sector} className="space-y-4">
-              <div className="flex items-center gap-4 px-2">
-                <span className="text-[11px] font-black text-indigo-400 tracking-[0.4em] uppercase">{sector}</span>
-                <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/20 to-transparent" />
-                <span className="text-[9px] font-mono text-slate-600 uppercase tracking-widest">{sectorStocks.length} ASSETS</span>
+        {/* ASSET LIST: Claymorphism Cards + Organized Sections */}
+        <div className="space-y-12">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-24 gap-6">
+              <div className="relative">
+                <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                <Zap size={24} className="absolute inset-0 m-auto text-indigo-400 animate-pulse" />
               </div>
+              <span className="text-sm text-slate-400 font-mono tracking-widest animate-pulse uppercase">Synchronizing Global Order Books...</span>
+            </div>
+          ) : (
+            sectors.map(sector => {
+              const sectorStocks = filtered.filter(s => (s.sector || 'Others') === sector);
+              if (sectorStocks.length === 0) return null;
               
-              <div className="grid gap-3">
-                {sectorStocks.map((s) => {
-                  const isUp = (s.chg || 0) >= 0;
-                  const col = isUp ? T.buy : T.sell;
-                  const signal = isUp ? ((s.chg || 0) > 2 ? 'CORE_ACCUMULATE' : 'BULLISH') : ((s.chg || 0) < -1 ? 'DISTRIBUTE' : 'NEUTRAL');
-                  const signalColor = isUp ? T.buy : ((s.chg || 0) < -1 ? T.sell : T.warn);
+              return (
+                <div key={sector} className="space-y-6">
+                  <div className="flex items-center gap-6 px-2">
+                    <div className="h-2 w-2 rounded-full bg-indigo-500 shadow-[0_0_10px_#6366f1]" />
+                    <span className="text-xs font-black text-indigo-400 tracking-[0.5em] uppercase italic">{sector}</span>
+                    <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/30 via-indigo-500/10 to-transparent" />
+                    <span className="text-[9px] font-mono text-slate-600 uppercase tracking-[0.3em] font-bold">{sectorStocks.length} Nodes</span>
+                  </div>
                   
-                  return (
-                    <div key={s.id} onClick={() => onSelect(s)}
-                      className="group clay-card interactive p-2 pl-4 flex items-center justify-between gap-6 hover:scale-[1.01] transition-transform">
-                      {/* Asset Identity */}
-                      <div className="flex items-center gap-6 min-w-[200px]">
-                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black transition-all clay-organic shadow-inner"
-                          style={{
-                            background: `linear-gradient(135deg, ${col}30, ${col}10)`,
-                            border: `1px solid ${col}40`,
-                            color: col,
-                          }}>
-                          {(s.id || '?')[0]}
-                        </div>
-                        <div>
-                          <div className="font-mono font-black text-lg text-white group-hover:text-indigo-400 transition-colors tracking-tight">{s.id}</div>
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate max-w-[120px]">{s.name}</div>
-                        </div>
-                      </div>
+                  <div className="grid gap-4">
+                    {sectorStocks.map((s) => {
+                      const isUp = (s.chg || 0) >= 0;
+                      const col = isUp ? T.buy : T.sell;
+                      const trendData = s.ohlcv || [];
+                      
+                      return (
+                        <div 
+                          key={s.id}
+                          onClick={() => onSelect(s)}
+                          className="group relative bg-slate-900/40 backdrop-blur-xl p-5 pl-8 rounded-[32px] border border-white/5 flex flex-col lg:flex-row items-center justify-between gap-8 hover:bg-slate-900/60 transition-all duration-500 cursor-pointer shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1"
+                        >
+                          {/* Asset Identity: Claymorphism Circle */}
+                          <div className="flex items-center gap-8 min-w-[280px] w-full lg:w-auto">
+                            <div 
+                              className="w-16 h-16 rounded-[22px] flex items-center justify-center text-2xl font-black transition-all shadow-[inset_-4px_-4px_8px_rgba(0,0,0,0.4),inset_4px_4px_8px_rgba(255,255,255,0.1)]"
+                              style={{
+                                background: `linear-gradient(145deg, ${col}20, ${col}05)`,
+                                border: `1px solid ${col}30`,
+                                color: col,
+                              }}
+                            >
+                              {(s.id || '?')[0]}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="font-mono font-black text-2xl text-white group-hover:text-indigo-400 transition-colors tracking-tight uppercase leading-none">
+                                {s.id}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-bold tracking-[0.3em] uppercase mt-2 opacity-70">
+                                {s.name}
+                              </span>
+                            </div>
+                          </div>
 
-                      {/* Market Value */}
-                      <div className="flex-1 grid grid-cols-4 items-center gap-8">
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">PRICE_USD</span>
-                          <span className="font-mono text-base font-black text-white">
-                            {s.id.includes('-USD') ? '' : '$'}{(s.px || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                          </span>
-                        </div>
+                          {/* Metrics Grid */}
+                          <div className="flex-1 w-full grid grid-cols-2 md:grid-cols-4 items-center gap-10">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Zap size={10} /> Market Price
+                              </span>
+                              <span className="font-mono text-xl font-black text-white">
+                                {s.id.includes('-USD') ? '' : '$'}{(s.px || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                              </span>
+                            </div>
 
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">DELTA_24H</span>
-                          <div className="flex items-center gap-2 font-mono text-base font-black" style={{ color: col }}>
-                            {isUp ? <ArrowUpRight size={18}/> : <ArrowDownRight size={18}/>}
-                            {Math.abs(s.chg || 0).toFixed(2)}%
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />} Change
+                              </span>
+                              <div className="flex items-center gap-2 font-mono text-xl font-black" style={{ color: col }}>
+                                {isUp ? <ArrowUpRight size={20}/> : <ArrowDownRight size={20}/>}
+                                {Math.abs(s.chg || 0).toFixed(2)}%
+                              </div>
+                            </div>
+
+                            <div className="hidden md:flex flex-col">
+                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Activity size={10} /> Momentum
+                              </span>
+                              <div className="pt-1 h-10 flex items-center">
+                                <MiniSparkline data={trendData} color={col} w={120} h={32} />
+                              </div>
+                            </div>
+
+                            <div className="hidden md:flex flex-col items-end lg:pr-8">
+                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">System Logic</span>
+                              <span className="py-1.5 px-4 rounded-xl text-[9px] font-black border tracking-[0.2em] shadow-lg" 
+                                style={{
+                                  background: `${col}15`,
+                                  color: col,
+                                  borderColor: `${col}30`,
+                                }}
+                              >
+                                {isUp ? 'CORE_ACCUMULATE' : 'LIQUIDITY_VOID'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Clay Action Button */}
+                          <div className="lg:pr-4">
+                            <button className="w-14 h-14 rounded-2xl bg-slate-800 border border-white/5 flex items-center justify-center shadow-[4px_4px_10px_rgba(0,0,0,0.4),-2px_-2px_10px_rgba(255,255,255,0.05),inset_1px_1px_1px_rgba(255,255,255,0.1)] active:shadow-inner active:translate-y-0.5 transition-all group-hover:bg-indigo-600 group-hover:border-indigo-400 group-hover:shadow-[0_0_30px_rgba(79,70,229,0.3)]">
+                              <ArrowUpRight size={24} className="text-indigo-400 group-hover:text-white transition-colors" />
+                            </button>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
 
-                        <div className="flex flex-col">
-                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">MICRO_TREND</span>
-                          {s.ohlcv && s.ohlcv.length > 0 ? (
-                            <div className="pt-1">
-                              <Sparkline data={s.ohlcv} color={col} w={120} h={32} />
-                            </div>
-                          ) : (
-                            <span className="text-[9px] text-slate-700 font-mono">NO_FEED</span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col items-end pr-4">
-                          <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-2">SIGNAL_PRECISION</span>
-                          <span className="py-1 px-3 rounded-xl text-[9px] font-black border tracking-[0.1em]" style={{
-                            background: `${signalColor}20`,
-                            color: signalColor,
-                            borderColor: `${signalColor}40`,
-                            boxShadow: `0 0 12px ${signalColor}20`
-                          }}>
-                            {signal}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Action */}
-                      <div className="pr-4">
-                        <div className="p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-500 group-hover:bg-indigo-500/10 group-hover:border-indigo-500/30 group-hover:text-indigo-400 transition-all">
-                          <ArrowUpRight size={20} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+        {/* EMPTY STATE */}
+        {!loading && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-40 gap-6 bg-slate-900/20 rounded-[40px] border border-dashed border-white/5 animate-fade-in">
+            <div className="p-8 bg-slate-900 rounded-full shadow-inner border border-white/5">
+              <Info size={48} className="text-slate-800" />
             </div>
-          );
-        })}
-
-        {!loading && sorted.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4 opacity-50">
-            <Activity size={48} className="text-slate-800 animate-pulse" />
-            <span className="text-base text-slate-500 font-mono tracking-widest uppercase">Null set return // refine search filters</span>
+            <div className="text-center">
+              <h3 className="text-lg font-black text-slate-500 uppercase tracking-[0.3em]">Query Logic Failure</h3>
+              <p className="text-xs text-slate-700 font-mono mt-2 uppercase tracking-widest">No matching assets found in the current coordinate system.</p>
+            </div>
+            <button 
+              onClick={() => {setSearchTerm(''); setActiveFilter('All Markets')}}
+              className="mt-4 px-8 py-3 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-[10px] font-black tracking-[0.2em] text-indigo-400 transition-all uppercase"
+            >
+              Reset Terminal
+            </button>
           </div>
         )}
+
       </div>
     </div>
   );

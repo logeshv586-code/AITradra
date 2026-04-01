@@ -46,12 +46,13 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
         <div className="flex items-end justify-between border-b border-white/5 pb-6">
           <div className="space-y-2">
             <h2 className="text-4xl font-black flex items-center gap-4 text-white text-shadow-glow tracking-tighter">
-              <div className="p-3 rounded-2xl animate-cyber-pulse clay-organic" style={{
+                <div className="p-3 rounded-2xl animate-cyber-pulse glass-card" style={{
                 background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(99,102,241,0.10))',
                 border: '1px solid rgba(99,102,241,0.35)'
               }}>
                 <Layers size={28} style={{ color: T.ai }} />
               </div>
+
               AGENT <span className="text-indigo-500">MATRIX</span>
             </h2>
             <div className="flex items-center gap-6 text-[11px] text-slate-500 font-bold tracking-[0.25em] px-1">
@@ -60,14 +61,15 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
               <span className="flex items-center gap-2"><Zap size={12} className="text-yellow-400"/> THROUGHPUT: {totalOps.toLocaleString()} OPS/S</span>
             </div>
           </div>
-          <div className="hidden lg:flex gap-3">
-             <div className="clay-badge py-2.5 px-5 shadow-xl bg-purple-500/10 border-purple-500/20 text-purple-400">
+          <div className="hidden lg:flex gap-4">
+             <div className="glass-card py-2.5 px-6 shadow-xl bg-purple-500/10 border-purple-500/20 text-purple-400 font-mono text-[10px] tracking-widest flex items-center gap-2">
                <Cpu size={14} /> NEMOTRON_LOCAL_GGUF
              </div>
-             <div className="clay-badge py-2.5 px-5 shadow-xl animate-soft-pulse" style={{ background: `${T.buy}15`, color: T.buy, borderColor: `${T.buy}30` }}>
-               <Sparkles size={14} className="animate-spin-slow" /> MYTHIC_ORCHESTRATION
+             <div className="skeuo-button py-2.5 px-6 gap-2 text-[10px] tracking-widest">
+               <Sparkles size={14} className="animate-spin-slow text-indigo-400" /> MYTHIC_ORCHESTRATION
              </div>
           </div>
+
         </div>
 
         <div className="grid-bento">
@@ -94,7 +96,7 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                 
                 <div className="flex justify-between items-start mb-auto">
                   <div className="flex items-center gap-4">
-                    <div className="p-4 rounded-2xl relative clay-organic" style={{ 
+                    <div className="p-4 rounded-2xl relative glass-card" style={{ 
                       background: `linear-gradient(135deg, ${a.color}25, ${a.color}10)`,
                       border: `1px solid ${a.color}40`,
                       boxShadow: `0 8px 24px ${a.color}20`
@@ -102,6 +104,7 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                       <Icon size={a.id === 'think' ? 32 : 24} style={{ color: a.color, filter: `drop-shadow(0 0 12px ${a.color})` }} />
                       {isActive && <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-green-500 rounded-full border-4 border-[#0a0e1a] animate-pulse"/>}
                     </div>
+
                     <div>
                       <div className={`font-black tracking-tight text-white uppercase ${a.id === 'think' || a.id === 'orchestrator' ? 'text-2xl' : 'text-lg'}`}>{a.name}</div>
                       <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 font-bold tracking-widest uppercase">
@@ -111,7 +114,7 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                       </div>
                     </div>
                   </div>
-                  <span className={`clay-badge text-[10px] px-3.5 py-1.5 ${isWarn ? 'animate-soft-pulse' : ''}`}
+                  <span className={`glass-card text-[10px] font-black tracking-widest px-4 py-1.5 ${isWarn ? 'animate-soft-pulse' : ''}`}
                     style={{ 
                       background: isWarn ? `${T.warn}20` : `${T.buy}15`,
                       color: isWarn ? T.warn : T.buy,
@@ -119,6 +122,7 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                     }}>
                     {a.status.toUpperCase()}
                   </span>
+
                 </div>
                 
                 <div className="my-8">
@@ -133,8 +137,8 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                       <span className="text-[10px] font-black text-slate-500 tracking-[0.1em] uppercase">Intelligence Matrix</span>
                       <span className="font-mono font-black text-sm" style={{ color: a.acc >= 70 ? T.buy : T.warn }}>{a.acc}%</span>
                     </div>
-                    <div className="clay-progress-track h-2 bg-black/50 shadow-inner">
-                      <div className="clay-progress-fill relative overflow-hidden h-full" 
+                    <div className="glass-card h-2 bg-black/50 shadow-inner rounded-full">
+                      <div className="relative overflow-hidden h-full rounded-full transition-all duration-1000" 
                         style={{ 
                           width: `${a.acc}%`, 
                           background: `linear-gradient(90deg, ${a.color}90, ${a.color})`,
@@ -142,17 +146,18 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                         <div className="absolute inset-0 animate-shimmer" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)' }}/>
                       </div>
                     </div>
+
                   </div>
   
                   <div className={`grid gap-4 ${a.id === 'think' ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                    <div className="clay-inset p-4 flex flex-col justify-center gap-1">
+                    <div className="glass-panel p-4 flex flex-col justify-center gap-1 rounded-2xl">
                       <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Throughput</span>
                       <div className="flex items-end gap-2">
                         <span className="font-mono font-bold text-lg text-white leading-none">{a.tasks.toLocaleString()}</span>
                         <span className="text-[9px] text-slate-600 font-black">OPS</span>
                       </div>
                     </div>
-                    <div className="clay-inset p-4 flex flex-col justify-center gap-1">
+                    <div className="glass-panel p-4 flex flex-col justify-center gap-1 rounded-2xl">
                       <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Critique</span>
                       <div className="flex items-center gap-3">
                         <div className="flex gap-1">
@@ -164,12 +169,13 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                       </div>
                     </div>
                     {a.id === 'think' && (
-                       <div className="clay-inset p-4 flex flex-col justify-center gap-1">
+                       <div className="glass-panel p-4 flex flex-col justify-center gap-1 rounded-2xl">
                         <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Neural Link</span>
                         <div className="text-xs text-indigo-400 font-black animate-pulse">ESTABLISHED</div>
                       </div>
                     )}
                   </div>
+
                 </div>
               </GlassCard>
               </div>
@@ -194,9 +200,10 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
                   <h2 className="text-3xl font-black text-white uppercase tracking-tighter">{selectedAgent.name} // DASHBOARD</h2>
                   <div className="flex items-center gap-4 mt-2">
                     <span className="text-xs font-mono font-bold text-slate-400">ID: AXIOM-{selectedAgent.id.toUpperCase()}</span>
-                    <span className={`clay-badge text-[10px] px-3 py-1 bg-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-500/20 text-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-400 border-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-500/30`}>
+                    <span className={`glass-card text-[10px] font-black tracking-widest px-3 py-1 bg-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-500/20 text-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-400 border-${selectedAgent.status === 'Active' ? 'green' : 'amber'}-500/30`}>
                       {selectedAgent.status.toUpperCase()}
                     </span>
+
                   </div>
                 </div>
               </div>
@@ -209,51 +216,59 @@ export default function AgentMatrixView({ agentsStatus = [] }) {
             <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 no-scrollbar bg-gradient-to-b from-transparent to-[#0a0e1a]/80">
               <div className="grid grid-cols-3 gap-6">
                 {/* Metric 1 */}
-                <div className="clay-inset p-5 rounded-3xl flex flex-col gap-2">
+                <div className="glass-panel p-6 rounded-[2rem] flex flex-col gap-2">
                   <div className="flex items-center gap-2 mb-2 text-slate-400">
-                    <TrendingUp size={16} /><span className="text-xs font-black uppercase tracking-widest">Input Volumes</span>
+                    <TrendingUp size={16} /><span className="text-xs font-black uppercase tracking-[0.2em]">Input Volume</span>
                   </div>
                   <div className="text-3xl font-mono font-black text-white">{(selectedAgent.tasks * 1.4).toLocaleString()}</div>
-                  <div className="text-[10px] uppercase font-bold text-green-400">▲ +12.4% TODAY</div>
-                  <p className="text-xs text-slate-500 mt-2">Data nodes scraped, sanitized, and ingested into memory vector db within the last 24h cycle.</p>
+                  <div className="text-[10px] uppercase font-black text-green-400 tracking-widest">▲ +12.4% TODAY</div>
+                  <p className="text-[11px] text-slate-500 mt-3 font-medium leading-relaxed">Intelligence nodes harvested and ingested into nexus in the last 24h cycle.</p>
                 </div>
                 {/* Metric 2 */}
-                <div className="clay-inset p-5 rounded-3xl flex flex-col gap-2">
+                <div className="glass-panel p-6 rounded-[2rem] flex flex-col gap-2">
                   <div className="flex items-center gap-2 mb-2 text-slate-400">
-                    <Activity size={16} /><span className="text-xs font-black uppercase tracking-widest">Self-Improvement</span>
+                    <Activity size={16} /><span className="text-xs font-black uppercase tracking-[0.2em]">Self-Improvement</span>
                   </div>
                   <div className="text-3xl font-mono font-black text-white">{selectedAgent.acc}% <span className="text-lg text-slate-500">ACC</span></div>
-                  <div className="text-[10px] uppercase font-bold text-indigo-400">REINFORCEMENT LEARNING ACTIVE</div>
-                  <p className="text-xs text-slate-500 mt-2">Error gradients applied. Accuracy increased by 0.4% post-correction on historical trades.</p>
+                  <div className="text-[10px] uppercase font-black text-indigo-400 tracking-widest">REINFORCEMENT ACTIVE</div>
+                  <p className="text-[11px] text-slate-500 mt-3 font-medium leading-relaxed">Error gradients applied. Accuracy delta: +0.4% post-correction.</p>
                 </div>
                 {/* Metric 3 */}
-                <div className="clay-inset p-5 rounded-3xl flex flex-col gap-2">
+                <div className="glass-panel p-6 rounded-[2rem] flex flex-col gap-2 border-indigo-500/20 shadow-inner">
                   <div className="flex items-center gap-2 mb-2 text-slate-400">
-                    <Shield size={16} /><span className="text-xs font-black uppercase tracking-widest">Output Signal</span>
+                    <Shield size={16} /><span className="text-xs font-black uppercase tracking-[0.2em]">Synapse State</span>
                   </div>
-                  <div className="text-3xl font-mono font-black text-white" style={{ color: selectedAgent.color }}>CONFIRMED</div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400">SYNAPSE INTEGRITY: OPTIMAL</div>
-                  <p className="text-xs text-slate-500 mt-2">Generated heuristics have been successfully propagated to the Global Orchestrator.</p>
+                  <div className="text-3xl font-mono font-black text-white" style={{ color: selectedAgent.color }}>NOMINAL</div>
+                  <div className="text-[10px] uppercase font-black text-slate-400 tracking-widest">INTEGRITY_INDEX: 1.0</div>
+                  <p className="text-[11px] text-slate-500 mt-3 font-medium leading-relaxed">Output signals verified by the Mythic Oversight layer.</p>
                 </div>
+
               </div>
 
               {/* Data & Logs Block */}
               <div className="flex-1 grid grid-cols-2 gap-6">
-                <div className="clay-inset p-6 rounded-3xl flex flex-col">
-                  <h4 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><BarChart2 size={16}/> Daily Action Register</h4>
-                  <div className="flex-1 space-y-3 font-mono text-xs text-slate-400 overflow-y-auto pr-2 custom-scroll">
+                <div className="glass-panel p-8 rounded-[2rem] flex flex-col bg-black/20">
+                  <h4 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                    Action_Register
+                  </h4>
+                  <div className="flex-1 space-y-3 font-mono text-[11px] text-slate-400 overflow-y-auto pr-2 custom-scroll">
                     {[1,2,3,4,5,6].map(i => (
-                      <div key={i} className="flex gap-4 p-3 rounded-xl bg-black/20 border border-white/5">
-                        <span className="text-indigo-400 shrink-0">[{new Date(Date.now() - i*900000).toLocaleTimeString()}]</span>
-                        <span className="text-slate-300">Fetched standard data constraints. Updated metric heuristic weights in model parameters.</span>
+                      <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-indigo-500/20 transition-all">
+                        <span className="text-indigo-400 font-black shrink-0">[{new Date(Date.now() - i*900000).toLocaleTimeString()}]</span>
+                        <span className="text-slate-300">Synchronizing nexus heuristic weights... [OK]</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="clay-inset p-6 rounded-3xl flex flex-col bg-indigo-900/10">
-                   <h4 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={16} className="text-indigo-400"/> Live Knowledge Stream</h4>
-                   <div className="flex-1 border border-indigo-500/20 rounded-2xl bg-[#03050a] p-4 font-mono text-[11px] leading-relaxed text-indigo-200/70 overflow-y-auto">
+                <div className="glass-panel p-8 rounded-[2rem] flex flex-col bg-indigo-950/10 border-indigo-500/20">
+                   <h4 className="text-sm font-black text-slate-300 uppercase tracking-widest mb-6 flex items-center gap-3">
+                     <Zap size={18} className="text-indigo-400 fill-indigo-400/20"/>
+                     Neural_Stream
+                   </h4>
+                   <div className="flex-1 border border-indigo-500/10 rounded-[1.5rem] bg-black/60 p-6 font-mono text-[11px] leading-relaxed text-indigo-200/80 overflow-y-auto shadow-inner">
+
                      {'>'} INITIALIZING KNOWLEDGE SYNC...<br/>
                      {'>'} ESTABLISHING OMNI-DATA CONNECTION... [OK]<br/>
                      {'>'} INGESTING 14,082 MARKET NODES...<br/>

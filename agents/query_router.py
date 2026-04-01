@@ -101,8 +101,12 @@ class QueryRouter(BaseAgent):
             orchestrator_result = await mythic_orchestrator.orchestrate(
                 query=query,
                 ticker=ticker,
-                gathered_data=gathered_context
+                gathered_data=gathered_context,
+                session_id=context.session_id or "default",
+                research_mode=context.metadata.get("research_mode", "QUICK"),
+                history=context.metadata.get("history", [])
             )
+
 
             context.result = {
                 "response": orchestrator_result.get("response", ""),

@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Activity, Globe, List, Layers, Settings, Rocket, Activity as Pulse } from "lucide-react";
 import { T } from "./theme";
 import { AGENTS } from "./data";
 import LiveTickerBar from "./components/LiveTickerBar";
-import GlobeView from "./components/GlobeView";
 import WatchlistView from "./components/WatchlistView";
 import AgentMatrixView from "./components/AgentMatrixView";
 import StockDetailView from "./components/StockDetailView";
@@ -16,7 +14,15 @@ import NewsEvidenceView from "./components/NewsEvidenceView";
 import PortfolioInsightsView from "./components/PortfolioInsightsView";
 import TrendingStocksView from "./components/TrendingStocksView";
 import RiskAnalysisView from "./components/RiskAnalysisView";
+import VirtualPortfolioView from "./components/VirtualPortfolioView";
+import DeepResearchSuggestions from "./components/DeepResearchSuggestions";
 import { 
+  Activity, 
+  Globe, 
+  List, 
+  Layers, 
+  Settings, 
+  Rocket, 
   TrendingUp, 
   BarChart3, 
   ShieldAlert, 
@@ -25,11 +31,9 @@ import {
   MessageSquare, 
   ChevronRight,
   User,
-  Coins
+  Coins,
+  Loader2
 } from "lucide-react";
-import VirtualPortfolioView from "./components/VirtualPortfolioView";
-import DiagnosticView from "./components/DiagnosticView";
-import DeepResearchSuggestions from "./components/DeepResearchSuggestions";
 import { API_BASE, WS_BASE } from "./api_config";
 
 export default function App() {
@@ -202,7 +206,6 @@ export default function App() {
     { id:'trending',    icon: TrendingUp,     label:'Trending Stocks' },
     { id:'virtual',     icon: Coins,          label:'Virtual Portfolio'},
     { id:'mission',     icon: Rocket,         label:'Mission Control' },
-    { id:'diagnostics', icon: Pulse,          label:'System Diagnostics'},
   ];
 
   const showSidebar = (view === 'globe' || view === 'predictions' || view === 'watchlist') && (activeStock || agentLogs.length > 0);
@@ -218,29 +221,25 @@ export default function App() {
       </div>
 
       {/* ── TOP BAR (Clay Header) ── */}
-      <header className="clay-header h-14 flex items-center justify-between px-6 flex-shrink-0 z-50">
-        <div className="flex items-center gap-4">
+      <header className="h-14 flex items-center justify-between px-8 flex-shrink-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-md">
+        <div className="flex items-center gap-6">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('globe')}>
-            <div className="w-9 h-9 rounded-2xl flex items-center justify-center transition-all bg-indigo-500/10 border border-indigo-400/20 shadow-lg">
-              <Activity size={16} className="text-indigo-400" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-indigo-500/10 border border-indigo-400/20 group-hover:bg-indigo-500/20">
+              <Activity size={18} className="text-indigo-400 shadow-glow" />
             </div>
-            <span className="font-bold tracking-[0.2em] text-sm text-white font-mono text-shadow-glow">
-              AXIOM<span className="text-indigo-400">.AI</span>
+            <span className="font-black tracking-widest text-lg text-white font-mono flex items-center gap-1">
+              AXIOM<span className="text-indigo-500 font-black">.AI</span>
             </span>
           </div>
-          <div className="h-5 w-px bg-white/20 mx-4" />
-          <div className="clay-badge" style={{ 
-            background: 'linear-gradient(135deg, rgba(0,240,255,0.10), rgba(0,240,255,0.04))', 
-            borderColor: 'rgba(0,240,255,0.18)',
-            color: T.buy 
-          }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-soft-pulse" style={{ background: T.buy, boxShadow: `0 0 8px ${T.buy}60` }} />
-            <span className="text-[10px] font-bold tracking-widest leading-none">LIVE_DATA</span>
+          <div className="h-4 w-px bg-white/10 mx-2" />
+          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/5 transition-all hover:bg-white/[0.06]">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+            <span className="text-[10px] font-black tracking-widest text-slate-400 leading-none font-mono">NODE_CLUSTER::ACTIVE</span>
           </div>
           {stocksLoading && (
-            <div className="flex items-center gap-2 text-[9px] text-cyan-400 font-mono animate-pulse">
-              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-              FETCHING MARKETS...
+            <div className="flex items-center gap-3 text-[10px] text-indigo-400 font-mono tracking-widest">
+              <Loader2 size={12} className="animate-spin" />
+              FETCHING_MARKETS...
             </div>
           )}
         </div>
@@ -252,20 +251,25 @@ export default function App() {
       {/* ── BODY ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT SIDEBAR (Clay) */}
-        <nav className="clay-sidebar w-16 flex-shrink-0 flex flex-col items-center pt-6 gap-3 z-40">
+        <nav className="w-20 flex-shrink-0 flex flex-col items-center pt-8 gap-5 z-40 border-r border-white/5 bg-black/20 backdrop-blur-3xl">
           {NAV.map(n => {
             const Icon = n.icon;
             const active = view === n.id || (view === 'stock' && n.id === 'watchlist');
             return (
               <button key={n.id} title={n.label} onClick={() => setView(n.id)}
-                className={`clay-nav-btn group relative ${active ? 'active' : ''}`}>
-                <Icon size={18} className={`transition-colors ${active ? 'text-indigo-400' : 'text-slate-500 group-hover:text-indigo-400'}`} />
+                className={`relative p-3 rounded-2xl transition-all duration-300 group ${
+                  active 
+                  ? 'bg-indigo-500/10 text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/30' 
+                  : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
+                }`}>
+                <Icon size={20} className="transition-transform group-active:scale-95" />
+                {active && <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-500 rounded-full shadow-[0_0_12px_#6366f1]" />}
               </button>
             );
           })}
           <div className="flex-1"/>
-          <button className="clay-nav-btn mb-6 text-slate-500 hover:text-white" title="Settings">
-            <Settings size={18} />
+          <button className="p-3 mb-8 text-slate-500 hover:text-white transition-colors" title="Settings">
+            <Settings size={20} />
           </button>
         </nav>
 
@@ -293,7 +297,7 @@ export default function App() {
             {view === 'risk'        && <RiskAnalysisView onSelect={handleSelect} />}
             {view === 'chat'        && (
               <div className="flex-1 flex flex-col p-8 animate-fade-in">
-                <div className="flex-1 clay-card bg-black/40 overflow-hidden flex flex-col">
+                <div className="flex-1 glass-card bg-black/20 overflow-hidden flex flex-col">
                   <ChatPanel messages={chatMessages} onSend={handleSendChat} stock={activeStock} fullView={true} />
                 </div>
               </div>
@@ -317,7 +321,7 @@ export default function App() {
                   <DeepResearchSuggestions />
 
                   {/* AUTONOMOUS BUILD LOGS */}
-                  <div className="clay-card p-6 bg-black/40 border-indigo-500/10">
+                  <div className="glass-card p-6 bg-black/20 border-indigo-500/10">
                     <h3 className="text-[10px] font-bold tracking-widest text-slate-500 uppercase mb-4 font-mono">Mission Execution Logs</h3>
                     <div className="flex flex-col gap-2 font-mono text-[10px]">
                       <div className="text-indigo-400 opacity-80">[18:20:12] DeepResearchAgent triggered multi-agent sweep...</div>
@@ -328,7 +332,6 @@ export default function App() {
                 </div>
               </div>
             )}
-            { view === 'diagnostics' && <DiagnosticView />}
 
             {activeStock && view !== 'stock_detail' && (
               <StockDetailPanel ticker={activeStock} onClose={() => setActiveStock(null)} />
