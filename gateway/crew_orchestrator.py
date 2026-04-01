@@ -150,7 +150,8 @@ class OmniCrewManager:
             agents=[agents["researcher"], agents["strategist"]],
             tasks=[task_research, task_synthesis],
             process=Process.sequential,
-            verbose=2
+            # Newer CrewAI/Pydantic validation requires a real bool here.
+            verbose=True
         )
 
         result = crew.kickoff(inputs={'ticker': ticker})
