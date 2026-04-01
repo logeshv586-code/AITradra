@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { T } from "./theme";
-import { AGENTS } from "./data";
 import LiveTickerBar from "./components/LiveTickerBar";
-import WatchlistView from "./components/WatchlistView";
 import AgentMatrixView from "./components/AgentMatrixView";
 import StockDetailView from "./components/StockDetailView";
 import AgentStreamPanel from "./components/AgentStreamPanel";
@@ -15,29 +12,84 @@ import PortfolioInsightsView from "./components/PortfolioInsightsView";
 import TrendingStocksView from "./components/TrendingStocksView";
 import RiskAnalysisView from "./components/RiskAnalysisView";
 import VirtualPortfolioView from "./components/VirtualPortfolioView";
-import DeepResearchSuggestions from "./components/DeepResearchSuggestions";
-import { 
-  Activity, 
-  Globe, 
-  List, 
-  Layers, 
-  Settings, 
-  Rocket, 
-  TrendingUp, 
-  BarChart3, 
-  ShieldAlert, 
-  Newspaper, 
-  PieChart, 
-  MessageSquare, 
-  ChevronRight,
+import MissionControlDashboard from "./components/MissionControlDashboard";
+import {
+  Activity,
+  Globe,
+  Layers,
+  Settings,
+  Rocket,
+  TrendingUp,
+  BarChart3,
+  ShieldAlert,
+  Newspaper,
+  PieChart,
+  MessageSquare,
   User,
   Coins,
-  Loader2
+  Menu,
+  X,
+  Layout,
 } from "lucide-react";
-import { API_BASE, WS_BASE } from "./api_config";
+import { API_BASE } from "./api_config";
+
+const NavButton = ({ item, active, onClick }) => {
+  const Icon = item.icon;
+  const label = item.shortLabel || item.label;
+
+  return (
+    <button
+      onClick={onClick}
+      title={item.label}
+      className={`relative w-full overflow-hidden rounded-[20px] px-1.5 py-2.5 transition-all duration-300 group ${
+        active
+          ? "border border-indigo-400/25 bg-[linear-gradient(180deg,rgba(99,102,241,0.18),rgba(99,102,241,0.05))] text-white shadow-[0_12px_24px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.06)]"
+          : "border border-transparent text-slate-500 hover:border-white/[0.08] hover:bg-white/[0.04] hover:text-slate-100"
+      }`}
+    >
+      <div className="absolute inset-x-2.5 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-[14px] border transition-all duration-300 ${
+            active
+              ? "border-indigo-400/30 bg-indigo-500/15 text-indigo-300 shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+              : "border-white/[0.08] bg-black/20 group-hover:border-white/[0.18] group-hover:bg-white/[0.08]"
+          }`}
+        >
+          <Icon
+            size={16}
+            className={`transition-transform duration-300 ${active ? "scale-110" : "group-hover:scale-105"}`}
+          />
+        </div>
+
+        <div className="flex flex-col items-center gap-0.5">
+          <span
+            className={`text-[8px] font-black uppercase tracking-[0.16em] transition-all duration-300 ${
+              active ? "text-white" : "opacity-70 group-hover:opacity-100"
+            }`}
+          >
+            {label}
+          </span>
+          <span
+            className={`text-[7px] font-mono uppercase tracking-[0.15em] transition-colors duration-300 ${
+              active ? "text-indigo-200/70" : "text-slate-600 group-hover:text-slate-400"
+            }`}
+          >
+            {item.kicker}
+          </span>
+        </div>
+      </div>
+
+      {active && (
+        <div className="absolute inset-x-4 bottom-1 h-0.5 rounded-full bg-indigo-400 shadow-[0_0_18px_rgba(99,102,241,0.75)]" />
+      )}
+    </button>
+  );
+};
 
 export default function App() {
-  const [view, setView] = useState('globe');
+  const [view, setView] = useState("globe");
   const [activeStock, setActiveStock] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
@@ -46,305 +98,367 @@ export default function App() {
   const [agentsStatus, setAgentsStatus] = useState([]);
   const [liveStocks, setLiveStocks] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(true);
+
+  const [isMobile, setIsMobile] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const [chatMessages, setChatMessages] = useState([
-    { role:'ai', tag:'AXIOM MYTHIC', text:'System online. Mythic Orchestrator active — 5 specialist agents + critique layer ready. Live market data streaming. Select a node or ask a question.' }
+    {
+      role: "ai",
+      tag: "AXIOM MYTHIC",
+      text: "System online. Mythic Orchestrator active - 5 specialist agents + critique layer ready. Live market data streaming. Select a node or ask a question.",
+    },
   ]);
   const wsRef = useRef(null);
 
-  // ─── FETCH LIVE WATCHLIST + INDICES ─────────────────────────────────────────
   useEffect(() => {
-    const fetchLiveData = async () => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
       try {
         const [watchlistRes, indicesRes, agentsRes] = await Promise.all([
           fetch(`${API_BASE}/api/market/watchlist`),
           fetch(`${API_BASE}/api/market/indices`),
-          fetch(`${API_BASE}/api/agents/status`)
+          fetch(`${API_BASE}/api/agents/status`),
         ]);
-        
         const watchlistData = await watchlistRes.json();
         const indicesData = await indicesRes.json();
         const agentsData = await agentsRes.json();
-
-        if (watchlistData.stocks && watchlistData.stocks.length > 0) {
-          setLiveStocks(watchlistData.stocks);
-        }
+        if (watchlistData.stocks) setLiveStocks(watchlistData.stocks);
         setMarketIndices(indicesData.indices || []);
         setAgentsStatus(agentsData.agents || []);
         setStocksLoading(false);
       } catch (err) {
-        console.error("Failed to fetch live data:", err);
+        console.error("Live data fetch failed:", err);
         setStocksLoading(false);
       }
     };
-
-    fetchLiveData();
-    // Refresh every 60s (aligned with backend cache TTL)
-    const interval = setInterval(fetchLiveData, 60000);
+    fetchData();
+    const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  // ─── CHAT (LLM-POWERED) ───────────────────────────────────────────────────
   const handleSendChat = async (userText, aiText, mythicData = null) => {
     if (userText) {
-      setChatMessages(p => [...p, { role:'user', text: userText }]);
-      
-      // If no AI text provided, call the LLM endpoint
+      setChatMessages((prev) => [...prev, { role: "user", text: userText }]);
       if (!aiText) {
         try {
           const res = await fetch(`${API_BASE}/api/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: userText,
-              ticker: (activeStock?.id) || '',
-            }),
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: userText, ticker: activeStock?.id || "" }),
           });
           const data = await res.json();
-          setChatMessages(p => [...p, { 
-            role:'ai', tag:'AXIOM MYTHIC', text: data.response,
-            mythicData: {
-              consensus: data.consensus,
-              confidence: data.confidence,
-              specialist_outputs: data.specialist_outputs,
-              critique: data.critique,
-              pipeline_ms: data.pipeline_ms,
-            }
-          }]);
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              role: "ai",
+              tag: "AXIOM MYTHIC",
+              text: data.response,
+              mythicData: {
+                consensus: data.consensus,
+                confidence: data.confidence,
+                specialist_outputs: data.specialist_outputs,
+                critique: data.critique,
+                pipeline_ms: data.pipeline_ms,
+              },
+            },
+          ]);
         } catch (err) {
-          setChatMessages(p => [...p, { role:'ai', tag:'AXIOM', text: 'Neural link interrupted. Reconnecting to mythic orchestrator...' }]);
+          setChatMessages((prev) => [...prev, { role: "ai", tag: "AXIOM", text: "Neural link interrupted..." }]);
         }
         return;
       }
     }
-    if (aiText && aiText !== 'auto-analyze') {
-      const msg = { role:'ai', tag:'AXIOM MYTHIC', text: aiText };
-      if (mythicData) {
-        msg.mythicData = {
-          consensus: mythicData.consensus,
-          confidence: mythicData.confidence,
-          specialist_outputs: mythicData.specialist_outputs,
-          critique: mythicData.critique,
-        };
-      }
-      setChatMessages(p => [...p, msg]);
+
+    if (aiText && aiText !== "auto-analyze") {
+      const message = { role: "ai", tag: "AXIOM MYTHIC", text: aiText };
+      if (mythicData) message.mythicData = mythicData;
+      setChatMessages((prev) => [...prev, message]);
     }
   };
 
   const handleSelect = (ticker) => {
-    // Look up the full stock object from liveStocks
-    const stockId = typeof ticker === 'string' ? ticker : ticker.id;
-    const found = liveStocks.find(s => s.id === stockId);
-    if (found) {
-      setActiveStock(found);
-      // Optionally switch to detail view, or just keep panel open
-      // setView('stock_detail'); 
-    } else {
-      setActiveStock({ id: stockId });
-    }
-    // Panel opens automatically via state if activeStock is set
+    const stockId = typeof ticker === "string" ? ticker : ticker.id;
+    const found = liveStocks.find((stock) => stock.id === stockId);
+    setActiveStock(found || { id: stockId });
   };
 
-  const runAnalysis = (stock) => {
-    if (wsRef.current) wsRef.current.close();
-    
-    setIsAnalyzing(true);
-    setAnalysisComplete(false);
-    setAgentLogs([]);
-    
-    const ws = new WebSocket(`${WS_BASE}/ws/analyze/${stock.id}`);
-    wsRef.current = ws;
-
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      if (msg.type === 'connected') {
-        setAgentLogs(p => [...p, { id: 'conn', agent: 'data', action: 'D-NETWORK', text: `Uplink established for ${msg.ticker} (v${msg.version})` }]);
-      } else if (msg.type === 'agent_start' || msg.type === 'agent_complete') {
-        const agentKey = msg.agent.replace('Agent', '').toLowerCase();
-        setAgentLogs(p => [...p, { 
-          id: Date.now() + Math.random(), 
-          agent: agentKey, 
-          action: msg.type === 'agent_start' ? 'THINK' : 'ACT', 
-          text: msg.output 
-        }]);
-      } else if (msg.type === 'analysis_complete') {
-        const analysis = msg.result.analysis || {};
-        const confidence = analysis.confidence || 0.82;
-        const signal = analysis.signal || (confidence > 0.7 ? 'STRONG BUY' : 'HOLD');
-        
-        setIsAnalyzing(false);
-        setAnalysisComplete(true);
-        
-        // Update activeStock with live analysis result
-        setActiveStock(prev => ({
-          ...prev,
-          analysis_result: analysis,
-          px: msg.result.ticker === prev.id ? (msg.result.agent_data?.DataAgent?.fundamentals?.current_price || prev.px) : prev.px
-        }));
-
-        handleSendChat(null, `Analysis complete for ${stock.id}. Confidence: ${(confidence * 100).toFixed(1)}%. Signal: ${signal}.`);
-      } else if (msg.type === 'error') {
-        console.error("WS Analysis Error:", msg.message);
-        setIsAnalyzing(false);
-      }
-    };
-
-    ws.onclose = () => {
-      setIsAnalyzing(false);
-      wsRef.current = null;
-    };
+  const changeView = (nextView) => {
+    setView(nextView);
+    if (isMobile) setMobileMenuOpen(false);
   };
 
   const NAV = [
-    { id:'globe',       icon: Globe,          label:'Global Market'   },
-    { id:'predictions', icon: BarChart3,      label:'Prediction Table'},
-    { id:'stock_detail',icon: ChevronRight,   label:'Stock Detail'    },
-    { id:'news',        icon: Newspaper,      label:'News & Evidence' },
-    { id:'agents',      icon: Layers,         label:'AI Analysis'     },
-    { id:'risk',        icon: ShieldAlert,    label:'Risk Analysis'   },
-    { id:'chat',        icon: MessageSquare,  label:'AI Chat'         },
-    { id:'portfolio',   icon: PieChart,       label:'Portfolio'       },
-    { id:'trending',    icon: TrendingUp,     label:'Trending Stocks' },
-    { id:'virtual',     icon: Coins,          label:'Virtual Portfolio'},
-    { id:'mission',     icon: Rocket,         label:'Mission Control' },
+    { id: "globe", icon: Globe, label: "Map", kicker: "World" },
+    { id: "predictions", icon: BarChart3, label: "Predict", kicker: "Signal" },
+    { id: "stock_detail", icon: Layout, label: "Terminal", kicker: "Desk" },
+    { id: "news", icon: Newspaper, label: "Intelligence", shortLabel: "Intel", kicker: "Flow" },
+    { id: "agents", icon: Layers, label: "Synergy", kicker: "Mesh" },
+    { id: "risk", icon: ShieldAlert, label: "Risk", kicker: "Guard" },
+    { id: "chat", icon: MessageSquare, label: "Expert", kicker: "Chat" },
+    { id: "portfolio", icon: PieChart, label: "Assets", kicker: "Book" },
+    { id: "trending", icon: TrendingUp, label: "Trending", kicker: "Pulse" },
+    { id: "virtual", icon: Coins, label: "Simulator", shortLabel: "Sim", kicker: "Paper" },
+    { id: "mission", icon: Rocket, label: "Missions", kicker: "Ops" },
   ];
 
-  const showSidebar = (view === 'globe' || view === 'predictions' || view === 'watchlist') && (activeStock || agentLogs.length > 0);
+  const navGroups = [
+    { title: "Core", items: NAV.slice(0, 3) },
+    { title: "Intelligence", items: NAV.slice(3, 7) },
+    { title: "Portfolio", items: NAV.slice(7, 11) },
+  ];
+
+  const showSidebar = Boolean(activeStock || agentLogs.length > 0);
+  const activeNav = NAV.find((item) => item.id === view) || NAV[0];
+  const ActiveNavIcon = activeNav.icon;
+  const immersiveView = view === "globe";
+  const liveAssetCount = liveStocks.length || marketIndices.length || 0;
 
   return (
-    <div className="relative flex flex-col h-screen overflow-hidden text-slate-200 font-sans selection:bg-indigo-500/30">
-      {/* ── AMBIENT CLAY-COMPATIBLE BACKGROUND ── */}
-      <div className="fixed inset-0 pointer-events-none z-[-1]">
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #0a0e1a 0%, #0d1225 40%, #0a0e1a 100%)' }} />
-        <div className="absolute top-[-25%] left-[-15%] w-[55vw] h-[55vw] rounded-full blur-[150px] mix-blend-screen" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)' }} />
-        <div className="absolute bottom-[-25%] right-[-15%] w-[45vw] h-[45vw] rounded-full blur-[150px] mix-blend-screen" style={{ background: 'radial-gradient(circle, rgba(0,240,255,0.05) 0%, transparent 70%)' }} />
-        <div className="absolute top-[40%] left-[50%] w-[30vw] h-[30vw] rounded-full blur-[120px] mix-blend-screen" style={{ background: 'radial-gradient(circle, rgba(168,85,247,0.04) 0%, transparent 70%)' }} />
-      </div>
+    <div
+      ref={wsRef}
+      className="relative flex h-screen flex-col overflow-hidden font-sans text-slate-200 institutional-bg selection:bg-indigo-500/30"
+    >
+      <header className="z-50 flex h-[64px] items-center justify-between border-b border-white/[0.08] bg-[#05070d]/85 px-4 backdrop-blur-2xl md:px-6 lg:px-7">
+        <div className="flex items-center gap-3 md:gap-5">
+          <button
+            className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-slate-400 transition hover:bg-white/[0.06] hover:text-white lg:hidden"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+          >
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
 
-      {/* ── TOP BAR (Clay Header) ── */}
-      <header className="h-14 flex items-center justify-between px-8 flex-shrink-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-md">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('globe')}>
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-indigo-500/10 border border-indigo-400/20 group-hover:bg-indigo-500/20">
-              <Activity size={18} className="text-indigo-400 shadow-glow" />
+          <div className="flex cursor-pointer items-center gap-3 group" onClick={() => changeView("globe")}>
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-indigo-400/20 bg-indigo-500/10 transition-all group-hover:bg-indigo-500/20">
+              <Activity size={16} className="text-indigo-400" />
             </div>
-            <span className="font-black tracking-widest text-lg text-white font-mono flex items-center gap-1">
-              AXIOM<span className="text-indigo-500 font-black">.AI</span>
-            </span>
+            <div className="leading-none">
+              <span className="block text-sm font-black tracking-[0.2em] text-white md:text-base">
+                AXIOM<span className="text-indigo-400">.AI</span>
+              </span>
+              <span className="mt-1 block text-[9px] font-mono uppercase tracking-[0.28em] text-slate-500">
+                Institutional Workspace
+              </span>
+            </div>
           </div>
-          <div className="h-4 w-px bg-white/10 mx-2" />
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/5 transition-all hover:bg-white/[0.06]">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
-            <span className="text-[10px] font-black tracking-widest text-slate-400 leading-none font-mono">NODE_CLUSTER::ACTIVE</span>
-          </div>
-          {stocksLoading && (
-            <div className="flex items-center gap-3 text-[10px] text-indigo-400 font-mono tracking-widest">
-              <Loader2 size={12} className="animate-spin" />
-              FETCHING_MARKETS...
+
+          {!isMobile && (
+            <div className="status-badge">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
+              <span>SYNERGY_V4.2</span>
+            </div>
+          )}
+
+          {!isMobile && (
+            <div className="hidden xl:flex items-center gap-3 rounded-[20px] border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-black/20 text-indigo-300">
+                <ActiveNavIcon size={16} />
+              </div>
+              <div className="leading-none">
+                <span className="block text-[9px] font-black uppercase tracking-[0.26em] text-slate-500">Workspace</span>
+                <span className="mt-1 block text-sm font-semibold text-white">{activeNav.label}</span>
+              </div>
             </div>
           )}
         </div>
+
+        <div className="flex items-center gap-3 md:gap-4">
+          {!isMobile && (
+            <div className="hidden md:flex items-center gap-3 rounded-[20px] border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+              <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">
+                {stocksLoading ? "Syncing desk" : `${liveAssetCount} live assets`}
+              </span>
+            </div>
+          )}
+
+          <button
+            className={`flex items-center gap-2 rounded-[20px] border px-3.5 py-2.5 transition-all ${
+              showAnalytics
+                ? "border-indigo-500/35 bg-indigo-500/15 text-indigo-300 shadow-[0_0_18px_rgba(99,102,241,0.18)]"
+                : "border-white/10 bg-white/[0.03] text-slate-400 hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+            }`}
+            onClick={() => setShowAnalytics((open) => !open)}
+            title="Toggle Mythic Control"
+          >
+            <MessageSquare size={16} />
+            <span className="hidden text-[10px] font-black uppercase tracking-[0.18em] md:inline">Console</span>
+          </button>
+
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-slate-800/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <User size={14} className="text-slate-400" />
+          </div>
+        </div>
       </header>
 
-      {/* ── TICKER STRIP ── */}
       <LiveTickerBar stocks={liveStocks} />
 
-      {/* ── BODY ── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* LEFT SIDEBAR (Clay) */}
-        <nav className="w-20 flex-shrink-0 flex flex-col items-center pt-8 gap-5 z-40 border-r border-white/5 bg-black/20 backdrop-blur-3xl">
-          {NAV.map(n => {
-            const Icon = n.icon;
-            const active = view === n.id || (view === 'stock' && n.id === 'watchlist');
-            return (
-              <button key={n.id} title={n.label} onClick={() => setView(n.id)}
-                className={`relative p-3 rounded-2xl transition-all duration-300 group ${
-                  active 
-                  ? 'bg-indigo-500/10 text-indigo-400 shadow-[0_0_20px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/30' 
-                  : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
-                }`}>
-                <Icon size={20} className="transition-transform group-active:scale-95" />
-                {active && <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-500 rounded-full shadow-[0_0_12px_#6366f1]" />}
+      <div className="relative flex flex-1 overflow-hidden">
+        {isMobile && mobileMenuOpen && (
+          <button
+            className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close navigation"
+          />
+        )}
+
+        <nav
+          className={`absolute lg:relative z-[60] flex h-full w-[96px] shrink-0 flex-col items-center border-r border-white/[0.08] bg-[#0a0d13]/92 py-3 backdrop-blur-3xl transition-transform duration-300 lg:z-40 lg:bg-[#090d12]/72 ${
+            isMobile ? (mobileMenuOpen ? "translate-x-0" : "-translate-x-full") : "translate-x-0"
+          }`}
+        >
+          <div className="w-full px-2">
+            <div className="flex h-9 items-center justify-center rounded-[18px] border border-white/[0.08] bg-white/[0.03] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <span className="text-[8px] font-black uppercase tracking-[0.28em] text-slate-400">Desk</span>
+            </div>
+          </div>
+
+          <div className="flex-1 w-full overflow-y-auto px-2 py-3 space-y-3 no-scrollbar">
+            {navGroups.map((group) => (
+              <div key={group.title} className="nav-cluster">
+                <span className="nav-cluster-label">{group.title}</span>
+                <div className="space-y-1">
+                  {group.items.map((item) => (
+                    <NavButton key={item.id} item={item} active={view === item.id} onClick={() => changeView(item.id)} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="w-full border-t border-white/[0.08] px-2 pt-3">
+            <div className="nav-cluster gap-2 py-2">
+              <button
+                title="Settings"
+                className="flex flex-col items-center gap-1.5 rounded-[18px] border border-white/[0.08] bg-white/[0.03] px-1.5 py-2.5 text-slate-500 transition hover:border-white/[0.16] hover:bg-white/[0.06] hover:text-white"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-[14px] border border-white/[0.08] bg-black/20">
+                  <Settings size={16} />
+                </div>
+                <span className="text-[8px] font-black uppercase tracking-[0.16em]">Config</span>
               </button>
-            );
-          })}
-          <div className="flex-1"/>
-          <button className="p-3 mb-8 text-slate-500 hover:text-white transition-colors" title="Settings">
-            <Settings size={20} />
-          </button>
+              <div className="flex items-center justify-center rounded-[18px] border border-indigo-500/10 bg-indigo-500/5 px-2 py-2 text-[7px] font-mono uppercase tracking-[0.18em] text-indigo-300/65">
+                Stable
+              </div>
+            </div>
+          </div>
         </nav>
 
-        {/* MAIN CONTENT */}
-        <main className="flex-1 flex overflow-hidden relative z-10">
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {view === 'globe'       && <Globe3D onStockSelect={handleSelect} stocks={liveStocks} />}
-            {view === 'predictions' && <PredictionTableView onSelect={handleSelect} />}
-            {view === 'stock_detail'&& (
-              activeStock ? (
-                <StockDetailView 
-                  stock={activeStock} 
-                  isAnalyzing={isAnalyzing} 
-                  analysisComplete={analysisComplete} 
-                  agentLogs={agentLogs} 
+        <main
+          className={`relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden transition-all duration-300 ${
+            immersiveView ? "bg-[#0B0F14]/40" : "workspace-canvas"
+          } ${!isMobile && showAnalytics ? "lg:border-r border-white/[0.08]" : ""}`}
+        >
+          <div className="relative flex flex-1 flex-col overflow-hidden">
+            {view === "globe" && <Globe3D onStockSelect={handleSelect} stocks={liveStocks} />}
+            {view === "predictions" && <PredictionTableView onSelect={handleSelect} />}
+            {view === "stock_detail" &&
+              (activeStock ? (
+                <StockDetailView
+                  stock={activeStock}
+                  isAnalyzing={isAnalyzing}
+                  analysisComplete={analysisComplete}
+                  agentLogs={agentLogs}
                 />
               ) : (
-                <div className="flex-1 flex items-center justify-center text-slate-500 font-mono text-xs uppercase tracking-widest">
-                  Select a stock to view detailed intelligence matrix
-                </div>
-              )
-            )}
-            {view === 'news'        && <NewsEvidenceView />}
-            {view === 'agents'      && <AgentMatrixView agentsStatus={agentsStatus} />}
-            {view === 'risk'        && <RiskAnalysisView onSelect={handleSelect} />}
-            {view === 'chat'        && (
-              <div className="flex-1 flex flex-col p-8 animate-fade-in">
-                <div className="flex-1 glass-card bg-black/20 overflow-hidden flex flex-col">
-                  <ChatPanel messages={chatMessages} onSend={handleSendChat} stock={activeStock} fullView={true} />
-                </div>
-              </div>
-            )}
-            {view === 'portfolio'   && <PortfolioInsightsView />}
-            {view === 'trending'    && <TrendingStocksView onSelect={handleSelect} />}
-            { view === 'virtual'     && <VirtualPortfolioView onSelect={handleSelect} />}
-            {view === 'mission'     && (
-              <div className="flex-1 overflow-y-auto p-12 custom-scrollbar animate-fade-in">
-                <div className="max-w-7xl mx-auto flex flex-col gap-12">
-                   <div className="flex flex-col gap-2">
-                    <h1 className="text-4xl font-extrabold tracking-tighter text-white font-mono uppercase bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
-                      🛰️ Mission Control
-                    </h1>
-                    <p className="text-sm text-slate-400 font-mono tracking-widest uppercase">
-                      Fleet-wide Consensus Engine & Deep Research Analysis
+                <div className="flex flex-1 items-center justify-center px-6 py-10 animate-fade-in">
+                  <div className="surface-card-soft max-w-md p-8 text-center">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-400/20 bg-indigo-500/10">
+                      <Layout size={22} className="text-indigo-400" />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">Terminal standby</p>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                      Select a symbol from the globe, watchlists, or analytics views to open the stock desk.
                     </p>
                   </div>
-
-                  {/* DEEP RESEARCH SUGGESTIONS */}
-                  <DeepResearchSuggestions />
-
-                  {/* AUTONOMOUS BUILD LOGS */}
-                  <div className="glass-card p-6 bg-black/20 border-indigo-500/10">
-                    <h3 className="text-[10px] font-bold tracking-widest text-slate-500 uppercase mb-4 font-mono">Mission Execution Logs</h3>
-                    <div className="flex flex-col gap-2 font-mono text-[10px]">
-                      <div className="text-indigo-400 opacity-80">[18:20:12] DeepResearchAgent triggered multi-agent sweep...</div>
-                      <div className="text-emerald-400 opacity-80">[18:20:45] Consensus check complete: 85% confidence threshold achieved.</div>
-                      <div className="text-slate-500">[18:21:00] Analyzing 14 specialist insights for high-conviction alignment...</div>
-                    </div>
-                  </div>
                 </div>
+              ))}
+            {view === "news" && <NewsEvidenceView />}
+            {view === "agents" && <AgentMatrixView agentsStatus={agentsStatus} />}
+            {view === "risk" && <RiskAnalysisView onSelect={handleSelect} />}
+            {view === "chat" && (
+              <div className="flex flex-1 flex-col p-4 md:p-6 xl:p-8 animate-fade-in">
+                <ChatPanel messages={chatMessages} onSend={handleSendChat} stock={activeStock} fullView={true} />
+              </div>
+            )}
+            {view === "portfolio" && <PortfolioInsightsView />}
+            {view === "trending" && <TrendingStocksView onSelect={handleSelect} />}
+            {view === "virtual" && <VirtualPortfolioView onSelect={handleSelect} />}
+            {view === "mission" && (
+              <div className="flex flex-1 flex-col overflow-hidden animate-fade-in">
+                <MissionControlDashboard />
               </div>
             )}
 
-            {activeStock && view !== 'stock_detail' && (
+            {activeStock && view !== "stock_detail" && (
               <StockDetailPanel ticker={activeStock} onClose={() => setActiveStock(null)} />
             )}
           </div>
-
-          {/* RIGHT SIDEBAR */}
-          <aside className="w-80 flex-shrink-0 flex flex-col overflow-hidden z-20">
-            {showSidebar && <AgentStreamPanel logs={agentLogs} isAnalyzing={isAnalyzing} />}
-            <ChatPanel messages={chatMessages} onSend={handleSendChat} stock={activeStock} />
-          </aside>
         </main>
+
+        <aside
+          className={`absolute right-0 z-50 flex h-full flex-col overflow-hidden border-l border-white/[0.08] bg-[#070a10]/95 backdrop-blur-3xl transition-all duration-300 lg:relative lg:z-20 lg:bg-[#0b0f14]/60 ${
+            isMobile ? (showAnalytics ? "translate-x-0 w-full" : "translate-x-full w-0") : showAnalytics ? "w-[400px]" : "w-0 opacity-0"
+          }`}
+        >
+          <div className="flex h-16 items-center justify-between border-b border-white/[0.08] bg-white/[0.02] px-5 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-indigo-400/20 bg-indigo-500/10">
+                <MessageSquare size={16} className="text-indigo-400" />
+              </div>
+              <div className="leading-none">
+                <span className="block text-[9px] font-black uppercase tracking-[0.24em] text-slate-500">
+                  Analytics Workspace
+                </span>
+                <span className="mt-1 block text-sm font-semibold text-white">Mythic Console</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isMobile && (
+                <div className="hidden items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 md:flex">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Desk online</span>
+                </div>
+              )}
+              <button
+                className="p-2 text-slate-500 transition hover:text-white lg:hidden"
+                onClick={() => setShowAnalytics(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+          </div>
+
+          {showSidebar && (
+            <div className="h-[34%] border-b border-white/[0.08] bg-gradient-to-b from-white/[0.03] to-transparent p-3 shrink-0">
+              <div className="surface-card h-full bg-black/20">
+                <AgentStreamPanel logs={agentLogs} isAnalyzing={isAnalyzing} />
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 min-h-0 p-3 md:p-4">
+            <ChatPanel messages={chatMessages} onSend={handleSendChat} stock={activeStock} />
+          </div>
+        </aside>
       </div>
+
+      {!showAnalytics && isMobile && (
+        <button
+          onClick={() => setShowAnalytics(true)}
+          className="absolute bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-2xl lg:hidden"
+        >
+          <MessageSquare size={20} />
+        </button>
+      )}
     </div>
   );
 }

@@ -1,17 +1,16 @@
 import React, { useState } from "react";
-import { List, ArrowUpRight, ArrowDownRight, Search, Activity, Zap, Info, TrendingUp, TrendingDown, Layers, Loader2 } from "lucide-react";
-
-/**
- * THEME DEFINITION
- * High-contrast, vibrant UI colors for a financial dashboard.
- */
-const T = {
-  buy: "#22c55e",  // emerald-500
-  sell: "#ef4444", // red-500
-  warn: "#f59e0b", // amber-500
-  accent: "#6366f1", // indigo-500
-  bg: "#020617",    // slate-950
-};
+import { 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  Search, 
+  Activity, 
+  Zap, 
+  Info, 
+  TrendingUp, 
+  TrendingDown, 
+  Layers, 
+  Loader2 
+} from "lucide-react";
 
 const FILTERS = ['All Markets', 'US Tech', 'Asia-Pac', 'EU', 'Crypto', 'India'];
 
@@ -23,13 +22,8 @@ const SECTOR_FILTER_MAP = {
   'India': ['NSI', 'BSE'],
 };
 
-/**
- * MINI SPARKLINE COMPONENT
- * Renders a simple SVG trend line.
- */
 const MiniSparkline = ({ data = [], color, w = 100, h = 30 }) => {
-  if (!data || data.length < 2) return <div className="h-[30px] w-[100px] bg-white/5 rounded animate-pulse" />;
-  
+  if (!data || data.length < 2) return <div className="h-[30px] w-[100px] bg-white/5 rounded-md animate-pulse" />;
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
@@ -37,20 +31,10 @@ const MiniSparkline = ({ data = [], color, w = 100, h = 30 }) => {
     x: (i / (data.length - 1)) * w,
     y: h - ((val - min) / range) * h
   }));
-
   const pathData = `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`;
-
   return (
     <svg width={w} height={h} className="overflow-visible">
-      <path
-        d={pathData}
-        fill="none"
-        stroke={color}
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
-      />
+      <path d={pathData} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 };
@@ -60,11 +44,9 @@ export default function WatchlistView({ onSelect, stocks = [], marketIndices = [
   const [searchTerm, setSearchTerm] = useState('');
 
   const filtered = stocks.filter(s => {
-    const matchesSearch = s.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = (s.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.name || '').toLowerCase().includes(searchTerm.toLowerCase());
-    
     if (activeFilter === 'All Markets') return matchesSearch;
-    
     const filterKeys = SECTOR_FILTER_MAP[activeFilter] || [];
     const matchesFilter = filterKeys.some(f => 
       (s.sector || '').toLowerCase().includes(f.toLowerCase()) ||
@@ -77,41 +59,38 @@ export default function WatchlistView({ onSelect, stocks = [], marketIndices = [
   const sectors = [...new Set(filtered.map(s => s.sector || 'Others'))];
 
   return (
-    <div className="flex-1 p-4 md:p-8 overflow-y-auto no-scrollbar animate-fade-in selection:bg-indigo-500/30">
-      <div className="max-w-7xl mx-auto space-y-12">
+    <div className="flex-1 overflow-y-auto no-scrollbar animate-fade-in page-padding">
+      <div className="content-max-w space-y-6 md:space-y-10">
         
-        {/* HEADER SECTION: Glassmorphism + Layout Spacing */}
-        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-10 border-b border-white/5 pb-10">
-          <div className="flex items-center gap-6">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-              <div className="relative p-5 bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl flex items-center justify-center">
-                <Layers size={32} className="text-indigo-400" />
-              </div>
+        {/* SHARP Header Alignment */}
+        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 md:gap-8 border-b border-white/[0.08] pb-6 md:pb-10">
+          <div className="flex items-center gap-4 md:gap-6">
+            <div className="w-11 h-11 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-sm">
+              <Layers size={22} className="text-indigo-400" />
             </div>
-            <div>
-              <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase font-mono italic">
-                Asset<span className="text-indigo-500">Command</span>
+            <div className="flex flex-col gap-0.5">
+              <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight uppercase leading-none">
+                Market Command
               </h1>
-              <p className="text-[10px] font-mono text-slate-500 tracking-[0.5em] uppercase mt-2 flex items-center gap-3">
-                <Activity size={12} className="text-indigo-500 animate-pulse" />
-                {loading ? 'SYNCHRONIZING_NODES...' : `System Live // ${stocks.length} Global Nodes Connected`}
+              <p className="text-[10px] font-mono text-slate-500 tracking-[0.4em] uppercase flex items-center gap-2 mt-1">
+                <Activity size={10} className="text-indigo-500" />
+                {loading ? 'SYNCING_CLUSTER...' : `CLUSTER_NODES // ${stocks.length} READY`}
               </p>
             </div>
           </div>
 
-          {/* SKEUOMORPHIC INDICES PANEL */}
-          <div className="flex gap-4 p-2 bg-black/40 rounded-[32px] border border-white/5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.6)] backdrop-blur-2xl overflow-x-auto no-scrollbar">
+          {/* Indices Scrollable Strip */}
+          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 lg:pb-0">
             {(marketIndices.length > 0 ? marketIndices : [
-              { name: 'S&P 500', value: 0, change: 0 },
-              { name: 'NASDAQ', value: 0, change: 0 },
-              { name: 'DOW J', value: 0, change: 0 }
+              { name: 'S&P 500', value: 5254.35, change: 0.12 },
+              { name: 'NASDAQ', value: 16384.42, change: -0.05 },
+              { name: 'DOW J', value: 39475.90, change: 0.08 }
             ]).map((idx) => (
-              <div key={idx.name} className="px-6 py-4 flex flex-col items-start min-w-[160px] bg-gradient-to-b from-white/5 to-transparent rounded-2xl border border-white/5 shadow-lg">
-                <span className="text-[9px] uppercase tracking-[0.3em] mb-2 text-slate-500 font-black font-mono">{idx.name}</span>
-                <div className="font-mono text-xl font-black flex items-center gap-3">
-                  <span className="text-white">{(idx.value || 0).toLocaleString()}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${idx.change >= 0 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+              <div key={idx.name} className="px-4 py-2.5 min-w-[130px] md:min-w-[150px] glass-card flex flex-col gap-1 hover:bg-white/[0.04]">
+                <span className="text-[8px] uppercase tracking-[0.2em] text-slate-500 font-bold font-mono">{idx.name}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-bold text-white font-mono">{(idx.value || 0).toLocaleString()}</span>
+                  <span className={`text-[9px] font-bold font-mono ${idx.change >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {idx.change >= 0 ? '+' : ''}{idx.change}%
                   </span>
                 </div>
@@ -120,44 +99,34 @@ export default function WatchlistView({ onSelect, stocks = [], marketIndices = [
           </div>
         </header>
 
-        {/* TOOLBAR: Skeuomorphic Toggles + Glass Input */}
-        <section className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex p-1.5 bg-slate-950 rounded-2xl border border-white/5 shadow-[inset_0_2px_8px_rgba(0,0,0,0.8)] overflow-x-auto no-scrollbar">
+        {/* Toolbar - Precision & Mobile Friendly */}
+        <section className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+          <div className="skeuo-toggle w-full md:w-auto overflow-x-auto no-scrollbar">
             {FILTERS.map(f => (
-              <button 
-                key={f} 
-                onClick={() => setActiveFilter(f)}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black tracking-widest transition-all duration-300 whitespace-nowrap ${
-                  activeFilter === f 
-                  ? 'bg-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.4)] scale-105 z-10' 
-                  : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {f.toUpperCase()}
+              <button key={f} onClick={() => setActiveFilter(f)}
+                className={`skeuo-toggle-item whitespace-nowrap px-4 ${activeFilter === f ? 'active' : ''}`}>
+                {f}
               </button>
             ))}
           </div>
 
-          <div className="relative group w-full md:w-[400px]">
-            <Search size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-400 transition-colors z-10" />
+          <div className="relative w-full md:w-[300px]">
+            <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" />
             <input
               value={searchTerm} 
               onChange={e => setSearchTerm(e.target.value)}
-              placeholder="SEARCH INSTRUMENTS..."
-              className="bg-slate-900/50 backdrop-blur-md pl-14 pr-6 h-14 w-full text-xs font-mono tracking-widest rounded-2xl outline-none border border-white/5 focus:border-indigo-500/50 focus:bg-slate-900/80 transition-all shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] text-white"
+              placeholder="SCAN IDENTIFIER..."
+              className="bg-black/20 w-full h-10 pl-11 pr-4 text-[10px] font-mono tracking-widest rounded-md outline-none border border-white/[0.08] focus:border-indigo-500/40 transition-all text-white placeholder:text-slate-700 font-bold"
             />
           </div>
         </section>
 
-        {/* ASSET LIST: Claymorphism Cards + Organized Sections */}
-        <div className="space-y-12">
+        {/* Asset List - High Density Matrix */}
+        <div className="space-y-8 md:space-y-12">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-6">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
-                <Zap size={24} className="absolute inset-0 m-auto text-indigo-400 animate-pulse" />
-              </div>
-              <span className="text-sm text-slate-400 font-mono tracking-widest animate-pulse uppercase">Synchronizing Global Order Books...</span>
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <Loader2 size={24} className="text-indigo-500 animate-spin" />
+              <span className="text-[9px] text-slate-600 font-mono tracking-widest uppercase animate-pulse">Syncing Liquidity Matrix...</span>
             </div>
           ) : (
             sectors.map(sector => {
@@ -165,97 +134,74 @@ export default function WatchlistView({ onSelect, stocks = [], marketIndices = [
               if (sectorStocks.length === 0) return null;
               
               return (
-                <div key={sector} className="space-y-6">
-                  <div className="flex items-center gap-6 px-2">
-                    <div className="h-2 w-2 rounded-full bg-indigo-500 shadow-[0_0_10px_#6366f1]" />
-                    <span className="text-xs font-black text-indigo-400 tracking-[0.5em] uppercase italic">{sector}</span>
-                    <div className="flex-1 h-px bg-gradient-to-r from-indigo-500/30 via-indigo-500/10 to-transparent" />
-                    <span className="text-[9px] font-mono text-slate-600 uppercase tracking-[0.3em] font-bold">{sectorStocks.length} Nodes</span>
+                <div key={sector} className="space-y-4">
+                  <div className="flex items-center gap-4 px-1">
+                    <div className="h-1 w-1 rounded-sm bg-indigo-500 shadow-[0_0_8px_#6366f1]" />
+                    <span className="text-[10px] font-black text-indigo-400/80 tracking-[0.2em] uppercase">{sector}</span>
+                    <div className="flex-1 h-[1px] bg-white/[0.04]" />
+                    <span className="text-[9px] font-mono text-slate-700 uppercase tracking-widest">{sectorStocks.length} NODES</span>
                   </div>
                   
-                  <div className="grid gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-3 md:gap-4">
                     {sectorStocks.map((s) => {
                       const isUp = (s.chg || 0) >= 0;
-                      const col = isUp ? T.buy : T.sell;
+                      const col = isUp ? 'var(--accent-positive)' : 'var(--accent-negative)';
                       const trendData = s.ohlcv || [];
-                      
                       return (
-                        <div 
-                          key={s.id}
-                          onClick={() => onSelect(s)}
-                          className="group relative bg-slate-900/40 backdrop-blur-xl p-5 pl-8 rounded-[32px] border border-white/5 flex flex-col lg:flex-row items-center justify-between gap-8 hover:bg-slate-900/60 transition-all duration-500 cursor-pointer shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1"
-                        >
-                          {/* Asset Identity: Claymorphism Circle */}
-                          <div className="flex items-center gap-8 min-w-[280px] w-full lg:w-auto">
-                            <div 
-                              className="w-16 h-16 rounded-[22px] flex items-center justify-center text-2xl font-black transition-all shadow-[inset_-4px_-4px_8px_rgba(0,0,0,0.4),inset_4px_4px_8px_rgba(255,255,255,0.1)]"
-                              style={{
-                                background: `linear-gradient(145deg, ${col}20, ${col}05)`,
-                                border: `1px solid ${col}30`,
-                                color: col,
-                              }}
-                            >
+                        <div key={s.id} onClick={() => onSelect(s)}
+                          className="group min-h-[64px] glass-card flex flex-col xl:flex-row items-center p-4 xl:px-6 xl:py-2 gap-4 xl:gap-8 interactive border-white/[0.05]">
+                          
+                          {/* Symbol Column */}
+                          <div className="flex items-center gap-4 w-full xl:w-[220px] shrink-0">
+                            <div className="w-9 h-9 rounded-md flex items-center justify-center text-sm font-bold border shrink-0 transition-transform group-hover:scale-105"
+                              style={{ background: `${col}08`, borderColor: `${col}15`, color: col }}>
                               {(s.id || '?')[0]}
                             </div>
-                            <div className="flex flex-col">
-                              <span className="font-mono font-black text-2xl text-white group-hover:text-indigo-400 transition-colors tracking-tight uppercase leading-none">
+                            <div className="flex flex-col truncate">
+                              <span className="font-bold text-[15px] xl:text-lg text-white group-hover:text-indigo-400 transition-colors leading-tight">
                                 {s.id}
                               </span>
-                              <span className="text-[10px] text-slate-500 font-bold tracking-[0.3em] uppercase mt-2 opacity-70">
+                              <span className="text-[8px] text-slate-600 font-bold tracking-widest uppercase truncate">
                                 {s.name}
                               </span>
                             </div>
+                            <div className="xl:hidden flex-1"/>
+                            <div className="xl:hidden status-badge" style={{ color: col, borderColor: `${col}20` }}>
+                              {isUp ? '+' : ''}{s.chg?.toFixed(1)}%
+                            </div>
                           </div>
 
-                          {/* Metrics Grid */}
-                          <div className="flex-1 w-full grid grid-cols-2 md:grid-cols-4 items-center gap-10">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <Zap size={10} /> Market Price
-                              </span>
-                              <span className="font-mono text-xl font-black text-white">
-                                {s.id.includes('-USD') ? '' : '$'}{(s.px || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                          {/* Detail Matrix - Desktop Grid / Mobile Stack */}
+                          <div className="flex flex-1 w-full items-center justify-between gap-4 md:gap-8">
+                            <div className="flex flex-col w-20 md:w-32">
+                              <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-0.5">Price</span>
+                              <span className="font-mono text-[12px] md:text-sm font-bold text-white">
+                                {s.id.includes('-USD') ? '' : '$'}{(s.px || 0).toLocaleString(undefined, {minimumFractionDigits: 1})}
                               </span>
                             </div>
 
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />} Change
-                              </span>
-                              <div className="flex items-center gap-2 font-mono text-xl font-black" style={{ color: col }}>
-                                {isUp ? <ArrowUpRight size={20}/> : <ArrowDownRight size={20}/>}
+                            <div className="hidden md:flex flex-col w-32">
+                              <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest mb-0.5">Change</span>
+                              <div className="flex items-center gap-1.5 font-mono text-sm font-bold" style={{ color: col }}>
+                                {isUp ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
                                 {Math.abs(s.chg || 0).toFixed(2)}%
                               </div>
                             </div>
 
-                            <div className="hidden md:flex flex-col">
-                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <Activity size={10} /> Momentum
-                              </span>
-                              <div className="pt-1 h-10 flex items-center">
-                                <MiniSparkline data={trendData} color={col} w={120} h={32} />
-                              </div>
+                            <div className="hidden lg:flex flex-1 justify-center max-w-[100px]">
+                              <MiniSparkline data={trendData} color={isUp ? '#6366f1' : col} w={80} h={20} />
                             </div>
 
-                            <div className="hidden md:flex flex-col items-end lg:pr-8">
-                              <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest mb-3">System Logic</span>
-                              <span className="py-1.5 px-4 rounded-xl text-[9px] font-black border tracking-[0.2em] shadow-lg" 
-                                style={{
-                                  background: `${col}15`,
-                                  color: col,
-                                  borderColor: `${col}30`,
-                                }}
-                              >
-                                {isUp ? 'CORE_ACCUMULATE' : 'LIQUIDITY_VOID'}
-                              </span>
+                            <div className="hidden md:flex flex-col items-end w-24 shrink-0">
+                               <div className="status-badge" style={{ color: col, borderColor: `${col}15`, background: `${col}05` }}>
+                                 {isUp ? 'ACCUMULATE' : 'LIQUIDITY'}
+                               </div>
                             </div>
                           </div>
 
-                          {/* Clay Action Button */}
-                          <div className="lg:pr-4">
-                            <button className="w-14 h-14 rounded-2xl bg-slate-800 border border-white/5 flex items-center justify-center shadow-[4px_4px_10px_rgba(0,0,0,0.4),-2px_-2px_10px_rgba(255,255,255,0.05),inset_1px_1px_1px_rgba(255,255,255,0.1)] active:shadow-inner active:translate-y-0.5 transition-all group-hover:bg-indigo-600 group-hover:border-indigo-400 group-hover:shadow-[0_0_30px_rgba(79,70,229,0.3)]">
-                              <ArrowUpRight size={24} className="text-indigo-400 group-hover:text-white transition-colors" />
-                            </button>
+                          {/* Quick Action */}
+                          <div className="hidden xl:flex w-9 h-9 items-center justify-center rounded-md border border-white/[0.04] bg-white/[0.02] text-slate-700 group-hover:text-white group-hover:bg-indigo-600 group-hover:border-indigo-500 transition-all">
+                            <ArrowUpRight size={16} />
                           </div>
                         </div>
                       );
@@ -267,25 +213,22 @@ export default function WatchlistView({ onSelect, stocks = [], marketIndices = [
           )}
         </div>
 
-        {/* EMPTY STATE */}
+        {/* Empty State */}
         {!loading && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-40 gap-6 bg-slate-900/20 rounded-[40px] border border-dashed border-white/5 animate-fade-in">
-            <div className="p-8 bg-slate-900 rounded-full shadow-inner border border-white/5">
-              <Info size={48} className="text-slate-800" />
-            </div>
+          <div className="flex flex-col items-center justify-center py-20 gap-4 border border-dashed border-white/[0.08] rounded-lg animate-fade-in bg-black/10">
+            <Info size={28} className="text-slate-800" />
             <div className="text-center">
-              <h3 className="text-lg font-black text-slate-500 uppercase tracking-[0.3em]">Query Logic Failure</h3>
-              <p className="text-xs text-slate-700 font-mono mt-2 uppercase tracking-widest">No matching assets found in the current coordinate system.</p>
+              <h3 className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">No Node Consensus</h3>
+              <p className="text-[9px] text-slate-800 font-mono mt-1 uppercase">Refine query parameters for terminal sync.</p>
             </div>
             <button 
               onClick={() => {setSearchTerm(''); setActiveFilter('All Markets')}}
-              className="mt-4 px-8 py-3 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-xl text-[10px] font-black tracking-[0.2em] text-indigo-400 transition-all uppercase"
+              className="mt-2 skeuo-button px-5 py-1.5"
             >
               Reset Terminal
             </button>
           </div>
         )}
-
       </div>
     </div>
   );

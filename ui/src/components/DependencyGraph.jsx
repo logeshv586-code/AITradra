@@ -1,96 +1,138 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Shield, Zap, Database, Terminal } from 'lucide-react';
+import { Activity, Shield, Zap, Database, Terminal, Cpu, Share2 } from 'lucide-react';
 
 const DependencyGraph = () => {
     const [graph, setGraph] = useState({ nodes: [], links: [] });
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('/api/mission/graph')
-            .then(res => res.json())
-            .then(data => {
+        // Mocking or fetching actual graph data
+        const fetchData = async () => {
+            try {
+                const res = await fetch('/api/mission/graph');
+                const data = await res.json();
                 setGraph(data);
+            } catch (err) {
+                console.error("Loading graph failed:", err);
+                // Fallback for demo
+                setGraph({
+                    nodes: [
+                        { id: 'Orchestrator', type: 'core' },
+                        { id: 'Technical', type: 'specialist' },
+                        { id: 'Risk', type: 'specialist' }
+                    ],
+                    links: [
+                        { source: 'Orchestrator', target: 'Technical' },
+                        { source: 'Orchestrator', target: 'Risk' }
+                    ]
+                });
+            } finally {
                 setLoading(false);
-            })
-            .catch(err => console.error("Loading graph failed:", err));
+            }
+        };
+        fetchData();
     }, []);
 
-    if (loading) return <div className="text-xs font-mono text-indigo-400 animate-pulse">Syncing Convoy Graph...</div>;
+    if (loading) return (
+        <div className="flex h-full items-center justify-center gap-3">
+           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+           <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">Mapping Intelligence Convoy...</span>
+        </div>
+    );
 
-    const getIcon = (id) => {
-        if (id.includes('Orchestrator')) return <Activity size={14} />;
-        if (id.includes('Risk')) return <Shield size={14} />;
-        if (id.includes('Technical')) return <Zap size={14} />;
-        if (id.includes('Analyst')) return <Terminal size={14} />;
-        return <Database size={14} />;
-    };
+    const COL_UP = "var(--accent-positive)";
+    const COL_INDIGO = "var(--accent-indigo)";
+    const COL_TEXT = "#94a3b8";
 
     return (
-        <div className="clay-card p-6 h-[400px] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xs font-bold tracking-widest uppercase text-indigo-300">Convoy Dependency Graph</h3>
-                <div className="flex gap-2">
-                    <span className="flex items-center gap-1 text-[10px] text-emerald-400"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"/> ACTIVE</span>
-                    <span className="flex items-center gap-1 text-[10px] text-amber-400"><div className="w-1.5 h-1.5 rounded-full bg-amber-400"/> WAITING</span>
+        <div className="glass-card p-6 h-[420px] flex flex-col gap-6 border border-white/[0.08] bg-white/[0.01]">
+            <div className="flex justify-between items-center border-b border-white/[0.08] pb-4">
+                <div className="flex items-center gap-3">
+                   <Share2 size={16} className="text-indigo-400" />
+                   <h3 className="text-[11px] font-bold tracking-[0.2em] uppercase text-white leading-none">Nexus Dependency Topology</h3>
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_4px_var(--accent-positive)]"/> ACTIVE_MODE
+                    </div>
+                    <div className="flex items-center gap-2 text-[9px] font-bold text-slate-700 uppercase tracking-widest">
+                       <div className="w-1.5 h-1.5 rounded-full bg-slate-800"/> STANDBY
+                    </div>
                 </div>
             </div>
             
-            <div className="flex-1 relative border border-white/5 rounded-xl bg-black/20 overflow-hidden">
-                {/* Simple SVG Visualizer */}
-                <svg width="100%" height="100%" viewBox="0 0 400 300">
+            <div className="flex-1 relative border border-white/[0.06] rounded-xl bg-black/40 overflow-hidden shadow-inner">
+                {/* Precision SVG Visualizer */}
+                <svg width="100%" height="100%" viewBox="0 0 400 300" className="opacity-90">
                     <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-                            <polygon points="0 0, 10 3.5, 0 7" fill="rgba(99,102,241,0.3)" />
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="2" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="rgba(99,102,241,0.4)" />
                         </marker>
+                        <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" stopColor="var(--accent-indigo)" stopOpacity={0.2} />
+                            <stop offset="100%" stopColor="var(--accent-indigo)" stopOpacity={0} />
+                        </radialGradient>
                     </defs>
                     
-                    {/* Links */}
+                    {/* Synchronized Links */}
                     {graph.links.map((link, i) => {
-                        const source = graph.nodes.find(n => n.id === link.source);
-                        const target = graph.nodes.find(n => n.id === link.target);
-                        if (!source || !target) return null;
-                        
-                        // Fake positions for simple layout
-                        const sx = 200; const sy = 50; // Orchestrator
-                        const tx = link.target.includes('Specialist') ? 100 : 300;
-                        const ty = 150;
+                        // Coordinates based on static topology
+                        const sx = 200, sy = 70; // Root node
+                        const tx = link.target === 'Technical' ? 120 : 280;
+                        const ty = 200;
                         
                         return (
-                            <line 
-                                key={i}
-                                x1={sx} y1={sy} x2={tx} y2={ty}
-                                stroke="rgba(99,102,241,0.2)"
-                                strokeWidth="1"
-                                className="animate-flow-line"
-                            />
+                            <g key={i}>
+                                <line 
+                                    x1={sx} y1={sy} x2={tx} y2={ty}
+                                    stroke="var(--accent-indigo)"
+                                    strokeWidth="1"
+                                    strokeOpacity="0.15"
+                                    strokeDasharray="4,4"
+                                />
+                                <circle r="3" fill="var(--accent-indigo)" opacity="0.4">
+                                    <animateMotion 
+                                        dur="2s" 
+                                        repeatCount="indefinite" 
+                                        path={`M${sx},${sy} L${tx},${ty}`} 
+                                    />
+                                </circle>
+                            </g>
                         );
                     })}
 
-                    {/* Nodes */}
-                    <g transform="translate(200, 50)">
-                        <circle r="20" className="fill-indigo-500/20 stroke-indigo-400/50" />
-                        <foreignObject x="-7" y="-7" width="14" height="14">
-                            <Activity size={14} className="text-indigo-400" />
+                    {/* Node: Orchestrator (Top) */}
+                    <g transform="translate(200, 70)">
+                        <circle r="35" fill="url(#nodeGlow)" />
+                        <circle r="22" className="fill-indigo-500/10 stroke-indigo-500/40" strokeWidth="1" />
+                        <foreignObject x="-9" y="-9" width="18" height="18">
+                            <Cpu size={18} className="text-indigo-400" />
                         </foreignObject>
-                        <text y="35" textAnchor="middle" className="fill-slate-300 text-[10px] font-mono">Orchestrator</text>
+                        <text y="42" textAnchor="middle" className="fill-slate-400 text-[9px] font-bold uppercase tracking-widest">Orchestrator</text>
                     </g>
 
-                    <g transform="translate(100, 150)">
-                        <circle r="18" className="fill-slate-800 stroke-slate-700" />
-                        <foreignObject x="-7" y="-7" width="14" height="14">
-                            <Zap size={14} className="text-slate-400" />
+                    {/* Node: Technical (Left) */}
+                    <g transform="translate(120, 200)">
+                        <circle r="18" className="fill-slate-900 stroke-slate-800" strokeWidth="1" />
+                        <foreignObject x="-8" y="-8" width="16" height="16">
+                            <Zap size={16} className="text-slate-600" />
                         </foreignObject>
-                        <text y="35" textAnchor="middle" className="fill-slate-400 text-[10px] font-mono">Technical</text>
+                        <text y="35" textAnchor="middle" className="fill-slate-600 text-[8px] font-bold uppercase tracking-widest font-mono">Specialist_Tech</text>
                     </g>
 
-                    <g transform="translate(300, 150)">
-                        <circle r="18" className="fill-emerald-500/10 stroke-emerald-400/50" />
-                        <foreignObject x="-7" y="-7" width="14" height="14">
-                            <Shield size={14} className="text-emerald-400" />
+                    {/* Node: Risk (Right) */}
+                    <g transform="translate(280, 200)">
+                        <circle r="18" className="fill-emerald-500/5 stroke-emerald-500/30" strokeWidth="1" />
+                        <foreignObject x="-8" y="-8" width="16" height="16">
+                            <Shield size={16} className="text-emerald-500" />
                         </foreignObject>
-                        <text y="35" textAnchor="middle" className="fill-slate-300 text-[10px] font-mono">RiskManager</text>
+                        <text y="35" textAnchor="middle" className="fill-slate-400 text-[8px] font-bold uppercase tracking-widest font-mono">Specialist_Risk</text>
                     </g>
                 </svg>
+
+                {/* Global Grid Overlay (Subtle) */}
+                <div className="absolute inset-0 pointer-events-none opacity-[0.03]" 
+                    style={{ backgroundImage: 'radial-gradient(var(--accent-indigo) 0.5px, transparent 0.5px)', backgroundSize: '16px 16px' }} />
             </div>
         </div>
     );

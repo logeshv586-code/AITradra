@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Newspaper, ExternalLink, Loader2, Filter, AlertTriangle, Info, Zap } from "lucide-react";
+import { Newspaper, ExternalLink, Loader2, Filter, AlertTriangle, Info, Zap, Globe, Activity } from "lucide-react";
 
 import { API_BASE } from "../api_config";
 
 const IMPACT_CONFIG = {
-  HIGH:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.25)", icon: AlertTriangle },
-  MEDIUM: { color: "#fbbf24", bg: "rgba(251,191,36,0.12)", border: "rgba(251,191,36,0.25)", icon: Zap },
-  LOW:    { color: "#94a3b8", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.15)", icon: Info },
+  HIGH:   { color: "var(--accent-negative)", icon: AlertTriangle },
+  MEDIUM: { color: "#fbbf24", icon: Zap },
+  LOW:    { color: "var(--text-secondary)", icon: Info },
 };
 
 export default function NewsEvidenceView() {
@@ -35,41 +35,39 @@ export default function NewsEvidenceView() {
   const filtered = filter === "ALL" ? articles : articles.filter(a => a.impact === filter);
 
   if (loading) return (
-    <div className="flex-1 flex items-center justify-center">
-      <div className="text-center space-y-3">
-        <Loader2 size={32} className="text-purple-400 animate-spin mx-auto" />
-        <p className="text-xs font-mono text-slate-500 tracking-widest">SCANNING NEWS SOURCES...</p>
+    <div className="flex-1 flex items-center justify-center institutional-bg">
+      <div className="text-center space-y-4">
+        <Loader2 size={24} className="text-indigo-500 animate-spin mx-auto" />
+        <p className="text-[10px] font-mono text-slate-500 tracking-[0.3em] uppercase animate-pulse">Scanning Global Flux...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="flex-1 p-4 overflow-y-auto no-scrollbar animate-fade-in">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-white/5 pb-4">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/30 shadow-lg soft-glow">
-                <Newspaper size={20} className="text-indigo-400" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-white tracking-tighter uppercase font-mono">Archive // Evidence</h1>
-                <p className="text-[9px] font-mono text-slate-500 tracking-[0.4em] uppercase mt-0.5">
-                  Nexus Intelligence • {stats.total || 0} CACHED ARTICLES
-                </p>
-              </div>
+    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in institutional-bg">
+      <div className="max-w-6xl mx-auto space-y-10">
+        
+        {/* Institutional Header */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 border-b border-white/[0.08] pb-8">
+          <div className="flex items-center gap-5">
+            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-lg">
+              <Newspaper size={24} className="text-indigo-400" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <h1 className="text-[24px] font-bold text-white tracking-tight uppercase leading-none">Evidence Corpus</h1>
+              <p className="text-[10px] font-mono text-slate-500 tracking-[0.4em] uppercase">
+                INTELLIGENCE_NEXUS // {stats.total || 0} NODES_CACHED // V4_ARCHIVE
+              </p>
             </div>
           </div>
 
-
-          {/* 🧠 Skeuomorphic Filter Toggle */}
-          <div className="skeuo-toggle p-1 h-9">
+          {/* Skeuomorphic Filter Toggle */}
+          <div className="skeuo-toggle inline-flex h-10 min-w-fit">
             {["ALL", "HIGH", "MEDIUM", "LOW"].map(f => {
               const isActive = filter === f;
               return (
                 <button key={f} onClick={() => setFilter(f)}
-                  className={`skeuo-toggle-item !px-3.5 flex items-center h-full text-[9px] tracking-widest ${isActive ? 'active' : 'text-slate-500 opacity-60 hover:opacity-100'}`}>
+                  className={`skeuo-toggle-item !px-6 flex items-center h-full text-[9px] font-bold uppercase tracking-widest transition-all ${isActive ? 'active' : 'text-slate-600 hover:text-slate-400'}`}>
                   {f}
                 </button>
               );
@@ -77,14 +75,15 @@ export default function NewsEvidenceView() {
           </div>
         </div>
 
-
-        {/* Articles Grid */}
-        <div className="grid gap-2.5">
+        {/* High-Precision Articles Matrix */}
+        <div className="grid gap-3">
           {filtered.length === 0 ? (
-            <div className="text-center py-20 text-slate-600">
-              <Newspaper size={48} className="mx-auto mb-4 opacity-30" />
-              <p className="text-sm font-mono tracking-wider">NO ARTICLES MATCHING FILTER</p>
-              <p className="text-[10px] mt-1 text-slate-700">RSS feeds refresh every 5 minutes</p>
+            <div className="flex flex-col items-center justify-center py-24 gap-4 opacity-40">
+              <Newspaper size={32} className="text-slate-800 animate-pulse" />
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] font-mono font-bold text-slate-700 uppercase tracking-widest">No matching corpus nodes</span>
+                <span className="text-[8px] font-mono text-slate-800 uppercase">RSS_SYNC_ACTIVE [5M_INTERVAL]</span>
+              </div>
             </div>
           ) : (
             filtered.map((article, i) => {
@@ -92,38 +91,47 @@ export default function NewsEvidenceView() {
               const ImpactIcon = impact.icon;
               return (
                 <a key={i} href={article.url || "#"} target="_blank" rel="noopener noreferrer"
-                  className="clay-card p-3 group hover:scale-[1.002] transition-all block"
-                  style={{ borderLeft: `2.5px solid ${impact.color}40` }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 space-y-1.5">
-                      {/* Impact + Source + Time */}
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[7px] font-black tracking-widest"
-                          style={{ background: impact.bg, color: impact.color, border: `1px solid ${impact.border}` }}>
-                          <ImpactIcon size={8} /> {article.impact}
-                        </span>
-                        <span className="text-[10px] text-indigo-400/80 font-black tracking-widest uppercase">{article.source}</span>
+                  className="glass-card group p-5 border border-white/[0.06] hover:border-white/[0.15] hover:bg-white/[0.02] transition-all duration-120 block relative overflow-hidden"
+                  style={{ borderLeft: `2px solid ${impact.color}` }}>
+                  
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex-1 space-y-3">
+                      {/* Meta Tracking Line */}
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 px-2 py-0.5 rounded-md text-[8px] font-bold tracking-widest border uppercase"
+                          style={{ background: `${impact.color}08`, color: impact.color, borderColor: `${impact.color}20` }}>
+                          <ImpactIcon size={10} /> {article.impact}_IMPACT
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                           <span className="text-[10px] font-bold text-indigo-400/80 uppercase tracking-widest">{article.source}</span>
+                        </div>
+                        <div className="w-[1px] h-3 bg-white/[0.08]" />
                         {article.published_at && (
-                          <span className="text-[9px] text-slate-600 font-mono italic">{article.published_at}</span>
+                          <span className="text-[9px] font-mono font-bold text-slate-700 uppercase">{article.published_at}</span>
                         )}
                       </div>
-                      {/* Headline */}
-                      <h3 className="text-[14px] font-black text-white leading-tight group-hover:text-indigo-400 transition-all font-sans tracking-tight">
-                        {article.headline}
-                      </h3>
-                      {/* Summary */}
-                      {article.summary && (
-                        <p className="text-[11px] text-slate-400 leading-relaxed font-medium line-clamp-1 max-w-4xl border-l border-white/5 pl-3 ml-1">{article.summary}</p>
-                      )}
+
+                      {/* Content Stack */}
+                      <div className="space-y-1.5">
+                        <h3 className="text-[15px] font-bold text-white leading-snug group-hover:text-indigo-400 transition-colors uppercase tracking-tight">
+                          {article.headline}
+                        </h3>
+                        {article.summary && (
+                          <p className="text-[11px] text-slate-500 leading-relaxed font-medium line-clamp-1 italic max-w-4xl border-l border-white/[0.04] pl-4">
+                            "{article.summary}"
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {/* External Link Interface */}
                     {article.url && (
-                      <div className="skeuo-button w-7 h-7 !p-0 !rounded-lg opacity-60 group-hover:opacity-100 group-hover:scale-105">
-                        <ExternalLink size={12} className="text-indigo-400" />
+                      <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl bg-white/[0.02] border border-white/[0.08] text-slate-600 group-hover:text-indigo-400 group-hover:border-indigo-500/30 transition-all duration-120 group-hover:scale-105">
+                         <ExternalLink size={14} />
                       </div>
                     )}
                   </div>
                 </a>
-
               );
             })
           )}

@@ -2,17 +2,17 @@ import React from 'react';
 
 export default function FreshnessBadge({ label }) {
   const colors = {
-    "Live":      "bg-green-900/40 text-green-300 border-green-500/30",
-    "Estimated": "bg-purple-900/40 text-purple-300 border-purple-500/30",
-    "Stale":     "bg-red-900/40 text-red-300 border-red-500/30",
+    "Live":      "text-emerald-500 border-emerald-500/20 bg-emerald-500/5",
+    "Estimated": "text-indigo-400 border-indigo-500/20 bg-indigo-500/5",
+    "Stale":     "text-red-400 border-red-500/20 bg-red-500/5",
   };
   
   const isStale = label?.includes("Cached") || label === "Stale";
-  const colorClass = isStale ? colors.Stale : (colors[label] || "bg-slate-800 text-gray-400 border-white/10");
+  const colorClass = isStale ? colors.Stale : (colors[label] || "text-slate-500 border-white/5 bg-white/[0.02]");
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${colorClass} uppercase tracking-widest`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${isStale ? "bg-red-500" : "bg-green-500"} animate-pulse`} />
+    <span className={`inline-flex items-center gap-2 px-2 py-0.5 rounded-md text-[8px] font-bold border ${colorClass} uppercase tracking-[0.25em] leading-none`}>
+      <div className={`w-1 h-1 rounded-full ${isStale ? "bg-red-500" : "bg-emerald-500"} animate-pulse shadow-[0_0_4px_currentColor]`} />
       {label}
     </span>
   );

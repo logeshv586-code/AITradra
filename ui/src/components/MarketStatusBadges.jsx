@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { API_BASE } from "../constants/config";
+import { API_BASE } from "../api_config";
 
 export default function MarketStatusBadges() {
   const [statuses, setStatuses] = useState(null);
@@ -29,10 +29,10 @@ export default function MarketStatusBadges() {
       {Object.entries(statuses).map(([key, info]) => {
         const isOpen = info.status === "OPEN";
         return (
-          <div key={key} className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-white/5 bg-black/40 min-w-fit">
-            <span className="text-[10px] grayscale-[0.5]">{info.emoji}</span>
-            <span className="text-[9px] font-black tracking-tighter text-slate-400 uppercase">{key.replace('_', ' ')}</span>
-            <div className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-green-500 animate-pulse shadow-[0_0_5px_rgba(34,197,94,0.5)]' : 'bg-slate-700'}`} />
+          <div key={key} className="flex items-center gap-2 px-3 py-0.5 rounded-md border border-white/[0.06] bg-white/[0.02] min-w-fit transition-all duration-120 hover:bg-white/[0.04]">
+            <span className="text-[11px] grayscale-[0.2]">{info.emoji}</span>
+            <span className="text-[9px] font-bold tracking-tight text-slate-500 uppercase">{key.replace('_', ' ')}</span>
+            <div className={`w-1 h-1 rounded-full ${isOpen ? 'bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(52,211,153,0.5)]' : 'bg-slate-800'}`} />
           </div>
         );
       })}

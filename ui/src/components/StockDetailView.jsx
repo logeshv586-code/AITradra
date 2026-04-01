@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { ArrowUpRight, ArrowDownRight, BarChart2, History, Brain, Cpu, ShieldAlert, Newspaper, Activity, Zap, Terminal, Loader2 } from "lucide-react";
-import { T } from "../theme";
-import { GlassCard } from "./Shared";
+import { 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  BarChart2, 
+  History, 
+  Brain, 
+  Cpu, 
+  ShieldAlert, 
+  Newspaper, 
+  Activity, 
+  Zap, 
+  Terminal, 
+  Loader2 
+} from "lucide-react";
 import AdvancedCandlestickChart from "./CandlestickChart";
-
 import { API_BASE } from "../api_config";
 
 export default function StockDetailView({ stock, isAnalyzing, analysisComplete, agentLogs }) {
@@ -11,9 +21,8 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
   const [newsLoading, setNewsLoading] = useState(true);
   
   const isUp = (stock.chg || 0) >= 0;
-  const col = isUp ? T.buy : T.sell;
+  const col = isUp ? 'var(--accent-positive)' : 'var(--accent-negative)';
 
-  // Fetch live news when stock changes
   useEffect(() => {
     if (!stock?.id) return;
     setNewsLoading(true);
@@ -37,7 +46,6 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
     ? "Multi-agent ensemble verification confirmed. Liquidity clusters identified at current pivots. News latency adjusted for volatility spike. SYNTHESIS_COMPLETE: Action recommended."
     : "Awaiting asynchronous agent resolution streams...");
 
-  // Build memory/insights from analysis results
   const pastPredictions = liveAnalysis.past_predictions || [
     { pred: isUp ? 'BUY' : 'SELL', acc: analysisComplete ? '88%' : '—', ago: 'now', target: (stock.px * 0.95).toFixed(0), actual: stock.px?.toFixed(0) || '0', note: analysisComplete ? `14-agent pipeline analysis for ${stock.id}. ${signalText} signal confirmed.` : 'Analysis in progress...' }
   ];
@@ -45,41 +53,40 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
   const riskData = stock.risk || { var: 'N/A', beta: 1.0, vol: 'N/A' };
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 py-2">
-          <div className="space-y-3">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-[24px] flex items-center justify-center text-xl font-black shadow-2xl transition-all glass-card soft-glow"
+    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in institutional-bg">
+      <div className="max-w-6xl mx-auto space-y-10">
+        
+        {/* Header Section - Refined Alignment */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/[0.08] pb-8">
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold glass-card"
                 style={{ 
-                  background: `linear-gradient(135deg, ${col}25, ${col}10)`,
-                  border: `1px solid ${col}40`,
+                  background: `${col}10`,
+                  borderColor: `${col}20`,
                   color: col,
                 }}>
                 {(stock.id || '?')[0]}
               </div>
 
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <h1 className="text-4xl font-black text-white tracking-tighter uppercase font-mono">{stock.name || stock.id}</h1>
-                  <span className="glass-card font-mono text-[9px] tracking-widest uppercase py-1 px-3 border-indigo-500/20 text-slate-500">
-                    {stock.ex || 'N/A'} // TICKER:{stock.id}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-[24px] font-bold text-white tracking-tight uppercase leading-none">{stock.name || stock.id}</h1>
+                  <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.1] text-[9px] font-bold text-slate-500 tracking-widest uppercase">
+                    {stock.ex || 'N/A'} // {stock.id}
                   </span>
-
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-4xl font-mono font-black text-white tracking-tighter">
+                <div className="flex items-center gap-5">
+                  <span className="text-[24px] font-mono font-bold text-white tracking-tighter">
                     {stock.id?.includes('-USD') ? '' : '$'}{(stock.px || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                   </span>
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full font-black text-sm transition-all"
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md font-bold text-[11px] border"
                     style={{ 
-                      background: `${col}15`, 
+                      background: `${col}10`, 
                       color: col,
-                      border: `1px solid ${col}30`,
-                      boxShadow: `0 0 15px ${col}20` 
+                      borderColor: `${col}20`,
                     }}>
-                    {isUp ? <ArrowUpRight size={18}/> : <ArrowDownRight size={18}/>}
+                    {isUp ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
                     {Math.abs(stock.chg || 0)}%
                   </div>
                 </div>
@@ -87,76 +94,79 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-[28px] border border-white/5 backdrop-blur-xl shadow-2xl">
-            {[['MARKET_CAP', stock.mcap || 'N/A'],['VOL_24H', stock.vol || 'N/A'],['SECTOR_ID', stock.sector || 'N/A']].map(([l,v]) => (
-              <div key={l} className="px-6 py-4 flex flex-col items-center min-w-[130px] glass-panel rounded-2xl">
-                <span className="text-[9px] uppercase tracking-[0.3em] mb-2 text-slate-500 font-black font-mono">{l}</span>
-                <span className="font-mono text-[13px] text-white font-black truncate max-w-[120px]">{v}</span>
+          {/* Quick Metrics Grid */}
+          <div className="flex gap-4">
+            {[
+              ['MARKET_CAP', stock.mcap || 'N/A'],
+              ['VOL_24H', stock.vol || 'N/A'],
+              ['SECTOR', stock.sector || 'N/A']
+            ].map(([l,v]) => (
+              <div key={l} className="px-5 py-3 glass-card bg-white/[0.02] flex flex-col gap-1 min-w-[120px]">
+                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-bold font-mono">{l}</span>
+                <span className="font-mono text-[12px] text-white font-bold truncate">{v}</span>
               </div>
             ))}
           </div>
-
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Visualizers */}
-          <div className="lg:col-span-2 space-y-8">
-            <div className="glass-card p-8 overflow-hidden animate-slide-up">
-              <div className="absolute top-0 right-0 p-8 opacity-5">
-                <Activity size={120} />
-              </div>
-              <div className="flex items-center justify-between mb-8 relative z-10">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 soft-glow">
-                    <BarChart2 size={20} className="text-indigo-400" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          {/* Main Visualizer Area */}
+          <div className="lg:col-span-2 space-y-10">
+            {/* Technical Chart */}
+            <div className="glass-card p-6 animate-slide-up">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                    <BarChart2 size={16} className="text-indigo-400" />
                   </div>
-                  <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">Advanced Technical Delta</h3>
+                  <h3 className="text-[12px] font-bold uppercase tracking-widest text-white">Advanced Data Matrix</h3>
                 </div>
-                <div className="skeuo-toggle p-1 h-10">
+                <div className="skeuo-toggle">
                   {['1H','4H','1D','1W'].map(t => (
-                    <button key={t} className={`skeuo-toggle-item !px-4 h-full text-[9px] ${t==='1D' ? 'active' : 'text-slate-500 opacity-60'}`}>{t}</button>
+                    <button key={t} className={`skeuo-toggle-item ${t==='1D' ? 'active' : ''}`}>{t}</button>
                   ))}
                 </div>
               </div>
 
-              {stock.ohlcv && stock.ohlcv.length > 0 ? (
-                <AdvancedCandlestickChart data={stock.ohlcv} />
-              ) : (
-                <div className="flex items-center justify-center h-48 gap-2 text-slate-600 font-mono text-sm">
-                  <Loader2 size={16} className="animate-spin" />
-                  Loading chart data...
-                </div>
-              )}
+              <div className="min-h-[300px]">
+                {stock.ohlcv && stock.ohlcv.length > 0 ? (
+                  <AdvancedCandlestickChart data={stock.ohlcv} />
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-20 gap-3 text-slate-700 font-mono text-[10px]">
+                    <Loader2 size={20} className="animate-spin text-indigo-500" />
+                    SYNCING_CANDLE_STREAM...
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Analysis Results / Past Predictions */}
-            <div className="glass-card p-8 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-purple-500/10 rounded-2xl border border-purple-500/20 soft-glow">
-                  <Terminal size={20} className="text-purple-400" />
+            {/* Neural Insights / Past Predictions */}
+            <div className="glass-card p-6 animate-slide-up">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-purple-500/10 rounded-lg border border-purple-500/20">
+                  <Terminal size={16} className="text-purple-400" />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">Neural Synaptic Recall // ANALYSIS</h3>
+                <h3 className="text-[12px] font-bold uppercase tracking-widest text-white">Synaptic Model Recall</h3>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-3">
                 {pastPredictions.map((p,i) => (
-                  <div key={i} className="flex gap-5 p-4 rounded-2xl transition-all border border-transparent hover:border-white/5 hover:bg-white/[0.02]" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                    <div className="w-16 h-16 rounded-[20px] flex flex-col items-center justify-center flex-shrink-0 animate-soft-pulse"
+                  <div key={i} className="flex gap-4 p-4 rounded-xl border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-all duration-120">
+                    <div className="w-14 h-14 rounded-lg flex flex-col items-center justify-center shrink-0 border"
                       style={{ 
-                        background: `linear-gradient(135deg, ${p.pred==='BUY'?T.buy:T.sell}20, ${p.pred==='BUY'?T.buy:T.sell}05)`,
-                        border: `1px solid ${p.pred==='BUY'?T.buy:T.sell}35`,
-                        boxShadow: `0 0 15px ${p.pred==='BUY'?T.buy:T.sell}10`
+                        background: `${p.pred==='BUY'? 'var(--accent-positive)' : 'var(--accent-negative)'}08`,
+                        borderColor: `${p.pred==='BUY'? 'var(--accent-positive)' : 'var(--accent-negative)'}15`,
                       }}>
-                      <span className="text-[10px] font-black tracking-widest" style={{ color: p.pred==='BUY'?T.buy:T.sell }}>{p.pred}</span>
-                      <span className="text-[10px] text-slate-500 font-mono mt-1">{p.acc}</span>
+                      <span className="text-[9px] font-bold tracking-widest" style={{ color: p.pred==='BUY'?'var(--accent-positive)':'var(--accent-negative)' }}>{p.pred}</span>
+                      <span className="text-[8px] text-slate-500 font-mono mt-1 font-bold">{p.acc}</span>
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1.5">
-                        <span className="text-[9px] font-mono text-indigo-400 font-black">{(p.ago || 'NOW').toString().toUpperCase()}</span>
-                        <div className="h-px flex-1 bg-white/5" />
-                        <span className="text-[9px] font-mono text-slate-500 uppercase">TGT: ${p.target} // ACT: ${p.actual}</span>
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-[9px] font-mono text-indigo-400 font-bold">{(p.ago || 'NOW').toString().toUpperCase()}</span>
+                        <div className="h-[1px] flex-1 bg-white/[0.05]" />
+                        <span className="text-[8px] font-mono text-slate-500 uppercase font-bold tracking-wider">TGT: ${p.target} // ACT: ${p.actual}</span>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed font-medium">"{p.note}"</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed italic">"{p.note}"</p>
                     </div>
                   </div>
                 ))}
@@ -164,171 +174,127 @@ export default function StockDetailView({ stock, isAnalyzing, analysisComplete, 
             </div>
           </div>
 
-          {/* Analysis Sidebar */}
-          <div className="space-y-8">
-            {/* AI Core Synthesis & 6-Step Flow Trace */}
-            <div className={`glass-card relative overflow-hidden transition-all duration-700 animate-slide-up ${isAnalyzing ? 'animate-cyber-pulse scale-[1.02]' : ''}`} style={{ animationDelay: '0.2s' }}>
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-shimmer" />
-
-              
-              <div className="p-6 border-b border-white/5 bg-gradient-to-b from-white/[0.03] to-transparent">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
-                      <Brain size={16} className="text-indigo-400" />
-                    </div>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white">CLAUDE_FLOW V3.1 // SYNTHESIS</h3>
+          {/* Analysis & Risk Sidebar */}
+          <div className="space-y-10">
+            {/* AI Synthesis Summary */}
+            <div className={`glass-panel p-6 rounded-xl space-y-6 ${isAnalyzing ? 'border-indigo-500/30' : ''} animate-slide-up`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                    <Brain size={16} className="text-indigo-400" />
                   </div>
-                  {isAnalyzing && <div className="w-2 h-2 rounded-full bg-indigo-500 animate-ping" />}
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-white">Synthesis Consensus</h3>
                 </div>
-
-                {analysisComplete ? (
-                  <div className="flex items-center gap-6 animate-fade-in">
-                    <div className="relative">
-                      <div className="w-24 h-24 rounded-full flex items-center justify-center animate-soft-pulse"
-                        style={{ 
-                          background: `radial-gradient(circle, ${col}25 0%, transparent 70%)`,
-                          border: `2px solid ${col}40`,
-                          boxShadow: `0 0 30px ${col}20, inset 0 0 20px ${col}10`
-                        }}>
-                        <span className="text-3xl" style={{ color: col, filter: `drop-shadow(0 0 8px ${col})` }}>{isUp ? '▲' : '▼'}</span>
-                      </div>
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black border border-white/10 px-3 py-0.5 rounded-full text-[9px] font-black text-white whitespace-nowrap uppercase">
-                        V3.1 SECURED
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-4xl font-mono font-black text-white tracking-tighter mb-1">{confidence}<span className="text-slate-600">%</span></div>
-                      <div className="text-[9px] font-black uppercase tracking-widest text-slate-500">Node Confidence</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center py-6 gap-4">
-                    <div className="relative w-24 h-24">
-                       <div className="absolute inset-0 rounded-full border-2 border-indigo-500/20 animate-pulse" />
-                       <div className="absolute inset-0 rounded-full border-2 border-t-indigo-500 animate-spin" />
-                       <div className="absolute inset-0 flex items-center justify-center">
-                         <Cpu size={24} className="text-indigo-400 animate-bounce" />
-                       </div>
-                    </div>
-                    <span className="text-[10px] font-mono font-black text-slate-500 animate-pulse uppercase tracking-[0.2em]">Resolving synaptic weights...</span>
-                  </div>
-                )}
+                {isAnalyzing && <Loader2 size={12} className="text-indigo-400 animate-spin" />}
               </div>
 
-              {/* 6-Step Flow Trace (Agent Logs) */}
-              <div className="p-4 bg-black/50 border-b border-white/5 max-h-48 overflow-y-auto no-scrollbar space-y-2">
-                <div className="flex items-center gap-2 mb-3 text-[9px] font-black text-indigo-400 uppercase tracking-widest border-b border-white/5 pb-2">
-                  <Terminal size={10} /> 6-Step Agent Reasoning Loop
-                </div>
-                {agentLogs.map((log, i) => (
-                  <div key={i} className="flex gap-3 text-[10px] font-mono animate-slide-in-right" style={{ animationDelay: `${i * 100}ms` }}>
-                    <span className={`flex-shrink-0 w-3 height-3 rounded-full mt-0.5 ${log.type === 'agent_complete' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-indigo-500 animate-pulse'}`} />
-                    <div className="flex-1">
-                      <span className="text-slate-500 mr-2">[{log.agent || 'SYSTEM'}]</span>
-                      <span className={log.type === 'agent_complete' ? 'text-green-400' : 'text-slate-300'}>{log.output}</span>
-                    </div>
+              {analysisComplete ? (
+                <div className="flex items-center gap-6 py-2">
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center shrink-0 border-2"
+                    style={{ 
+                      background: `${col}08`,
+                      borderColor: `${col}20`,
+                      boxShadow: `0 0 20px ${col}10`
+                    }}>
+                    <span className="text-2xl" style={{ color: col }}>{isUp ? '▲' : '▼'}</span>
                   </div>
-                ))}
-                {agentLogs.length === 0 && (
-                  <div className="text-[10px] text-slate-600 italic py-2">Initialize analysis to trace agent reasoning...</div>
-                )}
-              </div>
-
-              <div className="p-6 bg-black/30 space-y-4">
-                <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                  <Zap size={10} className="text-amber-500" /> Synthesis Conclusion (NVIDIA NIM)
+                  <div className="flex flex-col">
+                    <div className="text-[28px] font-mono font-bold text-white tracking-tighter leading-none mb-1">{confidence}<span className="text-slate-700">%</span></div>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Node Confidence</span>
+                  </div>
                 </div>
-                <div className="text-[11px] leading-relaxed text-slate-200 font-medium italic border-l-2 border-amber-500/50 pl-4 py-2 bg-amber-500/5 rounded-r-xl">
+              ) : (
+                <div className="flex flex-col items-center py-4 gap-4">
+                  <Activity size={32} className="text-indigo-500/40 animate-pulse" />
+                  <span className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-widest animate-pulse">Resolving Synaptic Clusters...</span>
+                </div>
+              )}
+
+              <div className="space-y-3 pt-4 border-t border-white/[0.08]">
+                <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                  <Zap size={10} className="text-amber-500" /> Executive Verdict
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-400 italic">
                   {conclusionText}
-                </div>
+                </p>
                 {analysisComplete && (
-                  <button className="skeuo-button w-full h-14 text-[10px] tracking-[0.2em] mt-4">
-                    <ShieldAlert size={16} className="text-indigo-400" />
-                    DEPLOY_STRATEGIC_POSITION
+                  <button className="skeuo-button w-full h-10 mt-2 gap-2">
+                    <ShieldAlert size={14} />
+                    ACTIVATE_POSITION
                   </button>
                 )}
-
               </div>
             </div>
 
-            {/* Risk Engineering */}
-            <div className="glass-card p-8 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 soft-glow">
-                  <ShieldAlert size={20} className="text-amber-400" />
+            {/* Risk Dynamics */}
+            <div className="glass-card p-6 space-y-6 animate-slide-up">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  <ShieldAlert size={16} className="text-amber-400" />
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">Risk Engineering Grid</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-widest text-white">Risk Engineering</h3>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] font-black uppercase">
-                    <span className="text-slate-500 tracking-widest">Value at Risk (95%)</span>
+                  <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest">
+                    <span className="text-slate-500">Value at Risk (95%)</span>
                     <span className="text-white font-mono">{riskData.var}</span>
                   </div>
-                  <div className="h-2 bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
-                    <div className="h-full relative overflow-hidden animate-shimmer" 
-                      style={{ 
-                        width: riskData.var || '0%', 
-                        background: `linear-gradient(90deg, ${T.warn}80, ${T.warn})`,
-                        boxShadow: `0 0 10px ${T.warn}40`
-                      }}>
-                      <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)] w-1/2" style={{ animation: 'shimmer 2s infinite' }} />
-                    </div>
+                  <div className="h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/[0.04]">
+                    <div className="h-full bg-amber-500/60" style={{ width: riskData.var || '0%' }} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {[['BETA_COEFF', riskData.beta, T.text],['VOLATILITY', riskData.vol, riskData.vol==='High'?T.sell:T.buy]].map(([l,v,c]) => (
-                    <div key={l} className="p-4 bg-black/30 rounded-2xl border border-white/5">
-                      <span className="text-[8px] uppercase tracking-[0.2em] block mb-2 text-slate-500 font-black">{l}</span>
-                      <span className="font-mono text-lg font-black" style={{ color: c, textShadow: `0 0 10px ${c}30` }}>{v}</span>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ['BETA_COEFF', riskData.beta, 'var(--text-primary)'],
+                    ['VOLATILITY', riskData.vol, riskData.vol==='High'?'var(--accent-negative)':'var(--accent-positive)']
+                  ].map(([l,v,c]) => (
+                    <div key={l} className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.04]">
+                      <span className="text-[8px] uppercase tracking-wider block mb-1 text-slate-600 font-bold">{l}</span>
+                      <span className="font-mono text-sm font-bold" style={{ color: c }}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Live News Catalysts */}
-            <div className="glass-card p-8 animate-slide-up" style={{ animationDelay: '0.4s' }}>
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 soft-glow">
-                  <Newspaper size={20} className="text-cyan-400" />
+            {/* Catalog Indicators / News */}
+            <div className="glass-card p-6 space-y-6 animate-slide-up">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                    <Newspaper size={16} className="text-emerald-400" />
+                  </div>
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white">Catalyst Feed</h3>
                 </div>
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-white font-mono">
-                  Spectral Catalyst Index
-                  <span className="text-indigo-500 ml-3 text-[9px] font-mono animate-pulse">LIVE</span>
-                </h3>
+                <div className="flex items-center gap-1.5">
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                   <span className="text-[8px] font-bold text-slate-500 tracking-widest uppercase">LIVE</span>
+                </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {newsLoading ? (
-                  <div className="flex items-center justify-center py-8 gap-2">
-                    <Loader2 size={14} className="text-cyan-400 animate-spin" />
-                    <span className="text-[10px] text-slate-500 font-mono animate-pulse">Fetching live news...</span>
+                  <div className="flex flex-col items-center py-6 gap-2">
+                    <Loader2 size={16} className="text-emerald-500 animate-spin" />
+                    <span className="text-[9px] text-slate-700 font-mono animate-pulse uppercase">Syncing Flux...</span>
                   </div>
                 ) : news.length > 0 ? (
-                  news.map((n,i) => (
-                    <div key={i} className="group p-4 rounded-2xl transition-all border border-transparent hover:border-white/5 hover:bg-white/[0.02] cursor-pointer" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                      <div className="flex justify-between items-center mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-black font-mono text-cyan-500">{(n.src || 'NEWS').toUpperCase()}</span>
-                          <div className="w-1 h-1 rounded-full bg-slate-700" />
-                          <span className="text-[9px] font-mono text-slate-500">{n.t || 'recent'}</span>
-                        </div>
-                        <span className="clay-badge border-none py-0.5 px-2 text-[8px] font-black" style={{ 
-                          background: (n.s || 0) > 0 ? `${T.buy}20` : `${T.sell}20`,
-                          color: (n.s || 0) > 0 ? T.buy : T.sell,
-                        }}>
-                          {(n.s || 0) > 0 ? 'BULLISH_SIGNAL' : 'BEARISH_SIGNAL'}
+                  news.slice(0, 3).map((n,i) => (
+                    <div key={i} className="flex flex-col gap-2 p-3 rounded-lg border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-all duration-120 cursor-pointer">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[8px] font-bold font-mono text-indigo-400">{(n.src || 'FEED').toUpperCase()}</span>
+                        <span className={`text-[8px] font-bold px-1.5 rounded ${ (n.s || 0) > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400' }`}>
+                          {(n.s || 0) > 0 ? 'BULL' : 'BEAR'}
                         </span>
                       </div>
-                      <p className="text-[11px] leading-relaxed text-slate-300 font-medium">{n.txt}</p>
+                      <p className="text-[10px] text-slate-400 leading-normal line-clamp-2">"{n.txt}"</p>
                     </div>
                   ))
                 ) : (
                   <div className="text-center py-6">
-                    <span className="text-[10px] text-slate-600 font-mono">No recent news available for {stock.id}</span>
+                    <span className="text-[9px] text-slate-700 font-mono uppercase tracking-widest">No Catalyst Clusters Found</span>
                   </div>
                 )}
               </div>

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, DollarSign, Wallet } from "lucide-react";
-import { T } from "../theme";
+import { TrendingUp, TrendingDown, DollarSign, Wallet, Activity, ShieldCheck, Zap } from "lucide-react";
 
 export default function DummyInvestment({ ticker, currentPrice }) {
   const [trade, setTrade] = useState(null);
-  const investmentAmount = 1000; // Fixed ₹1000 as per request
+  const investmentAmount = 1000;
 
   useEffect(() => {
     const savedTrades = JSON.parse(localStorage.getItem("axiom_dummy_trades") || "{}");
@@ -40,31 +39,37 @@ export default function DummyInvestment({ ticker, currentPrice }) {
   const pl = trade ? ((currentPrice - trade.entryPrice) / trade.entryPrice) * trade.amount : 0;
   const plPct = trade ? ((currentPrice - trade.entryPrice) / trade.entryPrice) * 100 : 0;
   const isProfitable = pl >= 0;
+  const col = isProfitable ? 'var(--accent-positive)' : 'var(--accent-negative)';
 
-  // Determine liquidity rank based on currency/ticker for display
   const getLiquidityRank = () => {
     if (ticker.endsWith(".NS") || ticker.endsWith(".BO")) return { label: "MODERATE", color: "text-amber-400" };
     if (ticker.includes("-") || ticker.length > 5) return { label: "MED_STABLE", color: "text-indigo-400" };
-    return { label: "HIGH_DEEP", color: "text-green-400" };
+    return { label: "HIGH_DEEP", color: "text-emerald-400" };
   };
   const liq = getLiquidityRank();
 
   return (
-    <div className="clay-card p-4 mt-4 border border-white/5 bg-white/5 rounded-xl overflow-hidden relative group">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Wallet size={16} className="text-indigo-400" />
-          <h3 className="text-xs font-black tracking-widest text-slate-300 uppercase">Dummy Investment</h3>
-        </div>
+    <div className="glass-card p-6 border border-white/[0.08] bg-white/[0.01] relative group overflow-hidden">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/40 border border-white/5">
+          <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-lg">
+            <Wallet size={16} className="text-indigo-400" />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <h3 className="text-[10px] font-bold text-white uppercase tracking-widest leading-none">Virtual Agent</h3>
+            <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest leading-none">Simulation Layer</span>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-2 py-0.5 rounded-md bg-black/40 border border-white/[0.06]">
             <div className={`w-1 h-1 rounded-full bg-current ${liq.color} animate-pulse`} />
-            <span className={`text-[8px] font-black tracking-widest uppercase ${liq.color}`}>{liq.label} LIQUIDITY</span>
+            <span className={`text-[8px] font-bold tracking-widest uppercase ${liq.color}`}>{liq.label}_LIQ</span>
           </div>
           {trade && (
             <button 
               onClick={handleReset}
-              className="text-[9px] font-bold text-slate-500 hover:text-white transition-colors uppercase tracking-tighter"
+              className="text-[9px] font-bold text-slate-700 hover:text-white transition-all uppercase tracking-widest border-b border-transparent hover:border-white/20"
             >
               Reset
             </button>
@@ -73,60 +78,69 @@ export default function DummyInvestment({ ticker, currentPrice }) {
       </div>
 
       {!trade ? (
-        <div className="flex flex-col gap-3">
-          <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
-            Test your conviction with a dummy investment of <span className="text-white font-bold">₹1000</span>. 
-            AXIOM will track your P/L in real-time.
+        <div className="flex flex-col gap-5">
+          <p className="text-[11px] text-slate-500 leading-relaxed font-medium italic opacity-80">
+            "Audit your convictions with a shadow allocation of <span className="text-white font-bold not-italic">₹1000</span>. 
+            AXIOM will track real-time drift metrics."
           </p>
           <button
             onClick={handleInvest}
-            className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-lg text-[10px] font-black tracking-[0.2em] transition-all active:scale-[0.98] shadow-lg shadow-indigo-500/20 uppercase"
+            className="w-full h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-bold tracking-[0.25em] transition-all duration-120 active:scale-[0.98] shadow-lg shadow-indigo-900/20 uppercase"
           >
-            Invest ₹1000
+            Deploy ₹1000
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Entry Price</span>
-            <span className="text-sm font-mono font-black text-white">
-              ${trade.entryPrice.toLocaleString()}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 items-end">
-            <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">Current P/L</span>
-            <div className="flex items-center gap-1">
-              {isProfitable ? <TrendingUp size={14} className="text-green-400" /> : <TrendingDown size={14} className="text-red-400" />}
-              <span className="text-sm font-mono font-black" style={{ color: isProfitable ? T.buy : T.sell }}>
-                {isProfitable ? '+' : ''}₹{pl.toFixed(2)}
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="flex flex-col gap-1">
+              <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Entry_Point</span>
+              <span className="text-[14px] font-mono font-bold text-white tabular-nums leading-none">
+                ${trade.entryPrice.toLocaleString()}
               </span>
             </div>
+            <div className="flex flex-col gap-1 items-end">
+              <span className="text-[8px] font-bold text-slate-600 uppercase tracking-widest">Real-time_PL</span>
+              <div className="flex items-center gap-2">
+                <span className="text-[14px] font-mono font-bold tabular-nums leading-none" style={{ color: col }}>
+                  {isProfitable ? '+' : ''}₹{pl.toFixed(2)}
+                </span>
+                {isProfitable ? <TrendingUp size={12} className="text-emerald-500" /> : <TrendingDown size={12} className="text-red-500" />}
+              </div>
+            </div>
           </div>
-          <div className="col-span-2 mt-2 pt-3 border-t border-white/5 flex flex-col gap-3">
+
+          <div className="pt-4 border-t border-white/[0.08] space-y-4">
              <div className="flex items-center justify-between">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">Performance</span>
-                  <span className={`text-[10px] font-black ${isProfitable ? 'text-green-500' : 'text-red-500'}`}>
-                    {isProfitable ? '🔥' : '❄️'} {plPct.toFixed(2)}%
-                  </span>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest leading-none">V-Performance</span>
+                  <div className="flex items-center gap-2">
+                     <span className={`text-[12px] font-bold font-mono ${isProfitable ? 'text-emerald-400' : 'text-red-400'}`}>
+                       {isProfitable ? '+' : ''}{plPct.toFixed(2)}%
+                     </span>
+                     <div className="w-1.5 h-1.5 rounded-full" style={{ background: col, boxShadow: `0 0 4px ${col}` }} />
+                  </div>
                 </div>
-                <div className="text-[8px] text-slate-600 font-mono italic">
-                  Opened: {new Date(trade.timestamp).toLocaleTimeString()}
+                <div className="flex flex-col items-end gap-1">
+                   <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest leading-none font-mono">Timestamp</span>
+                   <span className="text-[9px] text-slate-500 font-mono italic">
+                    {new Date(trade.timestamp).toLocaleTimeString([], { hour12: false })}
+                   </span>
                 </div>
              </div>
 
              {isProfitable && (
-               <button className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-[9px] font-black tracking-widest uppercase rounded-md shadow-lg shadow-green-900/20 transition-all active:scale-[0.98]">
-                 Convert to Real Account 🚀
+               <button className="w-full h-10 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold tracking-widest uppercase rounded-xl transition-all duration-120 flex items-center justify-center gap-3">
+                 <Zap size={14} fill="white" /> Convert to Real Segment
                </button>
              )}
           </div>
         </div>
       )}
       
-      {/* Decorative background element */}
-      <div className="absolute -right-4 -bottom-4 opacity-[0.03] pointer-events-none group-hover:opacity-[0.05] transition-opacity">
-        <DollarSign size={80} />
+      {/* Structural Decorator */}
+      <div className="absolute -right-4 -bottom-4 opacity-[0.02] pointer-events-none group-hover:opacity-[0.04] transition-opacity duration-300">
+        <DollarSign size={96} />
       </div>
     </div>
   );
