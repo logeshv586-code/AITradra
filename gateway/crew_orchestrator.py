@@ -1,54 +1,90 @@
 from crewai import Agent, Task, Crew, Process
-from typing import List, Dict, Any, Optional
-import os
+from crewai.llms.base_llm import BaseLLM
+from typing import Dict, Any
 import asyncio
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, ChatMessage, AIMessage
-from langchain_core.outputs import ChatResult, ChatGeneration
 
-from langchain_core.language_models.llms import LLM
 
-class AxiomLangChainWrapper(LLM):
-    """Bridge between AXIOM LLMClient and LangChain/CrewAI."""
-    axiom_client: Any = None
-    
-    class Config:
-        arbitrary_types_allowed = True
+class AxiomCrewLLM(BaseLLM):
+    """CrewAI-native adapter around the project's async LLM client."""
 
-    def _call(self, prompt: str, stop: Optional[List[str]] = None, **kwargs) -> str:
-        # Run async complete in sync context
-        try:
-            # We are likely inside a thread pool if called by CrewAI
-            # or we need to bridge async to sync safely.
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            
-            # Use a helper to run coroutine in a safe way if loop is already running
-            if loop.is_running():
-                # This is the tricky part. CrewAI calls this synchronously.
-                # If we are in the main thread's loop, we can't run_until_complete.
-                # But CrewAI usually runs tasks in threads.
-                from concurrent.futures import ThreadPoolExecutor
-                with ThreadPoolExecutor() as executor:
-                    future = executor.submit(lambda: asyncio.run(self.axiom_client.complete(prompt)))
-                    return future.result()
+    def __init__(self, axiom_client: Any):
+        self.axiom_client = axiom_client
+        super().__init__(model="axiom/mythic", temperature=0.2, provider="axiom")
+
+    def _messages_to_prompt(self, messages: Any) -> str:
+        if isinstance(messages, str):
+            return messages
+
+        parts = []
+        for message in messages or []:
+            if isinstance(message, dict):
+                role = message.get("role", "user")
+                content = message.get("content", "")
             else:
-                return loop.run_until_complete(self.axiom_client.complete(prompt))
-        except Exception as e:
-            return f"Error in AxiomLLM: {str(e)}"
+                role = getattr(message, "role", "user")
+                content = getattr(message, "content", "")
 
-    @property
-    def _llm_type(self) -> str:
-        return "axiom-mythic-llm"
+            if isinstance(content, list):
+                text_chunks = []
+                for chunk in content:
+                    if isinstance(chunk, dict) and chunk.get("type") == "text":
+                        text_chunks.append(chunk.get("text", ""))
+                    elif isinstance(chunk, str):
+                        text_chunks.append(chunk)
+                content = "\n".join(filter(None, text_chunks))
+
+            parts.append(f"{role.upper()}:\n{content}")
+
+        return "\n\n".join(filter(None, parts))
+
+    def _run_complete_sync(self, prompt: str) -> str:
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(lambda: asyncio.run(self.axiom_client.complete(prompt, role="analysis")))
+                return future.result()
+
+        if loop is None:
+            return asyncio.run(self.axiom_client.complete(prompt, role="analysis"))
+
+        return loop.run_until_complete(self.axiom_client.complete(prompt, role="analysis"))
+
+    def call(
+        self,
+        messages,
+        tools=None,
+        callbacks=None,
+        available_functions=None,
+        from_task=None,
+        from_agent=None,
+        response_model=None,
+    ) -> str:
+        prompt = self._messages_to_prompt(messages)
+        return self._run_complete_sync(prompt)
+
+    async def acall(
+        self,
+        messages,
+        tools=None,
+        callbacks=None,
+        available_functions=None,
+        from_task=None,
+        from_agent=None,
+        response_model=None,
+    ) -> str:
+        prompt = self._messages_to_prompt(messages)
+        return await self.axiom_client.complete(prompt, role="analysis")
 
 class OmniCrewManager:
     def __init__(self, data_engine, llm_client):
         self.data_engine = data_engine
-        self.llm = AxiomLangChainWrapper(axiom_client=llm_client)
+        self.llm = AxiomCrewLLM(axiom_client=llm_client)
 
     def _create_agents(self) -> Dict[str, Agent]:
         # 1. Market Researcher (combines technical and news)

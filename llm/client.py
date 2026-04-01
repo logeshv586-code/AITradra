@@ -175,9 +175,22 @@ class LLMClient:
                 if response.status_code == 200:
                     data = response.json()
                     return data["choices"][0]["message"]["content"]
+                logger.error(
+                    "NVIDIA NIM non-200 response for role '%s' model '%s': status=%s body=%s",
+                    role,
+                    model,
+                    response.status_code,
+                    response.text[:1000],
+                )
                 return None
         except Exception as e:
-            logger.error(f"NVIDIA NIM error: {e}")
+            logger.exception(
+                "NVIDIA NIM exception for role '%s' model '%s' base_url '%s': %r",
+                role,
+                config.get("model") if "config" in locals() else None,
+                settings.NVIDIA_BASE_URL,
+                e,
+            )
             return None
 
     async def _try_local_gguf(self, prompt: str, system: str,
