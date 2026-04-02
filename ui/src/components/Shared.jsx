@@ -9,24 +9,21 @@ export function GlassCard({ children, className = '', glowCol = 'transparent', i
          }}
          {...props}>
 
-      <div className="scanline" />
-      {interactive && (
-        <div className="absolute inset-0 opacity-0 hover:opacity-[0.06] transition-opacity duration-500 pointer-events-none rounded-[inherit]"
-          style={{ background: `radial-gradient(circle at 30% 30%, ${glowCol}, transparent 70%)` }} />
-      )}
       {children}
     </div>
   );
 }
 
 export function Sparkline({ data, color, h = 32, w = 90 }) {
-  const pts = data.slice(-20);
-  const mn = Math.min(...pts.map(d => d.c));
-  const mx = Math.max(...pts.map(d => d.c));
+  if (!data || !Array.isArray(data) || data.length < 2) return null;
+  const pts = data.slice(-20).map(d => typeof d === 'object' ? d.c : d).filter(v => typeof v === 'number' && !isNaN(v));
+  if (pts.length < 2) return null;
+  const mn = Math.min(...pts);
+  const mx = Math.max(...pts);
   const r = mx - mn || 1;
-  const path = pts.map((d, i) => {
+  const path = pts.map((val, i) => {
     const x = (i / (pts.length - 1)) * w;
-    const y = h - ((d.c - mn) / r) * h;
+    const y = h - ((val - mn) / r) * h;
     return `${i === 0 ? 'M' : 'L'}${x},${y}`;
   }).join(' ');
   const area = path + ` L${w},${h} L0,${h} Z`;

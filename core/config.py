@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "qwen2.5:7b"
     LLM_TEMPERATURE: float = 0.1
     LLM_MAX_TOKENS: int = 2000
-    LLM_TIMEOUT: int = 60
+    LLM_TIMEOUT: int = 120
 
     # Embedding Model
     EMBEDDING_MODEL: str = "nomic-embed-text"

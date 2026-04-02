@@ -196,6 +196,9 @@ class IntelligenceService:
         agreement_bonus = 8.0 if abs(total_score) >= 2.5 else 4.0 if abs(total_score) >= 1.5 else 0.0
         confidence = round(min(max(38.0 + abs(total_score) * 12.0 + data_depth_bonus + catalyst_bonus + agreement_bonus, 35.0), 85.0), 1)
 
+        if _safe_float(stats.get("points")) < 5 or len(sentiment.get("top_headlines", [])) == 0:
+            confidence = min(confidence, 45.0)
+
         if abs(_safe_float(stats.get("change_20d"))) >= abs(news_score * 10):
             primary_driver = "technical"
         elif abs(_safe_float(sentiment.get("score"))) > 0.35 or abs(news_score) > 0.2:
@@ -337,6 +340,9 @@ class IntelligenceService:
         }
 
     async def refresh_ticker_intelligence(self, ticker: str, allow_scrape: bool = False) -> dict:
+        if not ticker or str(ticker).strip().lower() in ("none", "null", ""):
+            raise ValueError(f"Invalid ticker: {ticker}")
+            
         ticker = ticker.upper()
         # Non-blocking fetch from data engine
         price_data = await self.data_engine.get_price_data(ticker, allow_scrape=allow_scrape)

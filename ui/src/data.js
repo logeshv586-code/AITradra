@@ -23,6 +23,10 @@ export const AGENTS = {
   riskspec:      { name:'RiskSpecialist',     color:'#ff5252', icon:Shield,     acc:93.4, status:'Active',      tasks:1800, desc:'VaR(95%), max drawdown, beta, stress scenario evaluation', tier:'v4_mythic' },
   macrospec:     { name:'MacroSpecialist',    color:'#69f0ae', icon:Globe2,     acc:89.7, status:'Active',      tasks:1600, desc:'News sentiment scoring, earnings signals, sector rotation analysis', tier:'v4_mythic' },
   critique:      { name:'CritiqueAgent',      color:'#ffab40', icon:Microscope, acc:95.2, status:'Active',      tasks:2800, desc:'Self-reflection layer — contradiction detection, confidence calibration (40% agreement + 30% RAG + 30% recency)', tier:'v4_mythic' },
+  sentspec:      { name:'SentimentSpecialist',color:'#a855f7', icon:Newspaper,  acc:94.5, status:'Active',      tasks:1400, desc:'Psychology and retail/institutional sentiment evaluation', tier:'v4_mythic' },
+  fundaspec:     { name:'FundamentalSpecialist',color:'#f6ad55', icon:BarChart2,acc:96.1, status:'Active',      tasks:1900, desc:'Valuation, earnings quality, and growth prospects', tier:'v4_mythic' },
+  sectorspec:    { name:'SectorSpecialist',   color:'#10b981', icon:Layers,     acc:92.4, status:'Active',      tasks:1200, desc:'Relative performance and macro-sector rotation', tier:'v4_mythic' },
+  catspec:       { name:'CatalystSpecialist', color:'#ff2a5f', icon:Activity,   acc:90.8, status:'Active',      tasks:1350, desc:'Upcoming events (earnings, FDA, lawsuits, mergers)', tier:'v4_mythic' },
 };
 
 export const FLOW_STEPS = ['OBSERVE','THINK','PLAN','ACT','REFLECT','IMPROVE'];

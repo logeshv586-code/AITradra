@@ -23,12 +23,13 @@ const SECTOR_FILTER_MAP = {
 };
 
 const MiniSparkline = ({ data = [], color, w = 100, h = 30 }) => {
-  if (!data || data.length < 2) return <div className="h-[30px] w-[100px] bg-white/5 rounded-md animate-pulse" />;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  const numericData = data.map(d => typeof d === 'object' ? d.c : d).filter(v => typeof v === 'number' && !isNaN(v));
+  if (!numericData || numericData.length < 2) return <div className="h-[30px] w-[100px] bg-white/5 rounded-md animate-pulse" />;
+  const min = Math.min(...numericData);
+  const max = Math.max(...numericData);
   const range = max - min || 1;
-  const points = data.map((val, i) => ({
-    x: (i / (data.length - 1)) * w,
+  const points = numericData.map((val, i) => ({
+    x: (i / (numericData.length - 1)) * w,
     y: h - ((val - min) / range) * h
   }));
   const pathData = `M ${points.map(p => `${p.x},${p.y}`).join(' L ')}`;

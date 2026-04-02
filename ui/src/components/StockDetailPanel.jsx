@@ -28,15 +28,27 @@ export default function StockDetailPanel({ ticker, onClose }) {
     setLoading(true);
     setChatOpen(false);
     
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 12000);
+
+    const safeFetch = (url) => 
+      fetch(url, { signal: abortController.signal })
+        .then(r => {
+           if (!r.ok) throw new Error(`HTTP ${r.status}`);
+           return r.json().catch(() => null);
+        })
+        .catch(() => null);
+    
     Promise.all([
-      fetch(`${API_BASE}/api/stock/${tickerId}`).then(r => r.json()),
-      fetch(`${API_BASE}/api/stock/${tickerId}/analysis`).then(r => r.json()),
-      fetch(`${API_BASE}/api/stock/${tickerId}/explain-move`).then(r => r.json()),
-      fetch(`${API_BASE}/api/market/predictions`).then(r => r.json()),
-      fetch(`${API_BASE}/api/stock/${tickerId}/risk`).then(r => r.json()),
-      fetch(`${API_BASE}/api/knowledge/status`).then(r => r.json()).catch(() => null),
-      fetch(`${API_BASE}/api/simulation/status`).then(r => r.json()).catch(() => null),
+      safeFetch(`${API_BASE}/api/stock/${tickerId}`),
+      safeFetch(`${API_BASE}/api/stock/${tickerId}/analysis`),
+      safeFetch(`${API_BASE}/api/stock/${tickerId}/explain-move`),
+      safeFetch(`${API_BASE}/api/market/predictions`),
+      safeFetch(`${API_BASE}/api/stock/${tickerId}/risk`),
+      safeFetch(`${API_BASE}/api/knowledge/status`),
+      safeFetch(`${API_BASE}/api/simulation/status`),
     ]).then(([stock, analysis, reason, preds, riskData, kStatus, sData]) => {
+      clearTimeout(timeoutId);
       setData(stock);
       setAnalysis(analysis);
       setMoveReason(reason);
@@ -44,14 +56,20 @@ export default function StockDetailPanel({ ticker, onClose }) {
       setKnowledgeStatus(kStatus);
       setSimData(sData);
       
-      const p = preds.predictions?.find(x => x.ticker === tickerId);
+      const p = preds?.predictions?.find(x => x.ticker === tickerId);
       setPrediction(p);
       
       setLoading(false);
     }).catch(err => {
+      clearTimeout(timeoutId);
       console.error("Failed to load stock data", err);
       setLoading(false);
     });
+
+    return () => {
+      clearTimeout(timeoutId);
+      abortController.abort();
+    };
   }, [tickerId]);
 
   if (loading) return (
@@ -65,7 +83,7 @@ export default function StockDetailPanel({ ticker, onClose }) {
   
   if (!data) return <div className="fixed top-0 right-0 w-full sm:w-[450px] h-full glass-panel z-[100] p-8 text-red-400 font-mono text-xs">Link error: {tickerId} not found in current sector.</div>;
 
-  const { price_data } = data;
+  const price_data = data.price_data || {};
   const isUp = (price_data.pct_chg || 0) >= 0;
   const col = isUp ? 'var(--accent-positive)' : 'var(--accent-negative)';
 
@@ -82,7 +100,7 @@ export default function StockDetailPanel({ ticker, onClose }) {
               <span className="text-[24px] font-mono font-bold text-white tracking-tight">${price_data.px?.toFixed(2)}</span>
               <div className="flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[11px] border" style={{ background: `${col}10`, color: col, borderColor: `${col}20` }}>
                 {isUp ? <TrendingUp size={12}/> : <TrendingDown size={12}/>}
-                {Math.abs(price_data.pct_chg)?.toFixed(2)}%
+                {Math.abs(price_data.pct_chg || 0).toFixed(2)}%
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -111,7 +129,7 @@ export default function StockDetailPanel({ ticker, onClose }) {
               <div 
                 className="absolute h-full rounded-full transition-all duration-500"
                 style={{ 
-                  left: `${((price_data.px - price_data.low) / (Math.max(0.01, price_data.high - price_data.low))) * 100}%`,
+                  left: `${(((price_data.px || 0) - (price_data.low || 0)) / (Math.max(0.01, (price_data.high || 1) - (price_data.low || 0)))) * 100}%`,
                   width: '6px',
                   background: 'var(--accent-indigo)',
                   boxShadow: '0 0 8px var(--accent-indigo)'
