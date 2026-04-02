@@ -1,0 +1,48 @@
+[
+  {
+    "id": "knowledge-store",
+    "name": "Knowledge Store Cache",
+    "type": "database",
+    "enabled": true,
+    "mode": "local",
+    "cadence": "continuous",
+    "description": "Primary local SQLite warehouse for OHLCV, news, and ticker intelligence snapshots."
+  },
+  {
+    "id": "rss-news",
+    "name": "RSS News Collector",
+    "type": "scraper",
+    "enabled": true,
+    "mode": "local",
+    "cadence": "10m",
+    "description": "Deduplicated market news ingestion from RSS feeds."
+  },
+  {
+    "id": "social-sentiment",
+    "name": "Social Sentiment Feed",
+    "type": "sentiment",
+    "enabled": true,
+    "mode": "local",
+    "cadence": "15m",
+    "description": "Local social sentiment scoring used by the intelligence layer."
+  },
+  {
+    "id": "web-catalyst",
+    "name": "Web Catalyst Scraper",
+    "type": "scraper",
+    "enabled": true,
+    "mode": "on_demand",
+    "cadence": "manual",
+    "description": "On-demand catalyst scraping for ticker-specific deep research."
+  },
+  {
+    "id": "mirofish-local-mirror",
+    "name": "MiroFish Local Mirror",
+    "type": "github_mirror",
+    "enabled": false,
+    "mode": "local_plugin",
+    "cadence": "daily",
+    "path": "data/plugins/mirofish",
+    "description": "Reserved local plugin slot for exported open-source GitHub agent data such as MiroFish or similar community signal bundles."
+  }
+]

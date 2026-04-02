@@ -70,6 +70,10 @@ from gateway.diagnostic import router as diagnostic_router
 from agents.orchestrator import mythic_orchestrator
 from gateway.db_portability import router as db_portability_router
 from gateway.mission_control_router import router as mission_control_router
+from gateway.market_intel_router import (
+    router as market_intel_router,
+    build_agent_status_payload,
+)
 
 # Global V3 instances for streaming
 data_agent = V3DataAgent()
@@ -282,6 +286,9 @@ app.include_router(db_portability_router)
 
 # Include Mission Control Router
 app.include_router(mission_control_router)
+
+# Include Market Intelligence Router
+app.include_router(market_intel_router)
 
 UI_DIST_DIR = (Path(__file__).resolve().parent.parent / settings.UI_DIST_PATH).resolve()
 
@@ -579,6 +586,12 @@ async def data_status():
     status = knowledge_store.get_collection_status()
     if hasattr(app.state, "market_scheduler"):
         status["scheduler"] = app.state.market_scheduler.get_status()
+    try:
+        from gateway.local_plugin_registry import local_plugin_registry
+
+        status["plugins"] = local_plugin_registry.get_summary()
+    except Exception as exc:
+        logger.warning(f"Failed to load plugin summary for data status: {exc}")
     return status
 
 
@@ -620,18 +633,14 @@ async def get_market_status():
     return MarketManager.get_all_statuses()
 
 
-@app.get("/api/agents/status")
-async def agents_status():
-    """Returns the status and health of the 14-agent specialist fleet."""
-    # Mapping current mythic + core agents status
+@app.get("/api/agents/status-lite")
+async def agents_status_lite():
+    """Compact agent summary kept for backward compatibility."""
+    payload = build_agent_status_payload()
     return {
-        "agents": [
-            {"id": "sentiment", "name": "Sentiment Classifier", "status": "ONLINE", "type": "specialist"},
-            {"id": "risk", "name": "Risk Manager", "status": "ONLINE", "type": "specialist"},
-            {"id": "aggregator", "name": "Signal Aggregator", "status": "ONLINE", "type": "specialist"},
-            {"id": "data", "name": "Data Agent", "status": "ONLINE", "type": "core"},
-            {"id": "news", "name": "News Agent", "status": "ONLINE", "type": "core"},
-        ]
+        "agents": payload.get("agents", [])[:5],
+        "summary": payload.get("summary", {}),
+        "generated_at": payload.get("generated_at"),
     }
 
 
@@ -842,28 +851,7 @@ async def analyze_stock(ticker: str, query: str = "Should I buy this stock?"):
 
 @app.get("/api/agents/status")
 async def agent_status():
-    return {
-        "agents": [
-            # V3 Intelligence Agents
-            {"name": "DataCollector",      "status": "active", "type": "v3_intelligence"},
-            {"name": "BlobStorageAgent",   "status": "active", "type": "v3_intelligence"},
-            {"name": "MarketRagAgent",     "status": "active", "type": "v3_intelligence"},
-            {"name": "NewsIntelAgent",     "status": "active", "type": "v3_intelligence"},
-            {"name": "PriceMoveAgent",     "status": "active", "type": "v3_intelligence"},
-            {"name": "ForecastAgent",      "status": "active", "type": "v3_intelligence"},
-            {"name": "ExplainAgent",       "status": "active", "type": "v3_intelligence"},
-            {"name": "ThinkAgent",         "status": "active", "type": "v3_intelligence"},
-            {"name": "McpNewsAgent",       "status": "active", "type": "v3_intelligence"},
-            {"name": "BatchAgent",         "status": "active", "type": "v3_intelligence"},
-            {"name": "UIApiAgent",         "status": "active", "type": "v3_intelligence"},
-            # V4 Mythic-Tier Agents
-            {"name": "MythicOrchestrator",  "status": "active", "type": "v4_mythic", "role": "ReAct reasoning loop"},
-            {"name": "TechnicalSpecialist", "status": "active", "type": "v4_mythic", "role": "OHLCV pattern analysis"},
-            {"name": "RiskSpecialist",      "status": "active", "type": "v4_mythic", "role": "VaR, beta, stress scenarios"},
-            {"name": "MacroSpecialist",     "status": "active", "type": "v4_mythic", "role": "News sentiment, macro trends"},
-            {"name": "CritiqueAgent",       "status": "active", "type": "v4_mythic", "role": "Self-reflection + confidence calibration"},
-        ]
-    }
+    return build_agent_status_payload()
 
 
 @app.get("/api/pipeline/status")

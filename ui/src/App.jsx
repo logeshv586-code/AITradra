@@ -91,9 +91,9 @@ const NavButton = ({ item, active, onClick }) => {
 export default function App() {
   const [view, setView] = useState("globe");
   const [activeStock, setActiveStock] = useState(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisComplete, setAnalysisComplete] = useState(false);
-  const [agentLogs, setAgentLogs] = useState([]);
+  const [isAnalyzing] = useState(false);
+  const [analysisComplete] = useState(false);
+  const [agentLogs] = useState([]);
   const [marketIndices, setMarketIndices] = useState([]);
   const [agentsStatus, setAgentsStatus] = useState([]);
   const [liveStocks, setLiveStocks] = useState([]);
@@ -170,7 +170,7 @@ export default function App() {
               },
             },
           ]);
-        } catch (err) {
+        } catch {
           setChatMessages((prev) => [...prev, { role: "ai", tag: "AXIOM", text: "Neural link interrupted..." }]);
         }
         return;

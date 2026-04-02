@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from typing import List, Dict, Optional
 from core.logger import get_logger
+from gateway.knowledge_store import knowledge_store
 
 logger = get_logger(__name__)
 
@@ -38,6 +39,29 @@ class SimulationEngine:
         except Exception as e:
             logger.error(f"Failed to save virtual portfolio: {e}")
 
+    def _get_snapshot(self, ticker: str) -> Optional[Dict]:
+        try:
+            return knowledge_store.get_ticker_intelligence(ticker.upper())
+        except Exception as e:
+            logger.warning(f"Failed to load intelligence snapshot for {ticker}: {e}")
+            return None
+
+    def _get_live_price(self, ticker: str) -> float:
+        snapshot = self._get_snapshot(ticker)
+        price = ((snapshot or {}).get("price_data") or {}).get("px", 0)
+        return float(price or 0)
+
+    def _get_signal_context(self, ticker: str) -> Dict:
+        snapshot = self._get_snapshot(ticker) or {}
+        return {
+            "recommendation": snapshot.get("recommendation", "HOLD"),
+            "prediction_direction": snapshot.get("prediction_direction", "SIDEWAYS"),
+            "confidence_score": snapshot.get("confidence_score", 0),
+            "risk_level": snapshot.get("risk_level", "MEDIUM"),
+            "primary_driver": snapshot.get("primary_driver", "technical"),
+            "updated_at": snapshot.get("updated_at") or snapshot.get("as_of"),
+        }
+
     def initialize_account(self, initial_balance: float):
         self.state = {
             "initialized": True,
@@ -46,12 +70,20 @@ class SimulationEngine:
             "invested_amount": 0.0,
             "positions": [],
             "history": [],
-            "accuracy_metrics": {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 100.0}
+            "accuracy_metrics": {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 0.0}
         }
         self._save_state()
         return self.state
 
     def get_status(self):
+        metrics = self.state.setdefault(
+            "accuracy_metrics",
+            {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 0.0},
+        )
+        if metrics.get("total_trades", 0) == 0:
+            metrics["accuracy_score"] = 0.0
+        if self.state.get("initialized"):
+            return self.calculate_live_portfolio()
         return self.state
 
     def buy_stock(self, ticker: str, amount: float, prediction: Optional[str] = None):
@@ -61,12 +93,11 @@ class SimulationEngine:
         if amount > self.state["available_cash"]:
             raise ValueError("Insufficient virtual funds")
 
-        # Get live price from data_engine
-        stock_data = self.data_engine.get_stock_data(ticker)
-        if not stock_data or "price_data" not in stock_data:
+        price = self._get_live_price(ticker)
+        if price <= 0:
             raise ValueError(f"Could not fetch live price for {ticker}")
-        
-        price = stock_data["price_data"]["px"]
+
+        signal_context = self._get_signal_context(ticker)
         quantity = amount / price
 
         # Update position
@@ -79,14 +110,16 @@ class SimulationEngine:
             existing_pos["buy_price"] = new_avg_price
             existing_pos["invested_value"] = total_qty * new_avg_price
             # Keep original prediction or update to most recent? Let's update.
-            existing_pos["prediction"] = prediction or existing_pos.get("prediction")
+            existing_pos["prediction"] = prediction or signal_context["prediction_direction"] or existing_pos.get("prediction")
+            existing_pos["signal_context"] = signal_context
         else:
             self.state["positions"].append({
                 "ticker": ticker,
                 "buy_price": price,
                 "quantity": quantity,
                 "invested_value": amount,
-                "prediction": prediction,
+                "prediction": prediction or signal_context["prediction_direction"],
+                "signal_context": signal_context,
                 "timestamp": datetime.now().isoformat()
             })
 
@@ -100,7 +133,8 @@ class SimulationEngine:
             "price": price,
             "amount": amount,
             "quantity": quantity,
-            "prediction_at_buy": prediction,
+            "prediction_at_buy": prediction or signal_context["prediction_direction"],
+            "signal_context": signal_context,
             "timestamp": datetime.now().isoformat()
         })
 
@@ -124,9 +158,7 @@ class SimulationEngine:
         else:
             fully_closed = False
 
-        # Get live price
-        stock_data = self.data_engine.get_stock_data(ticker)
-        current_price = stock_data["price_data"]["px"] if (stock_data and "price_data" in stock_data) else pos.get("current_price", pos["buy_price"])
+        current_price = self._get_live_price(ticker) or pos.get("current_price", pos["buy_price"])
         
         sale_value = quantity_to_sell * current_price
         profit_loss = sale_value - (quantity_to_sell * pos["buy_price"])
@@ -149,7 +181,12 @@ class SimulationEngine:
         if is_correct:
             self.state["accuracy_metrics"]["correct_predictions"] += 1
         
-        self.state["accuracy_metrics"]["accuracy_score"] = (self.state["accuracy_metrics"]["correct_predictions"] / self.state["accuracy_metrics"]["total_trades"]) * 100
+        total_trades = self.state["accuracy_metrics"]["total_trades"]
+        self.state["accuracy_metrics"]["accuracy_score"] = (
+            (self.state["accuracy_metrics"]["correct_predictions"] / total_trades) * 100
+            if total_trades
+            else 0.0
+        )
 
         # Update wallet
         self.state["available_cash"] += sale_value
@@ -170,6 +207,7 @@ class SimulationEngine:
             "amount": sale_value,
             "quantity": quantity_to_sell,
             "profit_loss": profit_loss,
+            "signal_context": self._get_signal_context(ticker),
             "timestamp": datetime.now().isoformat()
         })
 
@@ -184,16 +222,14 @@ class SimulationEngine:
         total_p_l = 0.0
 
         for pos in self.state["positions"]:
-            stock_data = self.data_engine.get_stock_data(pos["ticker"])
-            if stock_data and "price_data" in stock_data:
-                curr_px = stock_data["price_data"]["px"]
-            else:
-                curr_px = pos["buy_price"] # Fallback
+            curr_px = self._get_live_price(pos["ticker"]) or pos["buy_price"]
+            signal_context = self._get_signal_context(pos["ticker"])
             
             pos["current_price"] = curr_px
             pos["current_value"] = curr_px * pos["quantity"]
             pos["profit_loss"] = pos["current_value"] - pos["invested_value"]
             pos["profit_loss_pct"] = (pos["profit_loss"] / pos["invested_value"] * 100) if pos["invested_value"] else 0
+            pos["signal_context"] = signal_context
             
             total_invested_current += pos["current_value"]
             total_p_l += pos["profit_loss"]
@@ -202,5 +238,7 @@ class SimulationEngine:
         self.state["total_balance"] = self.state["available_cash"] + total_invested_current
         self.state["total_profit_loss"] = total_p_l
         self.state["profit_loss_percentage"] = (total_p_l / (self.state["total_balance"] - total_p_l) * 100) if (self.state["total_balance"] - total_p_l) > 0 else 0
+        if self.state["accuracy_metrics"].get("total_trades", 0) == 0:
+            self.state["accuracy_metrics"]["accuracy_score"] = 0.0
         
         return self.state
