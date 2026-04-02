@@ -5,6 +5,7 @@ Uses Qdrant vector DB + local LLM — zero cloud, zero cost.
 from mem0 import Memory
 import os
 import asyncio
+import socket
 from core.logger import get_logger
 from core.config import settings
 
@@ -20,6 +21,13 @@ class Mem0Manager:
 
     def __init__(self):
         if hasattr(self, 'initialized'):
+            return
+
+        self.initialized = False
+        self.memory = None
+
+        if not self._services_available():
+            logger.warning("Mem0 skipped: Ollama or Qdrant is offline.")
             return
             
         # Full self-hosted config — no API key needed
@@ -52,14 +60,30 @@ class Mem0Manager:
             "history_db_path": os.path.join(os.path.dirname(os.path.abspath(__file__)), "mem0_history.db")
         }
         
-        self.initialized = False
         try:
             self.memory = Memory.from_config(config)
             self.initialized = True
             logger.info("Mem0 Manager initialized with Qdrant vector store.")
         except Exception as e:
-            logger.error(f"Failed to initialize Mem0: {e}")
-            self.memory = None
+            logger.warning(f"Failed to initialize Mem0: {e}")
+
+    def _port_open(self, host: str, port: int, timeout: float = 0.35) -> bool:
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            return False
+
+    def _services_available(self) -> bool:
+        """Fail fast if the local dependencies are not available."""
+        try:
+            ollama_host = settings.OLLAMA_URL.split("://")[-1].split(":")[0]
+            ollama_port = int(settings.OLLAMA_URL.rsplit(":", 1)[-1])
+            qdrant_host = settings.QDRANT_URL.split("://")[-1].split(":")[0]
+            qdrant_port = int(settings.QDRANT_URL.rsplit(":", 1)[-1])
+        except Exception:
+            return False
+        return self._port_open(ollama_host, ollama_port) and self._port_open(qdrant_host, qdrant_port)
 
     async def store_analysis(self, ticker: str, analysis: dict, user_id: str = "axiom_agent"):
         """Store a completed analysis"""

@@ -143,7 +143,7 @@ const AgentRow = ({ agent }) => {
 //  MAIN DASHBOARD VIEW
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function MissionControlDashboard() {
+export default function MissionControlDashboard({ agentsStatus = [], liveStocks = [] }) {
   const [agents, setAgents] = useState(MOCK_AGENTS);
   const [tickers, setTickers] = useState(MOCK_TICKERS);
   const [logs, setLogs] = useState(MOCK_TERMINAL_LOGS);
@@ -156,26 +156,32 @@ export default function MissionControlDashboard() {
     return () => clearInterval(t);
   }, []);
 
-  // Attempt to hydrate from live API
+  // Sync internal state with props from App.jsx
   useEffect(() => {
-    const hydrate = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/agents/status`);
-        const data = await res.json();
-        if (data.agents && data.agents.length) {
-          setAgents(data.agents.map(a => ({
-            id: a.id || a.name,
-            name: a.name,
-            status: a.status === 'Active' ? 'active' : a.status === 'Standby' ? 'idle' : 'warning',
-            load: Math.round(Math.random() * 90 + 10),
-            health: a.acc || Math.round(Math.random() * 20 + 80),
-            lastTask: a.desc || 'Processing...',
-          })));
-        }
-      } catch { /* use mock data */ }
-    };
-    hydrate();
-  }, []);
+    if (agentsStatus && agentsStatus.length) {
+      setAgents(agentsStatus.map(a => ({
+        id: a.id || a.name,
+        name: a.name,
+        status: a.status === 'Active' ? 'active' : a.status === 'Standby' ? 'idle' : 'warning',
+        load: a.load || Math.round(Math.random() * 40 + 10),
+        health: a.acc || 100,
+        lastTask: a.desc || 'Processing ReAct loop...',
+      })));
+    }
+  }, [agentsStatus]);
+
+  useEffect(() => {
+    if (liveStocks && liveStocks.length) {
+      // Map to MissionControl specific format if needed
+      setTickers(liveStocks.slice(0, 5).map(s => ({
+        symbol: s.id || s.name,
+        price: s.px ? s.px.toLocaleString() : '0.00',
+        change: s.chg > 0 ? `+${s.chg}%` : `${s.chg}%`,
+        trend: s.chg >= 0 ? 'up' : 'down',
+        sector: s.sector || 'Global'
+      })));
+    }
+  }, [liveStocks]);
 
   // Simulated chart bars with slight randomization for realism
   const chartBars = useMemo(() => {

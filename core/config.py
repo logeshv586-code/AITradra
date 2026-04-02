@@ -98,6 +98,22 @@ class Settings(BaseSettings):
     LOCAL_REASONING_MODEL_PATH: str = "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
     LOCAL_GENERAL_MODEL_PATH: str = "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def coerce_debug_flag(cls, v):
+        """Allow env modes like 'release' or 'development' for DEBUG."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return bool(v)
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug", "development", "dev"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+                return False
+        return v
+
     @field_validator("LOCAL_REASONING_MODEL_PATH", "LOCAL_GENERAL_MODEL_PATH")
     @classmethod
     def resolve_model_path(cls, v: str) -> str:

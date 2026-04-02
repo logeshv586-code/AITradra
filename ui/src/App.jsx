@@ -393,7 +393,10 @@ export default function App() {
             {view === "virtual" && <VirtualPortfolioView onSelect={handleSelect} />}
             {view === "mission" && (
               <div className="flex flex-1 flex-col overflow-hidden animate-fade-in">
-                <MissionControlDashboard />
+                <MissionControlDashboard 
+                  agentsStatus={agentsStatus} 
+                  liveStocks={liveStocks} 
+                />
               </div>
             )}
 

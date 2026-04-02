@@ -138,12 +138,26 @@ class KnowledgeStore:
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS ticker_intelligence (
+                ticker TEXT PRIMARY KEY,
+                recommendation TEXT,
+                should_invest INTEGER DEFAULT 0,
+                prediction_direction TEXT,
+                confidence_score REAL DEFAULT 0.0,
+                expected_move_percent REAL DEFAULT 0.0,
+                risk_level TEXT,
+                primary_driver TEXT,
+                updated_at TEXT DEFAULT (datetime('now')),
+                snapshot_json TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_ohlcv_ticker_date ON daily_ohlcv(ticker, date);
             CREATE INDEX IF NOT EXISTS idx_news_ticker ON news_articles(ticker);
             CREATE INDEX IF NOT EXISTS idx_news_published ON news_articles(published_at);
             CREATE INDEX IF NOT EXISTS idx_snapshots_ticker ON market_snapshots(ticker, created_at);
             CREATE INDEX IF NOT EXISTS idx_insights_ticker ON agent_insights(ticker, created_at);
             CREATE INDEX IF NOT EXISTS idx_episodes_session ON agent_episodes(session_id);
+            CREATE INDEX IF NOT EXISTS idx_ticker_intelligence_updated ON ticker_intelligence(updated_at);
         """)
         conn.commit()
         logger.info(f"Knowledge store initialized at {self.db_path}")
@@ -395,6 +409,7 @@ class KnowledgeStore:
         snapshot_count = conn.execute("SELECT COUNT(*) FROM market_snapshots").fetchone()[0]
         insight_count = conn.execute("SELECT COUNT(*) FROM agent_insights").fetchone()[0]
         tickers_with_data = conn.execute("SELECT COUNT(DISTINCT ticker) FROM daily_ohlcv").fetchone()[0]
+        intelligence_count = conn.execute("SELECT COUNT(*) FROM ticker_intelligence").fetchone()[0]
 
         return {
             "total_ohlcv_records": ohlcv_count,
@@ -402,6 +417,7 @@ class KnowledgeStore:
             "total_snapshots": snapshot_count,
             "total_insights": insight_count,
             "tickers_with_ohlcv": tickers_with_data,
+            "tickers_with_intelligence": intelligence_count,
             "db_path": self.db_path,
             "db_size_mb": round(os.path.getsize(self.db_path) / 1024 / 1024, 2) if os.path.exists(self.db_path) else 0
         }
@@ -481,5 +497,84 @@ class KnowledgeStore:
             SELECT * FROM research_suggestions ORDER BY created_at DESC LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Ticker Intelligence
+    # ───────────────────────────────────────────────────────────────────────
+
+    def store_ticker_intelligence(self, ticker: str, snapshot: dict):
+        """Store the latest normalized intelligence snapshot for a ticker."""
+        conn = self._get_conn()
+        conn.execute("""
+            INSERT INTO ticker_intelligence (
+                ticker, recommendation, should_invest, prediction_direction,
+                confidence_score, expected_move_percent, risk_level,
+                primary_driver, updated_at, snapshot_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+            ON CONFLICT(ticker) DO UPDATE SET
+                recommendation = excluded.recommendation,
+                should_invest = excluded.should_invest,
+                prediction_direction = excluded.prediction_direction,
+                confidence_score = excluded.confidence_score,
+                expected_move_percent = excluded.expected_move_percent,
+                risk_level = excluded.risk_level,
+                primary_driver = excluded.primary_driver,
+                updated_at = datetime('now'),
+                snapshot_json = excluded.snapshot_json
+        """, (
+            ticker,
+            snapshot.get("recommendation"),
+            1 if snapshot.get("should_invest") else 0,
+            snapshot.get("prediction_direction"),
+            snapshot.get("confidence_score", 0.0),
+            snapshot.get("expected_move_percent", 0.0),
+            snapshot.get("risk_level"),
+            snapshot.get("primary_driver"),
+            json.dumps(snapshot),
+        ))
+        conn.commit()
+
+    def get_ticker_intelligence(self, ticker: str) -> Optional[dict]:
+        """Return the latest intelligence snapshot for a ticker."""
+        conn = self._get_conn()
+        row = conn.execute("""
+            SELECT snapshot_json FROM ticker_intelligence WHERE ticker = ?
+        """, (ticker,)).fetchone()
+        if not row:
+            return None
+        try:
+            return json.loads(row["snapshot_json"])
+        except Exception as e:
+            logger.warning(f"Failed to decode intelligence snapshot for {ticker}: {e}")
+            return None
+
+    def get_all_ticker_intelligence(self, tickers: Optional[list[str]] = None, limit: int = 500) -> list[dict]:
+        """Return intelligence snapshots for many tickers, newest first."""
+        conn = self._get_conn()
+        if tickers:
+            placeholders = ",".join("?" for _ in tickers)
+            rows = conn.execute(f"""
+                SELECT snapshot_json
+                FROM ticker_intelligence
+                WHERE ticker IN ({placeholders})
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """, (*tickers, limit)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT snapshot_json
+                FROM ticker_intelligence
+                ORDER BY updated_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+        snapshots = []
+        for row in rows:
+            try:
+                snapshots.append(json.loads(row["snapshot_json"]))
+            except Exception as e:
+                logger.warning(f"Failed to decode one intelligence snapshot: {e}")
+        return snapshots
 
 knowledge_store = KnowledgeStore()

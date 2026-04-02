@@ -41,7 +41,17 @@ export default function RiskAnalysisView({ onSelect }) {
       setLoading(false);
     };
     fetchData();
+    const interval = setInterval(fetchData, 60000);
+    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!selectedRisk) return undefined;
+    const interval = setInterval(() => {
+      fetchRiskDetail(selectedRisk);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [selectedRisk]);
 
   const fetchRiskDetail = async (ticker) => {
     setSelectedRisk(ticker);

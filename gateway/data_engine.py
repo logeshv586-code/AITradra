@@ -24,12 +24,13 @@ logger = get_logger(__name__)
 class DataEngine:
     """Real data engine with knowledge store integration."""
 
-    async def get_price_data(self, ticker: str) -> dict:
+    async def get_price_data(self, ticker: str, allow_scrape: bool = False) -> dict:
         """Returns real price data from knowledge store or collector."""
 
         # 1. Check in-memory cache
         data, is_fresh = cache.get(ticker, "price")
-        if data and is_fresh:
+        if data and (is_fresh or not allow_scrape):
+            # Return cached data immediately, even if slightly stale, unless force-scrape requested
             return {**data, "source_used": "cache", "freshness_minutes": 0, "is_estimated": False}
 
         # 2. Check knowledge store for recent OHLCV
@@ -37,7 +38,7 @@ class DataEngine:
             from gateway.knowledge_store import knowledge_store
             ohlcv = knowledge_store.get_ohlcv_history(ticker, days=7)
             if ohlcv and len(ohlcv) > 0:
-                latest = ohlcv[0]  # Most recent first
+                latest = ohlcv[0]
                 px = float(latest.get("close", 0))
                 if px > 0:
                     prev_close = float(ohlcv[1]["close"]) if len(ohlcv) > 1 else px
@@ -67,66 +68,78 @@ class DataEngine:
         except Exception as e:
             logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
 
-        # 3. Try collector agent (Stooq, web scrape, etc.)
-        try:
-            from agents.collector_agent import fetch_ticker
-            df, source = await fetch_ticker(ticker, period="1y", scrape_ok=True)
-            if not df.empty:
-                latest_row = df.iloc[-1]
-                px = float(latest_row.get("Close", 0))
-                prev_row = df.iloc[-2] if len(df) > 1 else latest_row
-                prev_close = float(prev_row.get("Close", px))
-                chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
+        # 3. If we allow scraping and nothing was found in DB/Cache
+        if allow_scrape:
+            try:
+                from agents.collector_agent import fetch_ticker
+                df, source = await fetch_ticker(ticker, period="1y", scrape_ok=True)
+                if not df.empty:
+                    latest_row = df.iloc[-1]
+                    px = float(latest_row.get("Close", 0))
+                    prev_row = df.iloc[-2] if len(df) > 1 else latest_row
+                    prev_close = float(prev_row.get("Close", px))
+                    chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
 
-                # Store in knowledge store for future use
-                try:
-                    from gateway.knowledge_store import knowledge_store
-                    records = []
-                    for idx, row in df.iterrows():
-                        records.append({
-                            "date": str(idx.date()) if hasattr(idx, 'date') else str(idx),
-                            "open": float(row.get("Open", 0)),
-                            "high": float(row.get("High", 0)),
-                            "low": float(row.get("Low", 0)),
-                            "close": float(row.get("Close", 0)),
-                            "volume": int(row.get("Volume", 0)),
-                        })
-                    if records:
-                        knowledge_store.store_daily_ohlcv(ticker, records)
-                        logger.info(f"Stored {len(records)} OHLCV records for {ticker} from {source}")
-                except Exception as store_err:
-                    logger.warning(f"Failed to store OHLCV for {ticker}: {store_err}")
+                    # Store in knowledge store
+                    try:
+                        from gateway.knowledge_store import knowledge_store
+                        records = [{"date": str(idx.date()) if hasattr(idx, 'date') else str(idx),
+                                    "open": float(row.get("Open", 0)), "high": float(row.get("High", 0)),
+                                    "low": float(row.get("Low", 0)), "close": float(row.get("Close", 0)),
+                                    "volume": int(row.get("Volume", 0))}
+                                   for idx, row in df.iterrows()]
+                        if records:
+                            knowledge_store.store_daily_ohlcv(ticker, records)
+                    except Exception as store_err:
+                        logger.warning(f"Failed to store OHLCV for {ticker}: {store_err}")
 
-                ohlcv_list = [
-                    {"t": str(idx.date()) if hasattr(idx, 'date') else str(idx),
-                     "o": float(row.get("Open", 0)), "h": float(row.get("High", 0)),
-                     "l": float(row.get("Low", 0)), "c": float(row.get("Close", 0)),
-                     "v": int(row.get("Volume", 0))}
-                    for idx, row in df.tail(30).iterrows()
-                ]
+                    ohlcv_list = [{"t": str(idx.date()) if hasattr(idx, 'date') else str(idx),
+                                   "o": float(row.get("Open", 0)), "h": float(row.get("High", 0)),
+                                   "l": float(row.get("Low", 0)), "c": float(row.get("Close", 0)),
+                                   "v": int(row.get("Volume", 0))}
+                                  for idx, row in df.tail(30).iterrows()]
 
-                res = {
-                    "px": round(px, 2), "chg": round(chg, 2), "pct_chg": round(chg, 2),
-                    "open": float(latest_row.get("Open", px)),
-                    "high": float(latest_row.get("High", px)),
-                    "low": float(latest_row.get("Low", px)),
-                    "close": px,
-                    "volume": int(latest_row.get("Volume", 0)),
-                    "avg_volume": int(df["Volume"].mean()) if "Volume" in df.columns else 0,
-                    "mktcap": 0, "pe": 0,
-                    "week52_high": float(df["Close"].max()) if "Close" in df.columns else px,
-                    "week52_low": float(df["Close"].min()) if "Close" in df.columns else px,
-                    "ts": datetime.now().isoformat(),
-                    "ohlcv": ohlcv_list,
-                }
-                cache.set(ticker, "price", res, source)
-                return {**res, "source_used": source, "freshness_minutes": 0, "is_estimated": False}
-        except Exception as e:
-            logger.warning(f"Collector fetch failed for {ticker}: {e}")
+                    res = {
+                        "px": round(px, 2), "chg": round(chg, 2), "pct_chg": round(chg, 2),
+                        "open": float(latest_row.get("Open", px)), "high": float(latest_row.get("High", px)),
+                        "low": float(latest_row.get("Low", px)), "close": px, "volume": int(latest_row.get("Volume", 0)),
+                        "avg_volume": int(df["Volume"].mean()) if "Volume" in df.columns else 0,
+                        "mktcap": 0, "pe": 0,
+                        "week52_high": float(df["Close"].max()) if "Close" in df.columns else px,
+                        "week52_low": float(df["Close"].min()) if "Close" in df.columns else px,
+                        "ts": datetime.now().isoformat(), "ohlcv": ohlcv_list,
+                    }
+                    cache.set(ticker, "price", res, source)
+                    return {**res, "source_used": source, "freshness_minutes": 0, "is_estimated": False}
+            except Exception as e:
+                logger.warning(f"Collector fetch failed for {ticker}: {e}")
 
-        # 4. Return stale cache if available
+        # 4. Return stale cache if available (last chance before fallback)
         if data:
             return {**data, "source_used": "cache_stale", "is_stale": True}
+
+        # 5. Final fallback — trigger a background task to fetch this ticker soon
+        if not allow_scrape:
+            # Non-blocking trigger for later
+            asyncio.create_task(self._trigger_background_fetch(ticker))
+
+        return {
+            "px": 0, "chg": 0, "pct_chg": 0, "open": 0, "high": 0, "low": 0, "close": 0,
+            "volume": 0, "avg_volume": 0, "mktcap": 0, "pe": 0,
+            "week52_high": 0, "week52_low": 0,
+            "ts": datetime.now().isoformat(), "ohlcv": [],
+            "source_used": "none", "is_estimated": True, "syncing": True
+        }
+
+    async def _trigger_background_fetch(self, ticker: str):
+        """Hidden background fetch to warm the cache for a specific ticker."""
+        try:
+            from agents.collector_agent import fetch_ticker
+            await fetch_ticker(ticker, period="1d", scrape_ok=True)
+            logger.info(f"Background warming complete for {ticker}")
+        except Exception:
+            pass
+
 
         # 5. Final fallback — minimal stub so UI doesn't break
         return {
@@ -137,7 +150,7 @@ class DataEngine:
             "source_used": "none", "is_estimated": True,
         }
 
-    async def get_news(self, ticker: str, max_items: int = 10) -> list[dict]:
+    async def get_news(self, ticker: str, max_items: int = 10, allow_scrape: bool = False) -> list[dict]:
         """Deduplicated news from knowledge store + RSS + Web."""
         articles = []
 
@@ -157,16 +170,22 @@ class DataEngine:
         except Exception as e:
             logger.warning(f"Knowledge store news lookup failed: {e}")
 
-        # 2. RSS + Web scrapers
-        try:
-            rss_news = rss_scraper.get_for_ticker(ticker)
-            web_news = web_scraper.scrape_ticker_news(ticker)
-            for n in (rss_news + web_news):
-                articles.append(n)
-        except Exception:
-            pass
+        # 2. RSS + Web scrapers (only if explicitly allowed or no cached data found)
+        if allow_scrape or not articles:
+            try:
+                # Limit blocking scrapers in the request path
+                rss_news = rss_scraper.get_for_ticker(ticker)
+                for n in rss_news:
+                    articles.append(n)
+                
+                if allow_scrape:
+                    web_news = web_scraper.scrape_ticker_news(ticker)
+                    for n in web_news:
+                        articles.append(n)
+            except Exception:
+                pass
 
-        # Deduplicate by headline
+        # 3. Deduplicate by headline
         seen = set()
         unique = []
         for n in articles:
@@ -175,19 +194,37 @@ class DataEngine:
                 seen.add(h)
                 unique.append(n)
 
+        # Trigger background crawl if we have very little news
+        if not allow_scrape and len(unique) < 3:
+            asyncio.create_task(self._trigger_news_warmup(ticker))
+
         return unique[:max_items]
 
-    async def get_social_sentiment(self, ticker: str) -> dict:
+    async def _trigger_news_warmup(self, ticker: str):
+        """Background news crawl."""
+        try:
+            await web_scraper.scrape_ticker_news(ticker)
+        except Exception:
+            pass
+
+    async def get_social_sentiment(self, ticker: str, allow_scrape: bool = False) -> dict:
+        # Prioritize fast sentiment returns
         try:
             return social_scraper.get_sentiment(ticker)
         except Exception:
+            if allow_scrape:
+                # Synchronous fallback only if allowed
+                try:
+                    return await asyncio.to_thread(social_scraper.get_sentiment, ticker)
+                except Exception:
+                    pass
             return {"score": 0, "mentions": 0, "source": "none"}
 
-    async def get_full_context(self, ticker: str) -> dict:
+    async def get_full_context(self, ticker: str, allow_scrape: bool = False) -> dict:
         """Aggregates everything for LLM reasoning."""
-        price = await self.get_price_data(ticker)
-        news = await self.get_news(ticker)
-        sentiment = await self.get_social_sentiment(ticker)
+        price = await self.get_price_data(ticker, allow_scrape=allow_scrape)
+        news = await self.get_news(ticker, allow_scrape=allow_scrape)
+        sentiment = await self.get_social_sentiment(ticker, allow_scrape=allow_scrape)
 
         return {
             **price,

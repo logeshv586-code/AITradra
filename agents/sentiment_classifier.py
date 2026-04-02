@@ -3,6 +3,7 @@ Sentiment Classifier Agent — FinBERT-powered financial sentiment analysis.
 Provides high-accuracy sentiment scores for news and social media.
 """
 
+import asyncio
 import torch
 from transformers import pipeline
 from agents.base_agent import BaseAgent, AgentContext
@@ -20,10 +21,9 @@ class SentimentClassifierAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name="SentimentClassifierAgent", timeout_seconds=60)
-        self._initialize_pipeline()
 
     def _initialize_pipeline(self):
-        """Lazy load the FinBERT pipeline."""
+        """Load the FinBERT pipeline only when the agent is actually used."""
         if SentimentClassifierAgent._finbert_pipeline is None:
             try:
                 logger.info("Initializing FinBERT pipeline (ProsusAI/finbert)...")
@@ -75,8 +75,22 @@ class SentimentClassifierAgent(BaseAgent):
             return context
 
         try:
+            if SentimentClassifierAgent._finbert_pipeline is None:
+                await asyncio.to_thread(self._initialize_pipeline)
+
+            if SentimentClassifierAgent._finbert_pipeline is None:
+                context.result = {
+                    "symbol": ticker,
+                    "sentiment_score": 0.5,
+                    "label": "neutral",
+                    "confidence": 0.0,
+                    "counts": {"positive": 0, "neutral": len(headlines), "negative": 0},
+                    "top_headline_sentiment": None,
+                }
+                return context
+
             # FinBERT analysis
-            results = SentimentClassifierAgent._finbert_pipeline(headlines)
+            results = await asyncio.to_thread(SentimentClassifierAgent._finbert_pipeline, headlines)
             
             # Aggregate scores
             # FinBERT labels: positive, negative, neutral

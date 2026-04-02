@@ -30,7 +30,12 @@ class EpisodicStore:
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
+        self._schema_mode = "classic"
         self._init_table()
+
+    def _get_columns(self, conn: sqlite3.Connection) -> set[str]:
+        rows = conn.execute("PRAGMA table_info(agent_episodes)").fetchall()
+        return {row[1] for row in rows}
 
     def _init_table(self):
         """Create the agent_episodes table if it doesn't exist."""
@@ -49,15 +54,25 @@ class EpisodicStore:
                     created_at TEXT DEFAULT (datetime('now'))
                 )
             """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_episodes_agent ON agent_episodes(agent)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_episodes_created ON agent_episodes(created_at)
-            """)
+            columns = self._get_columns(conn)
+            if "agent" in columns:
+                self._schema_mode = "classic"
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_episodes_agent ON agent_episodes(agent)
+                """)
+            elif "agent_name" in columns:
+                self._schema_mode = "knowledge_store"
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_episodes_agent_name ON agent_episodes(agent_name)
+                """)
+
+            if "created_at" in columns:
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_episodes_created ON agent_episodes(created_at)
+                """)
             conn.commit()
             conn.close()
-            logger.info("Episodic memory table initialized")
+            logger.info(f"Episodic memory table initialized ({self._schema_mode})")
         except Exception as e:
             logger.warning(f"Episodic table init warning: {e}")
 
@@ -65,20 +80,46 @@ class EpisodicStore:
         """Persist an episode to SQLite."""
         try:
             conn = sqlite3.connect(self.db_path)
-            conn.execute(
-                """INSERT INTO agent_episodes (agent, task, result, reflection, confidence, errors, metadata_json, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    episode.get("agent", "unknown"),
-                    episode.get("task", ""),
-                    json.dumps(episode.get("result", ""), default=str)[:5000],
-                    episode.get("reflection", ""),
-                    episode.get("confidence", 0.0),
-                    json.dumps(episode.get("errors", []), default=str),
-                    json.dumps(episode.get("metadata", {}), default=str)[:2000],
-                    episode.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            timestamp = episode.get("timestamp", datetime.now(timezone.utc).isoformat())
+            if self._schema_mode == "knowledge_store":
+                state_payload = {
+                    "reflection": episode.get("reflection", ""),
+                    "confidence": episode.get("confidence", 0.0),
+                    "metadata": episode.get("metadata", {}),
+                }
+                conn.execute(
+                    """INSERT INTO agent_episodes (
+                           session_id, agent_name, task, status, state_json,
+                           result_json, error_log, created_at, updated_at
+                       )
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        episode.get("session_id", f"memory-{int(datetime.now(timezone.utc).timestamp())}"),
+                        episode.get("agent", "unknown"),
+                        episode.get("task", ""),
+                        "complete",
+                        json.dumps(state_payload, default=str)[:3000],
+                        json.dumps(episode.get("result", ""), default=str)[:5000],
+                        json.dumps(episode.get("errors", []), default=str),
+                        timestamp,
+                        timestamp,
+                    )
                 )
-            )
+            else:
+                conn.execute(
+                    """INSERT INTO agent_episodes (agent, task, result, reflection, confidence, errors, metadata_json, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        episode.get("agent", "unknown"),
+                        episode.get("task", ""),
+                        json.dumps(episode.get("result", ""), default=str)[:5000],
+                        episode.get("reflection", ""),
+                        episode.get("confidence", 0.0),
+                        json.dumps(episode.get("errors", []), default=str),
+                        json.dumps(episode.get("metadata", {}), default=str)[:2000],
+                        timestamp,
+                    )
+                )
             conn.commit()
             conn.close()
         except Exception as e:
@@ -89,13 +130,28 @@ class EpisodicStore:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
-            results = conn.execute(
-                """SELECT agent, task, result, reflection, confidence, created_at
-                   FROM agent_episodes
-                   WHERE task LIKE ? OR result LIKE ? OR reflection LIKE ?
-                   ORDER BY created_at DESC LIMIT ?""",
-                (f"%{query}%", f"%{query}%", f"%{query}%", limit)
-            ).fetchall()
+            if self._schema_mode == "knowledge_store":
+                results = conn.execute(
+                    """SELECT
+                           agent_name AS agent,
+                           task,
+                           result_json AS result,
+                           state_json AS reflection,
+                           0.0 AS confidence,
+                           created_at
+                       FROM agent_episodes
+                       WHERE task LIKE ? OR result_json LIKE ? OR state_json LIKE ?
+                       ORDER BY created_at DESC LIMIT ?""",
+                    (f"%{query}%", f"%{query}%", f"%{query}%", limit)
+                ).fetchall()
+            else:
+                results = conn.execute(
+                    """SELECT agent, task, result, reflection, confidence, created_at
+                       FROM agent_episodes
+                       WHERE task LIKE ? OR result LIKE ? OR reflection LIKE ?
+                       ORDER BY created_at DESC LIMIT ?""",
+                    (f"%{query}%", f"%{query}%", f"%{query}%", limit)
+                ).fetchall()
             conn.close()
             return [dict(r) for r in results]
         except Exception as e:
@@ -107,16 +163,28 @@ class EpisodicStore:
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
-            if agent:
-                results = conn.execute(
-                    "SELECT * FROM agent_episodes WHERE agent = ? ORDER BY created_at DESC LIMIT ?",
-                    (agent, limit)
-                ).fetchall()
+            if self._schema_mode == "knowledge_store":
+                if agent:
+                    results = conn.execute(
+                        "SELECT * FROM agent_episodes WHERE agent_name = ? ORDER BY created_at DESC LIMIT ?",
+                        (agent, limit)
+                    ).fetchall()
+                else:
+                    results = conn.execute(
+                        "SELECT * FROM agent_episodes ORDER BY created_at DESC LIMIT ?",
+                        (limit,)
+                    ).fetchall()
             else:
-                results = conn.execute(
-                    "SELECT * FROM agent_episodes ORDER BY created_at DESC LIMIT ?",
-                    (limit,)
-                ).fetchall()
+                if agent:
+                    results = conn.execute(
+                        "SELECT * FROM agent_episodes WHERE agent = ? ORDER BY created_at DESC LIMIT ?",
+                        (agent, limit)
+                    ).fetchall()
+                else:
+                    results = conn.execute(
+                        "SELECT * FROM agent_episodes ORDER BY created_at DESC LIMIT ?",
+                        (limit,)
+                    ).fetchall()
             conn.close()
             return [dict(r) for r in results]
         except Exception as e:

@@ -1,6 +1,7 @@
 """AXIOM V4.0 Mythic Trading Intelligence API — FastAPI gateway with multi-agent + orchestrator pipeline + Live Data."""
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict
@@ -9,6 +10,7 @@ import sys
 import os
 import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -98,6 +100,7 @@ from pydantic import BaseModel
 from gateway.synthesis_service import SynthesisService
 from gateway.simulation_engine import SimulationEngine
 from gateway.crew_orchestrator import OmniCrewManager
+from gateway.intelligence_service import intelligence_service
 
 class ChatRequest(BaseModel):
     message: str
@@ -155,9 +158,9 @@ async def lifespan(app: FastAPI):
     app.state.memory = MemoryManager()
     await app.state.memory.initialize()
     
-    # Preload the 4B Nemotron Model into RAM so all agents/UI endpoints share it natively
-    logger.info("🧠 Preloading LLM globally in background...")
-    asyncio.create_task(asyncio.to_thread(LLMClient.preload_local_gguf))
+    # LLM preloading is now DISABLED on startup to save memory and CPU.
+    # Models will be loaded on-demand when a specific analysis is requested.
+    # asyncio.create_task(asyncio.to_thread(LLMClient.preload_local_gguf))
     app.state.llm = LLMClient()
 
     # V1 Core Agents
@@ -191,6 +194,7 @@ async def lifespan(app: FastAPI):
 
     # Background: collect historical data if needed (non-blocking)
     asyncio.create_task(collect_historical_data())
+    asyncio.create_task(_background_watchlist_sync(force=False))
     logger.info("📡 Initial data collection triggered in background.")
 
     # V2 Orchestrator (14 agents)
@@ -204,13 +208,20 @@ async def lifespan(app: FastAPI):
         regime_detector_agent=regime_detector_agent, backtest_agent=backtest_agent
     )
 
-    # V3 RAG Agent
+    # V3 RAG Agent - Backgrounded to avoid blocking startup
     from agents.rag_agent import RagAgent
     app.state.rag_agent = RagAgent(memory=app.state.memory)
-    try:
-        app.state.rag_agent.load_index()
-    except Exception as e:
-        logger.warning(f"RAG index load failed: {e}")
+    
+    async def _async_load_rag():
+        try:
+            logger.info("📂 Deferring RAG index load for 10s...")
+            await asyncio.sleep(10)
+            app.state.rag_agent.load_index()
+            logger.info("✅ RAG index loaded in background.")
+        except Exception as e:
+            logger.warning(f"Background RAG index load failed: {e}")
+            
+    asyncio.create_task(_async_load_rag())
 
     # AXIOM v3.1 Synthesis Service
     from gateway.synthesis_service import SynthesisService
@@ -271,6 +282,8 @@ app.include_router(db_portability_router)
 
 # Include Mission Control Router
 app.include_router(mission_control_router)
+
+UI_DIST_DIR = (Path(__file__).resolve().parent.parent / settings.UI_DIST_PATH).resolve()
 
 
 # ─── HELPER: Fetch yfinance data with caching ────────────────────────────────
@@ -334,28 +347,61 @@ async def _fetch_yf_index(symbol: str, name: str) -> dict:
         return {"name": name, "value": 0, "change": 0}
 
 
+def _cache_watchlist_records(records: list[dict]):
+    import time
+
+    app.state.cache["watchlist"] = records
+    app.state.cache["watchlist_ts"] = time.time()
+    for record in records:
+        app.state.last_seen[record["id"]] = record
+
+
+async def _get_watchlist_intelligence(force_refresh: bool = False, max_age_minutes: int = 180) -> tuple[list[dict], list[dict]]:
+    snapshots = await intelligence_service.get_watchlist_intelligence(
+        force_refresh=force_refresh,
+        max_age_minutes=max_age_minutes,
+    )
+    records = [intelligence_service.to_watchlist_record(snapshot) for snapshot in snapshots]
+    if records:
+        _cache_watchlist_records(records)
+    return snapshots, records
+
+
+def _analysis_payload_is_usable(result: dict, ticker: str) -> bool:
+    if not isinstance(result, dict):
+        return False
+    result_ticker = str(result.get("ticker", "")).upper()
+    if result_ticker not in {"", ticker.upper()}:
+        return False
+    if result_ticker in {"", "NOT SPECIFIED"}:
+        return False
+    return bool(result.get("prediction_direction") or result.get("recommendation"))
+
+
 # ─── AXIOM v2 Endpoints ──────────────────────────────────────────────────────
 
 @app.get("/api/stock/{ticker}")
 async def get_stock_detail_v2(ticker: str):
     """
-    Full stock detail for the panel view.
+    Full stock detail for the panel view — optimized for speed.
     """
     ticker = ticker.upper()
-    data = await data_engine.get_price_data(ticker)
-    news = await data_engine.get_news(ticker, max_items=10)
-    sentiment = await data_engine.get_social_sentiment(ticker)
-    
-    # Mocking OHLCV history for now since yfinance is hit-or-miss
-    ohlcv_history = data.get("ohlcv", []) 
-    
+    # Fast path: use cached intelligence by default
+    snapshot = await intelligence_service.get_ticker_intelligence(ticker, max_age_minutes=120)
+    data = snapshot.get("price_data", {})
+    news = snapshot.get("top_headlines", [])
+    sentiment = snapshot.get("sentiment", {})
+    ohlcv_history = data.get("ohlcv", [])
+
     return {
         "ticker": ticker,
+        "name": snapshot.get("name", ticker),
         "price_data": data,
         "news": news,
         "sentiment": sentiment,
         "ohlcv_history": ohlcv_history,
         "freshness_label": cache.get_freshness_label(ticker, "price"),
+        "intelligence": snapshot.get("analysis", {}),
     }
 
 @app.get("/api/stock/{ticker}/analysis")
@@ -365,7 +411,15 @@ async def get_stock_analysis(ticker: str):
     Combines Technical, News, and Risk agents into a final Mythic report.
     """
     ticker = ticker.upper()
-    data = await data_engine.get_full_context(ticker)
+    snapshot = await intelligence_service.get_ticker_intelligence(ticker, max_age_minutes=120)
+    data = {
+        "price_data": snapshot.get("price_data", {}),
+        "historical_stats": snapshot.get("historical_stats", {}),
+        "risk": snapshot.get("risk", {}),
+        "sentiment": snapshot.get("sentiment", {}),
+        "top_headlines": snapshot.get("top_headlines", []),
+        "sections": snapshot.get("sections", {}),
+    }
     
     # Run the multi-agent crew (offload to thread as kickoff is synchronous)
     try:
@@ -377,16 +431,27 @@ async def get_stock_analysis(ticker: str):
             try:
                 # Basic cleaning if LLM put code blocks
                 clean_res = result.strip().replace("```json", "").replace("```", "")
-                return json.loads(clean_res)
+                parsed = json.loads(clean_res)
+                if _analysis_payload_is_usable(parsed, ticker):
+                    return parsed
             except:
-                return {"raw_crew_output": result}
-        return result
+                pass
+            return snapshot.get("analysis", {})
+        if _analysis_payload_is_usable(result, ticker):
+            return result
+        return snapshot.get("analysis", {})
     except Exception as e:
         logger.error(f"CrewAI Synthesis failed for {ticker}: {e}")
-        # Fallback to legacy single-prompt analysis
-        market_ctx = MarketManager.get_ai_suggestion_context(ticker)
-        prompt = build_investment_criteria_prompt(ticker, data, market_context=market_ctx)
-        return await llm_client.complete(prompt, expect_json=True)
+        # Fallback to legacy single-prompt analysis, then to persisted backend intelligence.
+        try:
+            market_ctx = MarketManager.get_ai_suggestion_context(ticker)
+            prompt = build_investment_criteria_prompt(ticker, data, market_context=market_ctx)
+            result = await llm_client.complete(prompt, expect_json=True)
+            if _analysis_payload_is_usable(result, ticker):
+                return result
+        except Exception as llm_error:
+            logger.warning(f"LLM fallback analysis failed for {ticker}: {llm_error}")
+        return snapshot.get("analysis", {})
 
 @app.get("/api/stock/{ticker}/explain-move")
 async def explain_price_move(ticker: str):
@@ -477,37 +542,20 @@ async def knowledge_status():
 @app.get("/api/market/globe-data")
 async def get_globe_data():
     """Lightweight endpoint for globe pins — returns ALL watchlist stocks with real data."""
-    from core.config import settings
-    watchlist = settings.DEFAULT_WATCHLIST
-
+    snapshots, records = await _get_watchlist_intelligence(max_age_minutes=240)
+    snapshot_map = {item["ticker"]: item for item in snapshots}
     results = []
-    for ticker in watchlist:
-        # Check last_seen first (populated by background sync)
-        if hasattr(app.state, 'last_seen') and ticker in app.state.last_seen:
-            s = app.state.last_seen[ticker]
-            chg = s.get("chg", s.get("pct_chg", 0))
-            results.append({
-                "ticker": ticker, "lat": s.get("lat", 40.7), "lon": s.get("lon", -74.0),
-                "px": s.get("px", 0), "pct_chg": chg,
-                "signal": "BUY" if chg > 0.5 else ("SELL" if chg < -0.5 else "HOLD"),
-                "name": s.get("name", ticker),
-            })
-            continue
-
-        # Fall back to cache
-        data, _ = cache.get(ticker, "price")
-        lat, lon = get_coords_for_ticker(ticker)
-        if data:
-            chg = data.get("pct_chg", data.get("chg", 0))
-            results.append({
-                "ticker": ticker, "lat": lat, "lon": lon,
-                "px": data.get("px", 0), "pct_chg": chg,
-                "signal": "BUY" if chg > 0.5 else ("SELL" if chg < -0.5 else "HOLD"),
-                "name": ticker,
-            })
-        else:
-            results.append({"ticker": ticker, "lat": lat, "lon": lon, "px": 0, "pct_chg": 0, "signal": "HOLD", "name": ticker})
-
+    for record in records:
+        snapshot = snapshot_map.get(record["id"], {})
+        results.append({
+            "ticker": record["id"],
+            "lat": record.get("lat", 40.7),
+            "lon": record.get("lon", -74.0),
+            "px": record.get("px", 0),
+            "pct_chg": record.get("pct_chg", 0),
+            "signal": snapshot.get("recommendation", "HOLD"),
+            "name": record.get("name", record["id"]),
+        })
     return results
 
 # ─── REST Endpoints ───────────────────────────────────────────────────────────
@@ -534,63 +582,36 @@ async def data_status():
     return status
 
 
-async def _background_watchlist_sync():
+async def _background_watchlist_sync(force: bool = False):
     """Background task to fetch all watchlist data sequentially without blocking the UI."""
-    import time
     cache = app.state.cache
     if cache.get("is_syncing"): 
         return
     cache["is_syncing"] = True
     try:
-        stocks = []
-        for ticker in settings.DEFAULT_WATCHLIST:
-            res = await _fetch_yf_ticker(ticker)
-            if res and res.get("px", 0) > 0:
-                stocks.append(res)
-            # Small stagger to avoid hitting internal yfinance thresholds too fast
-            await asyncio.sleep(0.4)
-            
-        cache["watchlist"] = stocks
-        cache["watchlist_ts"] = time.time()
+        _, stocks = await _get_watchlist_intelligence(force_refresh=force, max_age_minutes=240)
         logger.info(f"[LIVE] Background Watchlist Sync Complete: {len(stocks)}/{len(settings.DEFAULT_WATCHLIST)} tickers")
     finally:
         cache["is_syncing"] = False
 
 @app.get("/api/market/watchlist")
 async def market_watchlist():
-    """Fetch LIVE market data instantly utilizing background async scraping to avoid rate limits."""
-    import time
-    cache = app.state.cache
-    now = time.time()
-
-    # 1. Trigger background sync if data is stale or empty
-    if not cache.get("watchlist") or now - cache.get("watchlist_ts", 0) > 60:
-        asyncio.create_task(_background_watchlist_sync())
-
-    # 2. Return fully cached list if available
-    if cache.get("watchlist"):
-        return {"stocks": cache.get("watchlist"), "cached": True, "ts": cache.get("watchlist_ts")}
-
-    # 3. Instant Return: Seed placeholder data so globe renders instantly
-    from gateway.stock_geo import get_coords_for_ticker
-    stocks = []
-    logger.info("[LIVE] Returning placeholder map while background sync fetches real data...")
-    for t in settings.DEFAULT_WATCHLIST:
-        if t in app.state.last_seen:
-            cached = app.state.last_seen[t]
-            if cached.get("ex", "N/A") != "N/A" and not cached.get("stale", True):
-                stocks.append(cached)
-                continue
-        lat, lon = get_coords_for_ticker(t)
-        placeholder = {
-            "id": t, "name": t, "ex": "N/A", "px": 0, "chg": 0,
-            "mcap": "N/A", "vol": "N/A", "pe": "0", "sector": "Syncing...",
-            "lat": lat, "lon": lon, "ohlcv": [], "risk": {"var": "0%", "beta": 1.0, "vol": "Low"},
-            "fundamentals": {}, "stale": True, "pct_chg": 0,
+    """Fetch LIVE market data instantly from the local intelligence cache."""
+    try:
+        # 1. Fetch from pre-calculated intelligence store
+        snapshots = await intelligence_service.get_watchlist_intelligence(max_age_minutes=60)
+        records = [intelligence_service.to_watchlist_record(s) for s in snapshots]
+        
+        return {
+            "stocks": records, 
+            "cached": True, 
+            "ts": datetime.now().timestamp(),
+            "count": len(records),
+            "synced_at": datetime.now().isoformat()
         }
-        stocks.append(placeholder)
-            
-    return {"stocks": stocks, "cached": False, "ts": now, "syncing": True}
+    except Exception as e:
+        logger.error(f"Watchlist API failed: {e}")
+        return {"stocks": [], "error": str(e)}
 
 
 @app.get("/api/market/status")
@@ -882,81 +903,15 @@ async def get_predictions(ticker: str, limit: int = 10):
 @app.get("/api/market/predictions")
 async def market_predictions():
     """OMNI-AXIOM Prediction Table — structured prediction for every watchlist stock."""
-    import math
-    cache_data = app.state.cache
-    stocks = cache_data.get("watchlist") or []
-
-    predictions = []
-    for s in stocks:
-        ticker = s.get("id", "")
-        px = s.get("px", 0)
-        chg = s.get("chg", 0)
-        beta = s.get("risk", {}).get("beta", 1.0) if isinstance(s.get("risk"), dict) else 1.0
-
-        # Prediction direction from momentum
-        if chg > 1.0:
-            direction = "UP"
-        elif chg < -1.0:
-            direction = "DOWN"
-        else:
-            direction = "SIDEWAYS"
-
-        # Weighted confidence (capped at 85%)
-        momentum_signal = min(abs(chg) * 8, 25)  # 25% technical
-        news_signal = 20  # baseline from cached RSS
-        macro_signal = 15  # baseline macro
-        sentiment_signal = 10  # baseline sentiment
-        ml_signal = 7  # baseline ML
-        raw_conf = momentum_signal + news_signal + macro_signal + sentiment_signal + ml_signal
-        confidence = min(round(raw_conf, 1), 85)
-
-        # Expected move
-        expected_move = round(abs(chg) * 0.6 + beta * 0.5, 2)
-
-        # Risk level
-        if beta > 1.5 or abs(chg) > 3:
-            risk_level = "HIGH"
-        elif beta > 0.8 or abs(chg) > 1:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
-
-        # Predicted price
-        multiplier = 1 + (expected_move / 100) * (1 if direction == "UP" else -1 if direction == "DOWN" else 0)
-        predicted_price = round(px * multiplier, 2)
-
-        # Primary driver
-        if abs(chg) > 2:
-            primary_driver = "technical"
-        elif beta > 1.3:
-            primary_driver = "macro"
-        else:
-            primary_driver = "news"
-
-        predictions.append({
-            "ticker": ticker,
-            "name": s.get("name", ticker),
-            "current_price": px,
-            "predicted_price": predicted_price,
-            "prediction_direction": direction,
-            "confidence_score": confidence,
-            "expected_move_percent": expected_move,
-            "risk_level": risk_level,
-            "reasoning_summary": f"{ticker} shows {'bullish' if direction == 'UP' else 'bearish' if direction == 'DOWN' else 'neutral'} momentum ({chg:+.2f}%). Beta: {beta:.2f}.",
-            "primary_driver": primary_driver,
-            "source_link": "",
-            "sector": s.get("sector", "N/A"),
-            "chg": chg,
-        })
-
+    snapshots, _ = await _get_watchlist_intelligence(max_age_minutes=240)
+    predictions = [intelligence_service.to_prediction_record(snapshot) for snapshot in snapshots]
     return {"predictions": predictions, "count": len(predictions), "max_confidence": 85}
 
 
 @app.get("/api/market/trending")
 async def market_trending():
     """OMNI-AXIOM Trending Stocks — top movers by absolute % change."""
-    cache_data = app.state.cache
-    stocks = cache_data.get("watchlist") or []
+    _, stocks = await _get_watchlist_intelligence(max_age_minutes=240)
 
     sorted_by_move = sorted(stocks, key=lambda s: abs(s.get("chg", 0)), reverse=True)
 
@@ -986,36 +941,18 @@ async def market_trending():
 async def stock_risk_analysis(ticker: str):
     """OMNI-AXIOM Risk Analysis — detailed risk breakdown for a single stock."""
     ticker = ticker.upper()
-    cache_data = app.state.cache
-    stocks = cache_data.get("watchlist") or []
-    stock = next((s for s in stocks if s.get("id") == ticker), None)
-
-    if not stock:
-        # Fetch fresh
-        stock = await _fetch_yf_ticker(ticker)
-
-    risk = stock.get("risk", {}) if isinstance(stock.get("risk"), dict) else {}
+    snapshot = await intelligence_service.get_ticker_intelligence(ticker, max_age_minutes=120)
+    stock = intelligence_service.to_watchlist_record(snapshot)
+    risk = snapshot.get("risk", {})
     fundamentals = stock.get("fundamentals", {}) if isinstance(stock.get("fundamentals"), dict) else {}
     chg = stock.get("chg", 0)
     beta = risk.get("beta", 1.0)
-
-    # Compute risk metrics
-    var_95 = round(min(beta * 2.5, 10.0), 1)
-    max_drawdown_est = round(min(beta * 5.0, 25.0), 1)
-    volatility = risk.get("vol", "Medium")
-
-    # Sector risk assessment
+    var_95 = risk.get("var_95", 0)
+    max_drawdown_est = risk.get("max_drawdown", 0)
+    volatility = risk.get("volatility_label", "Medium")
     sector = stock.get("sector", "N/A")
-    high_risk_sectors = ["Cryptocurrency", "Biotech", "Cannabis", "SPACs"]
-    sector_risk = "HIGH" if any(hr in sector for hr in high_risk_sectors) else ("MEDIUM" if beta > 1.0 else "LOW")
-
-    # Overall risk level
-    if beta > 1.5 or abs(chg) > 4:
-        overall_risk = "HIGH"
-    elif beta > 0.8 or abs(chg) > 2:
-        overall_risk = "MEDIUM"
-    else:
-        overall_risk = "LOW"
+    sector_risk = "HIGH" if sector == "Cryptocurrency" else ("MEDIUM" if beta > 1.0 else "LOW")
+    overall_risk = risk.get("risk_level", "MEDIUM")
 
     return {
         "ticker": ticker,
@@ -1043,8 +980,7 @@ async def stock_risk_analysis(ticker: str):
 @app.get("/api/portfolio/insights")
 async def portfolio_insights():
     """OMNI-AXIOM Portfolio Insights — allocation breakdown and aggregate metrics."""
-    cache_data = app.state.cache
-    stocks = cache_data.get("watchlist") or []
+    snapshots, stocks = await _get_watchlist_intelligence(max_age_minutes=240)
 
     # Sector breakdown
     sector_map = {}
@@ -1070,20 +1006,13 @@ async def portfolio_insights():
 
     # Risk distribution
     risk_dist = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
-    for s in stocks:
-        beta = s.get("risk", {}).get("beta", 1.0) if isinstance(s.get("risk"), dict) else 1.0
-        chg = abs(s.get("chg", 0))
-        if beta > 1.5 or chg > 3:
-            risk_dist["HIGH"] += 1
-        elif beta > 0.8 or chg > 1:
-            risk_dist["MEDIUM"] += 1
-        else:
-            risk_dist["LOW"] += 1
+    for snapshot in snapshots:
+        risk_dist[snapshot.get("risk_level", "MEDIUM")] += 1
 
     # Aggregate metrics
     avg_change = round(sum(s.get("chg", 0) for s in stocks) / len(stocks), 2) if stocks else 0
-    bullish = sum(1 for s in stocks if s.get("chg", 0) > 0)
-    bearish = len(stocks) - bullish
+    bullish = sum(1 for snapshot in snapshots if snapshot.get("prediction_direction") == "UP")
+    bearish = sum(1 for snapshot in snapshots if snapshot.get("prediction_direction") == "DOWN")
 
     return {
         "total_assets": len(stocks),
@@ -1253,6 +1182,12 @@ async def simulation_sell(req: SimulationTradeRequest):
 async def simulation_update():
     """Fetch real-time revaluation of all virtual positions."""
     return app.state.simulation.calculate_live_portfolio()
+
+
+if UI_DIST_DIR.exists():
+    # Serve the built Vite app from the same backend port for one-command local startup.
+    app.mount("/", StaticFiles(directory=str(UI_DIST_DIR), html=True), name="ui")
+    logger.info(f"Serving built frontend from {UI_DIST_DIR}")
 
 if __name__ == "__main__":
     import uvicorn
