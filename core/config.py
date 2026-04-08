@@ -142,6 +142,18 @@ class Settings(BaseSettings):
     LANGFUSE_PUBLIC_KEY: str = "pk-lf-local"
     LANGFUSE_SECRET_KEY: str = "sk-lf-local"
 
+    # Hyperliquid settings
+    HYPERLIQUID_PRIVATE_KEY: Optional[str] = None
+    HYPERLIQUID_VAULT_ADDRESS: Optional[str] = None
+    HYPERLIQUID_ASSETS: list[str] = ["BTC", "ETH", "SOL"]
+    HYPERLIQUID_INTERVAL: str = "5m"
+    
+    # Extended Risk Controls
+    FORCE_CLOSE_LOSS_PCT: float = 0.20
+    MAX_LEVERAGE: int = 10
+    BALANCE_RESERVE_PCT: float = 0.20
+    MANDATORY_STOP_LOSS_PCT: float = 0.05
+
     # Watchlist (Expanded for comprehensive global visibility)
     DEFAULT_WATCHLIST: list[str] = [
         # US Tech & Megacap

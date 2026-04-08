@@ -53,7 +53,18 @@ async def main():
         from gateway.intelligence_service import intelligence_service
         from core.market_scheduler import market_scheduler
         
+        from gateway.hyperliquid_service import hyperliquid_trading_service
+        
         logger.info("Configuring smart market-aware scheduler...")
+
+        # Schedule Hyperliquid Trading Cycle
+        scheduler.add_job(
+            hyperliquid_trading_service.run_cycle,
+            "interval",
+            minutes=5, # Should ideally match settings.HYPERLIQUID_INTERVAL but default to 5m
+            id="hyperliquid_trading",
+            next_run_time=datetime.now() + timedelta(seconds=60)
+        )
 
         # One-time startup catch-up is now backgrounded to avoid delaying API availability.
         asyncio.create_task(market_scheduler.startup_catchup())

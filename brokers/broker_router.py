@@ -159,6 +159,7 @@ class BrokerRouter:
         config = config or {}
         self.paper_broker = PaperBroker()
         self.ccxt_broker = None
+        self.hyperliquid_broker = None
 
         if config.get("CCXT_EXCHANGE"):
             self.ccxt_broker = CCXTBroker(
@@ -167,10 +168,21 @@ class BrokerRouter:
                 secret=config.get("CCXT_SECRET", ""),
                 paper=config.get("PAPER_TRADING", True),
             )
+        
+        # Initialize Hyperliquid Broker
+        from brokers.hyperliquid_broker import HyperliquidBroker
+        self.hyperliquid_broker = HyperliquidBroker(
+            private_key=config.get("HYPERLIQUID_PRIVATE_KEY"),
+            vault_address=config.get("HYPERLIQUID_VAULT_ADDRESS")
+        )
 
     async def execute(self, order: Order, asset_class: str = "equity") -> dict:
-        if asset_class == "crypto" and self.ccxt_broker:
-            return await self.ccxt_broker.place_order(order)
+        if asset_class == "crypto":
+            if self.hyperliquid_broker:
+                 return await self.hyperliquid_broker.place_order(order)
+            elif self.ccxt_broker:
+                return await self.ccxt_broker.place_order(order)
+        
         # Everything else goes to PaperBroker
         return await self.paper_broker.place_order(order)
 

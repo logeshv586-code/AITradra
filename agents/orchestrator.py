@@ -103,18 +103,33 @@ class MythicOrchestrator:
 
 
             if research_mode in ("DEEP", "INSTITUTIONAL"):
-                ctx = AgentContext(task=f"Decision for {ticker}", ticker=ticker, observations=gathered_data, metadata={"history": history})
-                ctx.observations["sentiment_result"] = specialist_outputs.get("sentiment_finbert", {})
-                
-                decision_results = await asyncio.gather(
-                    self.sentiment_finbert.run(ctx),
-                    self.signal_aggregator.run(ctx),
-                    self.risk_manager.run(ctx),
-                    return_exceptions=True
+                decision_ctx = AgentContext(
+                    task=f"Decision for {ticker}", 
+                    ticker=ticker, 
+                    observations={**gathered_data, "specialist_outputs": specialist_outputs}, 
+                    metadata={"history": history}
                 )
                 
-                for name, res in zip(["sentiment_finbert", "signal_aggregator", "risk_manager"], decision_results):
-                    specialist_outputs[name] = res.result if not isinstance(res, Exception) else {"error": str(res)}
+                # ─── Phase 4.1: Sentiment Refinement (FinBERT) ──────────────
+                logger.info(f"[Orchestrator] Running high-precision Sentiment Refinement...")
+                sent_res = await self.sentiment_finbert.run(decision_ctx)
+                specialist_outputs["sentiment_finbert"] = sent_res.result
+                
+                # Inject sentiment result into context for subsequent agents
+                decision_ctx.observations["sentiment_result"] = sent_res.result
+                
+                # ─── Phase 4.2: Signal Aggregation ──────────────────────────
+                logger.info(f"[Orchestrator] Running Signal Aggregation...")
+                agg_res = await self.signal_aggregator.run(decision_ctx)
+                specialist_outputs["signal_aggregator"] = agg_res.result
+                
+                # Inject aggregator result into context for Risk Manager
+                decision_ctx.observations["signal_aggregator_result"] = agg_res.result
+                
+                # ─── Phase 4.3: Risk Approval ───────────────────────────────
+                logger.info(f"[Orchestrator] Running Risk Manager Approval...")
+                risk_res = await self.risk_manager.run(decision_ctx)
+                specialist_outputs["risk_manager"] = risk_res.result
             else:
                 # Minimal Decision Layer for QUICK mode
                 specialist_outputs["signal_aggregator"] = {"signal": gathered_data.get("price_data", {}).get("chg", 0) >= 0 and "BULLISH" or "BEARISH", "summary": "Quick consensus."}

@@ -9,6 +9,7 @@ import numpy as np
 from agents.base_agent import BaseAgent, AgentContext
 from core.config import settings
 from core.logger import get_logger
+from core.scoring import calculate_consensus_verdict, calibrate_confidence
 
 logger = get_logger(__name__)
 
@@ -48,84 +49,75 @@ class SignalAggregatorAgent(BaseAgent):
         ticker = context.ticker
         ohlcv = context.observations.get("history", [])
         sentiment = context.observations.get("sentiment_result", {})
+        spec_outputs = context.observations.get("specialist_outputs", {})
         
-        # 1. Technical Signals (pandas-ta)
-        ta_score = 0.5
-        if ohlcv:
-            try:
-                df = pd.DataFrame(ohlcv)
-                # Calculate basic TA
-                df.ta.rsi(append=True)
-                df.ta.macd(append=True)
-                df.ta.bbands(append=True)
-                
-                last_row = df.iloc[-1]
-                rsi = last_row.get("RSI_14", 50)
-                
-                # Simple RSI logic for scoring (Scale 0-1)
-                if rsi < 30: ta_score = 0.8  # Oversold (Bullish)
-                elif rsi > 70: ta_score = 0.2 # Overbought (Bearish)
-                else: ta_score = 0.5
-                
-            except Exception as e:
-                logger.warning(f"TA calculation error: {e}")
+        # 1. Technical Signals - Try to reuse specialist output
+        tech_spec = spec_outputs.get("technical", {})
+        if isinstance(tech_spec, dict) and "score" in tech_spec:
+             ta_score = tech_spec["score"]
+             self._add_thought(context, "Using TechnicalSpecialist high-precision score.")
+        else:
+            # Fallback to simple TA logic
+            ta_score = 0.5
+            if ohlcv:
+                try:
+                    df = pd.DataFrame(ohlcv)
+                    df.ta.rsi(append=True)
+                    rsi = df.iloc[-1].get("RSI_14", 50)
+                    ta_score = 0.8 if rsi < 30 else (0.2 if rsi > 70 else 0.5)
+                except Exception as e:
+                    logger.warning(f"TA fallback error: {e}")
 
-        # 2. Sentiment Score (FinBERT result)
-        sent_score = sentiment.get("sentiment_score", 0.5)
+        # 2. Sentiment Score
+        news_score = sentiment.get("sentiment_score", 0.5)
+        social_score = spec_outputs.get("sentiment", {}).get("sentiment_score", 0.5)
         
-        # 3. Volume Anomaly (z-score)
-        vol_score = 0.5
+        # 3. Volume Anomaly
+        vol_ratio = 1.0
         if ohlcv and len(ohlcv) > 20:
             df = pd.DataFrame(ohlcv)
             mean_vol = df['Volume'].mean()
-            std_vol = df['Volume'].std()
             last_vol = df['Volume'].iloc[-1]
-            z_score = (last_vol - mean_vol) / std_vol if std_vol > 0 else 0
-            
-            # High volume on green candle is bullish
-            last_close = df['Close'].iloc[-1]
-            prev_close = df['Close'].iloc[-2]
-            if z_score > 2:
-                vol_score = 0.8 if last_close > prev_close else 0.2
-            else:
-                vol_score = 0.5
+            vol_ratio = last_vol / mean_vol if mean_vol > 0 else 1.0
 
-        # 4. Multi-Signal Fusion (Weighted Average)
-        # Weights: Tech (30%), Sentiment (30%), Volume (20%), Momentum (20%)
-        # Here we mock momentum as 0.5 for now
-        mom_score = 0.5 
+        # 4. Multi-Signal Fusion via Shared Scoring
+        consensus = calculate_consensus_verdict(
+            tech_score=ta_score * 10 - 5, # Scale 0.5 center to 0.0 center
+            news_sentiment=(news_score - 0.5) * 2,
+            social_sentiment=(social_score - 0.5) * 2,
+            vol_ratio=vol_ratio
+        )
         
-        weights = [0.3, 0.3, 0.2, 0.2]
-        scores = [ta_score, sent_score, vol_score, mom_score]
-        
-        final_score = np.average(scores, weights=weights)
+        confidence = calibrate_confidence(
+            base_score=consensus["score"],
+            data_points=len(ohlcv),
+            headline_count=len(context.observations.get("news", [])),
+            agreement_factor=1.1 if consensus["is_strong"] else 1.0
+        )
         
         # 5. Determine Verdict
-        verdict = "HOLD"
-        confidence = final_score
+        verdict = consensus["direction"]
+        if confidence < 50:
+            verdict = "HOLD"
+
+        last_price = ohlcv[-1]['Close'] if ohlcv else 0
         
-        if final_score > 0.65:
-            verdict = "BUY"
-        elif final_score < 0.35:
-            verdict = "SELL"
-            
         context.result = {
             "symbol": ticker,
             "verdict": verdict,
-            "final_score": round(float(final_score), 2),
-            "confidence": round(float(confidence), 2),
+            "final_score": consensus["score"],
+            "confidence": confidence,
             "signals": {
                 "technical": ta_score,
-                "sentiment": sent_score,
-                "volume": vol_score,
-                "momentum": mom_score
+                "sentiment": news_score,
+                "volume": round(vol_ratio, 2),
             },
-            "entry_point": ohlcv[-1]['Close'] if ohlcv else 0,
-            "target": round(ohlcv[-1]['Close'] * 1.05, 2) if ohlcv else 0,
-            "stop_loss": round(ohlcv[-1]['Close'] * 0.97, 2) if ohlcv else 0
+            "entry_point": last_price,
+            "target": round(last_price * (1 + abs(consensus["score"]) * 0.1), 2) if last_price else 0,
+            "stop_loss": round(last_price * (1 - abs(consensus["score"]) * 0.05), 2) if last_price else 0
         }
         
-        self._add_thought(context, f"Signal Fusion for {ticker}: Consolidated score {final_score:.2f} → {verdict}")
+        self._add_thought(context, f"Signal Fusion for {ticker}: Score {consensus['score']} → {verdict}")
         
         return context
 

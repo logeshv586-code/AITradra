@@ -12,6 +12,7 @@ from core.logger import get_logger
 from gateway.data_engine import data_engine
 from gateway.knowledge_store import knowledge_store
 from gateway.stock_geo import get_coords_for_ticker, format_market_cap, format_volume
+from core.scoring import calculate_technical_score, calculate_consensus_verdict, calibrate_confidence
 
 logger = get_logger(__name__)
 
@@ -164,55 +165,47 @@ class IntelligenceService:
         return (round(total / count, 3) if count else 0.0, headlines)
 
     def _derive_prediction(self, ticker: str, price_data: dict, stats: dict, news_score: float, sentiment: dict) -> dict:
-        tech_score = 0.0
-        price = _safe_float(price_data.get("px"))
-        sma20 = _safe_float(stats.get("sma20"))
-        sma50 = _safe_float(stats.get("sma50"))
-
-        if price > 0 and sma20 > 0:
-            tech_score += 1.25 if price >= sma20 else -1.25
-        if sma20 > 0 and sma50 > 0:
-            tech_score += 1.0 if sma20 >= sma50 else -1.0
-
-        tech_score += max(min(_safe_float(stats.get("change_5d")) / 2.5, 1.5), -1.5)
-        tech_score += max(min(_safe_float(stats.get("change_20d")) / 4.0, 1.5), -1.5)
-
-        sentiment_score = max(min(news_score * 3.0, 1.5), -1.5)
-        social_score = max(min(_safe_float(sentiment.get("score")) * 1.5, 1.0), -1.0)
-        total_score = tech_score + sentiment_score + social_score
-
-        if total_score >= 1.25:
-            direction = "UP"
-        elif total_score <= -1.25:
-            direction = "DOWN"
-        else:
-            direction = "SIDEWAYS"
-
-        volatility = _safe_float(stats.get("annualized_volatility"))
-        expected_move = round(min(max(abs(total_score) * 1.8 + volatility / 18.0, 0.6), 12.0), 2)
-
-        data_depth_bonus = min(_safe_float(stats.get("points")) / 12.0, 20.0)
-        catalyst_bonus = min(len(sentiment.get("top_headlines", [])) * 2.0, 10.0)
-        agreement_bonus = 8.0 if abs(total_score) >= 2.5 else 4.0 if abs(total_score) >= 1.5 else 0.0
-        confidence = round(min(max(38.0 + abs(total_score) * 12.0 + data_depth_bonus + catalyst_bonus + agreement_bonus, 35.0), 85.0), 1)
-
-        if _safe_float(stats.get("points")) < 5 or len(sentiment.get("top_headlines", [])) == 0:
-            confidence = min(confidence, 45.0)
-
+        # Use shared scoring logic
+        tech_score = calculate_technical_score(
+            price=_safe_float(price_data.get("px")),
+            sma20=_safe_float(stats.get("sma20")),
+            sma50=_safe_float(stats.get("sma50")),
+            change_5d=_safe_float(stats.get("change_5d")),
+            change_20d=_safe_float(stats.get("change_20d"))
+        )
+        
+        consensus = calculate_consensus_verdict(
+            tech_score=tech_score,
+            news_sentiment=news_score,
+            social_sentiment=_safe_float(sentiment.get("score")),
+            vol_ratio=_safe_float(stats.get("volume_ratio"), 1.0)
+        )
+        
+        # Determine primary driver
         if abs(_safe_float(stats.get("change_20d"))) >= abs(news_score * 10):
             primary_driver = "technical"
         elif abs(_safe_float(sentiment.get("score"))) > 0.35 or abs(news_score) > 0.2:
             primary_driver = "sentiment"
         else:
             primary_driver = "macro"
+            
+        confidence = calibrate_confidence(
+            base_score=consensus["score"],
+            data_points=int(_safe_float(stats.get("points"))),
+            headline_count=len(sentiment.get("top_headlines", [])),
+            agreement_factor=1.2 if consensus["is_strong"] else 1.0
+        )
+
+        volatility = _safe_float(stats.get("annualized_volatility"))
+        expected_move = round(min(max(abs(consensus["score"]) * 4.5 + volatility / 18.0, 0.6), 12.0), 2)
 
         return {
             "ticker": ticker,
-            "prediction_direction": direction,
+            "prediction_direction": consensus["direction"],
             "confidence_score": confidence,
             "expected_move_percent": expected_move,
             "primary_driver": primary_driver,
-            "composite_score": round(total_score, 2),
+            "composite_score": consensus["score"],
         }
 
     def _derive_risk(self, stats: dict, price_data: dict) -> dict:
