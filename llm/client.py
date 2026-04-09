@@ -45,6 +45,9 @@ class LLMClient:
     _local_reasoning_llm = None
     _local_general_llm = None
     _load_attempted = False
+    _lm_studio_retry_after = 0.0
+    _ollama_retry_after = 0.0
+    _semaphore = asyncio.Semaphore(1)  # Prevent parallel bursting that crashes LM Studio
 
     @classmethod
     def preload_local_gguf(cls) -> bool:
@@ -86,9 +89,12 @@ class LLMClient:
         self.base_url = base_url or settings.OLLAMA_URL
         self.model = model or settings.LLM_MODEL
         self.timeout = settings.LLM_TIMEOUT
+        self.last_provider_used: Optional[str] = None
         
         # Determine provider
-        if settings.LLM_PROVIDER == "nvidia_nim":
+        if settings.USE_LM_STUDIO:
+            self.provider = "lm_studio"
+        elif settings.LLM_PROVIDER == "nvidia_nim":
             self.provider = "nvidia_nim"
         elif LLMClient._local_reasoning_llm is not None or LLMClient._local_general_llm is not None:
             self.provider = "local_gguf"
@@ -100,26 +106,43 @@ class LLMClient:
     async def complete(self, prompt: str, system: str = "", temperature: Optional[float] = None,
                        max_tokens: Optional[int] = None, expect_json: bool = False,
                        role: str = "general") -> str:
-        """Core completion method with NIM -> Local -> Ollama fallback."""
+        """Core completion method with LM Studio -> NIM -> Local -> Ollama fallback."""
         
-        # 1. Try NVIDIA NIM (Primary)
+        # 1. Try LM Studio (Priority if enabled)
+        if (self.provider == "lm_studio" or settings.USE_LM_STUDIO) and asyncio.get_running_loop().time() >= LLMClient._lm_studio_retry_after:
+            async with LLMClient._semaphore:
+                content = await self._try_lm_studio(prompt, system, temperature, max_tokens)
+            if content and str(content).strip() != "":
+                self.last_provider_used = "lm_studio"
+                return self._post_process(content, expect_json)
+            logger.warning("LM Studio failed, falling back to other providers.")
+
+        # 2. Try NVIDIA NIM (Primary)
         if self.provider == "nvidia_nim":
             content = await self._try_nvidia_nim(prompt, system, temperature, max_tokens, role)
-            if content:
+            if content and str(content).strip() != "":
+                self.last_provider_used = "nvidia_nim"
                 return self._post_process(content, expect_json)
             logger.warning(f"NIM failed for role '{role}', falling back to local GGUF.")
 
         # 2. Try Local GGUF (Safe Fallback)
         if LLMClient._local_reasoning_llm is not None or LLMClient._local_general_llm is not None:
-            res = await self._try_local_gguf(prompt, system, temperature or 0.1, max_tokens or 2048, role)
-            if res:
+            async with LLMClient._semaphore:
+                res = await self._try_local_gguf(prompt, system, temperature or 0.1, max_tokens or 2048, role)
+            if res and str(res).strip() != "":
+                self.last_provider_used = "local_gguf"
                 return self._post_process(res, expect_json)
 
         # 3. Try Ollama (Secondary Fallback)
-        res = await self._try_ollama(prompt, system, temperature or 0.1, max_tokens or 2048)
-        if res:
+        res = None
+        if asyncio.get_running_loop().time() >= LLMClient._ollama_retry_after:
+            async with LLMClient._semaphore:
+                res = await self._try_ollama(prompt, system, temperature or 0.1, max_tokens or 2048)
+        if res and str(res).strip() != "":
+            self.last_provider_used = "ollama"
             return self._post_process(res, expect_json)
 
+        self.last_provider_used = "intelligent_fallback"
         return self._intelligent_fallback(prompt, system, expect_json)
 
     def _get_role_config(self, role: str) -> Dict[str, Any]:
@@ -132,6 +155,43 @@ class LLMClient:
             return {"model": settings.ANALYSIS_MODEL, "tokens": 8192, "temp": 0.2, "key": settings.MOONSHOT_API_KEY}
         else:
             return {"model": settings.GENERAL_MODEL, "tokens": 2048, "temp": 0.3, "key": settings.MINIMAX_API_KEY}
+
+    async def _try_lm_studio(self, prompt: str, system: str,
+                             temperature: Optional[float], max_tokens: Optional[int]) -> Optional[str]:
+        """Inference using LM Studio's OpenAI-compatible API."""
+        try:
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "model": settings.LM_STUDIO_MODEL,
+                "messages": [
+                    {"role": "system", "content": system or "You are an expert financial assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": temperature if temperature is not None else settings.LLM_TEMPERATURE,
+                "max_tokens": max_tokens if max_tokens is not None else settings.LLM_MAX_TOKENS,
+                "stream": False
+            }
+
+            # Use full LLM timeout — large models (27B) need 60-120s
+            timeout = httpx.Timeout(float(self.timeout), connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{settings.LM_STUDIO_URL}/chat/completions",
+                    headers=headers, json=payload
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+                
+                # Backoff on server errors (500, 503) — model may be loading
+                if response.status_code >= 500:
+                    LLMClient._lm_studio_retry_after = asyncio.get_running_loop().time() + 30
+                logger.error(f"LM Studio error: {response.status_code} - {response.text[:200]}")
+                return None
+        except Exception as e:
+            LLMClient._lm_studio_retry_after = asyncio.get_running_loop().time() + 15
+            logger.error(f"LM Studio connection failed: {type(e).__name__}: {repr(e)}")
+            return None
 
     async def _try_nvidia_nim(self, prompt: str, system: str, 
                                temperature: Optional[float], max_tokens: Optional[int], 
@@ -229,7 +289,8 @@ class LLMClient:
                            temperature: float, max_tokens: int) -> Optional[str]:
         """Fallback: Ollama API (if server is running)."""
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            timeout = httpx.Timeout(min(self.timeout, 6.0), connect=2.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
                     f"{self.base_url}/api/generate",
                     json={
@@ -243,7 +304,8 @@ class LLMClient:
                 if response.status_code == 200:
                     return response.json().get("response", "")
         except Exception as e:
-            logger.warning(f"Ollama inference error: {e}")
+            LLMClient._ollama_retry_after = asyncio.get_running_loop().time() + 60
+            logger.warning(f"Ollama inference error: {type(e).__name__}: {repr(e)}")
         return None
 
     def _post_process(self, text: str, expect_json: bool) -> str:

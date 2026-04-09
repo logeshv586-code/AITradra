@@ -421,11 +421,14 @@ def _build_action_card(snapshot: dict, held_position: dict | None, plugin_signal
     timing_window, timing_note = _timing_window(snapshot, held)
     alignment_count, aligned_signals = _plugin_alignment(snapshot, plugin_signals)
     priority = _priority(snapshot, action, alignment_count)
+    sector = snapshot.get("sector", "Global Equity")
+    if sector in {"Global Equity", "India Equity", "Europe Equity"}:
+        sector = intelligence_service._infer_sector(snapshot.get("ticker", ""))
 
     return {
         "ticker": snapshot["ticker"],
         "name": snapshot.get("name", snapshot["ticker"]),
-        "sector": snapshot.get("sector", "Global Equity"),
+        "sector": sector,
         "price": round(_safe_float(price_data.get("px")), 2),
         "change_pct": round(_safe_float(price_data.get("pct_chg"), _safe_float(price_data.get("chg"))), 2),
         "recommendation": snapshot.get("recommendation", "HOLD"),
@@ -527,6 +530,27 @@ async def market_intel_overview(request: Request):
         [card for card in action_cards if card["held"]],
         key=lambda card: (-card["priority"], -card["confidence_score"]),
     )[:10]
+
+    if not top_opportunities:
+        top_opportunities = sorted(
+            [
+                card for card in action_cards
+                if card["action"] in {"WATCH", "HOLD", "HOLD / ADD"}
+                and card["change_pct"] >= 0
+                and not card["stale"]
+            ],
+            key=lambda card: (-card["confidence_score"], -card["change_pct"], card["risk_level"] == "HIGH"),
+        )[:8]
+
+    if not sell_candidates:
+        sell_candidates = sorted(
+            [
+                card for card in action_cards
+                if card["action"] in {"WAIT", "HOLD", "TRIM", "HOLD / ADD"}
+                and (card["change_pct"] <= 0 or card["risk_level"] == "HIGH" or card["stale"])
+            ],
+            key=lambda card: (card["risk_level"] != "HIGH", card["change_pct"], card["stale"] is False, -card["confidence_score"]),
+        )[:8]
 
     bullish = sum(1 for snapshot in snapshots if snapshot.get("prediction_direction") == "UP")
     bearish = sum(1 for snapshot in snapshots if snapshot.get("prediction_direction") == "DOWN")

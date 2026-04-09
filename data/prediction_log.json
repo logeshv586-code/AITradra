@@ -1,0 +1,167 @@
+[
+  {
+    "ticker": "SBIN.NS",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 1040.95
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for SBIN.NS is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:40:39.788931+00:00",
+    "timestamp": "2026-04-09T12:40:39.788931+00:00",
+    "id": "a0d2f7a8-aef8-47c3-a1a0-339a76d4b026"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 258.25
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:41:22.451782+00:00",
+    "timestamp": "2026-04-09T12:41:22.451782+00:00",
+    "id": "3e5205da-eb1c-4f50-ba21-78f269162e24"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 374.78
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for MSFT is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:04.109951+00:00",
+    "timestamp": "2026-04-09T12:42:04.109951+00:00",
+    "id": "fe40d1d9-6169-4fba-8d0c-3cc08c09cdfd"
+  },
+  {
+    "ticker": "GOOGL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 315.62
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for GOOGL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:04.160096+00:00",
+    "timestamp": "2026-04-09T12:42:04.160096+00:00",
+    "id": "13e0e05f-c6b4-47e5-a66b-2ae933251ebe"
+  },
+  {
+    "ticker": "AMD",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 230.0
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AMD is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:04.169308+00:00",
+    "timestamp": "2026-04-09T12:42:04.169308+00:00",
+    "id": "6f9c1326-70ac-4ddd-8c01-cd9e3c3c3b77"
+  },
+  {
+    "ticker": "NFLX",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 99.42
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for NFLX is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:04.182060+00:00",
+    "timestamp": "2026-04-09T12:42:04.182060+00:00",
+    "id": "9de70b4b-041f-49dc-9515-8b277645e782"
+  },
+  {
+    "ticker": "PYPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 45.85
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for PYPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:05.862639+00:00",
+    "timestamp": "2026-04-09T12:42:05.863636+00:00",
+    "id": "059a808f-1be6-4714-ab49-1bb86492c049"
+  },
+  {
+    "ticker": "SBIN.NS",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 1040.95
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for SBIN.NS is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:06.522760+00:00",
+    "timestamp": "2026-04-09T12:42:06.522760+00:00",
+    "id": "0e1287f8-f44b-4d38-a26a-29e36444d19e"
+  },
+  {
+    "ticker": "PYPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 45.85
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for PYPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:07.587400+00:00",
+    "timestamp": "2026-04-09T12:42:07.587400+00:00",
+    "id": "ab7f6bf6-0831-49b6-9d0e-61b39bf06a27"
+  },
+  {
+    "ticker": "CRM",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 175.89
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for CRM is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:07.629290+00:00",
+    "timestamp": "2026-04-09T12:42:07.629290+00:00",
+    "id": "e3b266e0-3b1b-4e80-923f-7128dd5ad29f"
+  },
+  {
+    "ticker": "PYPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 45.85
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for PYPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-09T12:42:14.860423+00:00",
+    "timestamp": "2026-04-09T12:42:14.860423+00:00",
+    "id": "72206b62-358f-4864-a319-a0248cd8a3af"
+  }
+]

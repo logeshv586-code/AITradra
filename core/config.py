@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     LOCAL_REASONING_MODEL_PATH: str = "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
     LOCAL_GENERAL_MODEL_PATH: str = "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
 
+    # LM Studio Settings
+    LM_STUDIO_URL: str = "http://localhost:1234/v1"
+    LM_STUDIO_MODEL: str = "Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF"
+    USE_LM_STUDIO: bool = True
+
     @field_validator("DEBUG", mode="before")
     @classmethod
     def coerce_debug_flag(cls, v):
@@ -165,7 +170,7 @@ class Settings(BaseSettings):
 
         # Indian / Asian Equities
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", 
-        "TATOMOTORS.NS", "BABA", "TCEHY", "TSM", "SONY",
+        "TATAMOTORS.NS", "BABA", "TCEHY", "TSM", "SONY",
 
         # European / Other Internationals
         "ASML", "NVO", "NVS", "SAP", "SIE.DE", "LVMUY", "NSRGY", "RY", "TD", "BHP", "RIO",

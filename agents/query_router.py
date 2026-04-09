@@ -112,9 +112,11 @@ class QueryRouter(BaseAgent):
                 "response": orchestrator_result.get("response", ""),
                 "ticker": ticker,
                 "intent": context.observations["intent"],
+                "research_mode": context.metadata.get("research_mode", "QUICK"),
                 "confidence": orchestrator_result.get("confidence", 0.5),
                 "consensus": orchestrator_result.get("consensus", "NEUTRAL"),
                 "specialist_outputs": orchestrator_result.get("specialist_outputs", {}),
+                "specialist_details": orchestrator_result.get("specialist_details", {}),
                 "critique": orchestrator_result.get("critique", {}),
                 "sources_used": orchestrator_result.get("sources_used", []),
                 "pipeline_ms": orchestrator_result.get("pipeline_ms", 0),
@@ -128,6 +130,7 @@ class QueryRouter(BaseAgent):
                 "response": response,
                 "ticker": ticker,
                 "intent": context.observations["intent"],
+                "research_mode": context.metadata.get("research_mode", "QUICK"),
                 "sources_used": list(gathered_context.keys()),
                 "data_freshness": datetime.now().isoformat(),
             }
@@ -210,7 +213,27 @@ class QueryRouter(BaseAgent):
         return history[:30]
 
     async def _get_news(self, ticker: str) -> list:
-        """Fetch recent news from knowledge store."""
+        """Fetch recent news via MCP News Agent, then fall back to knowledge store."""
+        try:
+            from agents.mcp_news_agent import McpNewsAgent
+
+            agent = McpNewsAgent()
+            ctx = AgentContext(task=f"Fetch news for {ticker}", ticker=ticker)
+            result = await agent.run(ctx)
+            articles = result.result.get("articles", []) if isinstance(result.result, dict) else []
+            if articles:
+                normalized = []
+                for item in articles:
+                    normalized.append({
+                        "headline": item.get("title", ""),
+                        "summary": item.get("title", ""),
+                        "source": item.get("source", "MCP News"),
+                        "sentiment_score": item.get("sentiment", 0.5),
+                    })
+                return normalized
+        except Exception as e:
+            logger.warning(f"MCP news fetch failed for {ticker}: {e}")
+
         from gateway.knowledge_store import knowledge_store
         news = knowledge_store.get_news_for_ticker(ticker, limit=10, days=14)
         return news

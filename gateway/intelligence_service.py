@@ -16,6 +16,96 @@ from core.scoring import calculate_technical_score, calculate_consensus_verdict,
 
 logger = get_logger(__name__)
 
+POSITIVE_HEADLINE_KEYWORDS = {
+    "beat", "beats", "bullish", "buyback", "expands", "growth", "gains", "jump", "jumps",
+    "launch", "outperform", "partnership", "profit", "profits", "rally", "record", "rebound",
+    "strong", "surge", "surges", "upgrade", "upgrades", "wins",
+}
+
+NEGATIVE_HEADLINE_KEYWORDS = {
+    "antitrust", "bankruptcy", "bearish", "crash", "cuts", "cut", "decline", "delay", "downgrade",
+    "downgrades", "drop", "drops", "fall", "falls", "fraud", "investigation", "lawsuit", "miss",
+    "misses", "probe", "recall", "risk", "risks", "slump", "tariff", "war", "weak",
+}
+
+SECTOR_OVERRIDES = {
+    "AAPL": "Technology",
+    "GOOGL": "Technology",
+    "MSFT": "Technology",
+    "AMZN": "Consumer Internet",
+    "NVDA": "Semiconductors",
+    "TSLA": "EV & Mobility",
+    "META": "Internet Platforms",
+    "NFLX": "Media Streaming",
+    "AMD": "Semiconductors",
+    "INTC": "Semiconductors",
+    "CRM": "Enterprise Software",
+    "ADBE": "Enterprise Software",
+    "PYPL": "Fintech",
+    "SQ": "Fintech",
+    "UBER": "Mobility",
+    "ABNB": "Travel Platforms",
+    "SPOT": "Media Streaming",
+    "PLTR": "AI & Data",
+    "SNOW": "Cloud Data",
+    "SHOP": "E-Commerce Infrastructure",
+    "ORCL": "Enterprise Software",
+    "IBM": "Enterprise Software",
+    "JPM": "Banks",
+    "BAC": "Banks",
+    "WFC": "Banks",
+    "GS": "Investment Banking",
+    "MS": "Investment Banking",
+    "V": "Payments",
+    "MA": "Payments",
+    "JNJ": "Healthcare",
+    "PFE": "Healthcare",
+    "UNH": "Healthcare",
+    "PG": "Consumer Staples",
+    "KO": "Consumer Staples",
+    "PEP": "Consumer Staples",
+    "WMT": "Retail",
+    "TGT": "Retail",
+    "HD": "Retail",
+    "XOM": "Energy",
+    "CVX": "Energy",
+    "RELIANCE.NS": "India Conglomerates",
+    "TCS.NS": "India IT",
+    "INFY.NS": "India IT",
+    "HDFCBANK.NS": "India Banks",
+    "ICICIBANK.NS": "India Banks",
+    "SBIN.NS": "India Banks",
+    "BHARTIARTL.NS": "India Telecom",
+    "ITC.NS": "India Consumer",
+    "TATAMOTORS.NS": "India Auto",
+    "BABA": "China Internet",
+    "TCEHY": "China Internet",
+    "TSM": "Semiconductors",
+    "SONY": "Consumer Electronics",
+    "ASML": "Semiconductor Equipment",
+    "NVO": "Healthcare",
+    "NVS": "Healthcare",
+    "SAP": "Enterprise Software",
+    "SIE.DE": "Industrials",
+    "LVMUY": "Luxury",
+    "NSRGY": "Consumer Staples",
+    "RY": "Banks",
+    "TD": "Banks",
+    "BHP": "Materials",
+    "RIO": "Materials",
+    "SPY": "US Equity ETF",
+    "QQQ": "US Growth ETF",
+    "DIA": "US Equity ETF",
+    "IWM": "US Small Cap ETF",
+    "VTI": "US Equity ETF",
+    "VEA": "International ETF",
+    "VWO": "Emerging Markets ETF",
+    "GLD": "Gold ETF",
+    "SLV": "Silver ETF",
+    "USO": "Energy ETF",
+    "TLT": "Treasury ETF",
+}
+
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
@@ -53,6 +143,8 @@ class IntelligenceService:
 
     def _infer_sector(self, ticker: str) -> str:
         upper = ticker.upper()
+        if upper in SECTOR_OVERRIDES:
+            return SECTOR_OVERRIDES[upper]
         if upper.endswith("-USD"):
             return "Cryptocurrency"
         if upper.endswith(".NS") or upper.endswith(".BO"):
@@ -154,6 +246,11 @@ class IntelligenceService:
         headlines = []
         for item in news[:5]:
             score = _safe_float(item.get("sentiment_score"))
+            if abs(score) < 0.01:
+                score = self._headline_sentiment_score(
+                    item.get("headline", ""),
+                    item.get("summary", ""),
+                )
             total += score
             count += 1
             headlines.append({
@@ -164,8 +261,23 @@ class IntelligenceService:
             })
         return (round(total / count, 3) if count else 0.0, headlines)
 
+    def _headline_sentiment_score(self, headline: str, summary: str = "") -> float:
+        text = f"{headline} {summary}".lower()
+        positive_hits = sum(1 for word in POSITIVE_HEADLINE_KEYWORDS if word in text)
+        negative_hits = sum(1 for word in NEGATIVE_HEADLINE_KEYWORDS if word in text)
+        if "upside" in text:
+            positive_hits += 1
+        if "outlook" in text and "strong" in text:
+            positive_hits += 1
+        if "warning" in text or "concern" in text:
+            negative_hits += 1
+        raw_score = (positive_hits - negative_hits) * 0.18
+        return round(max(min(raw_score, 0.9), -0.9), 2)
+
     def _derive_prediction(self, ticker: str, price_data: dict, stats: dict, news_score: float, sentiment: dict) -> dict:
         # Use shared scoring logic
+        day_change = _safe_float(price_data.get("pct_chg"), _safe_float(price_data.get("chg")))
+        range_position = self._range_position(price_data)
         tech_score = calculate_technical_score(
             price=_safe_float(price_data.get("px")),
             sma20=_safe_float(stats.get("sma20")),
@@ -173,6 +285,13 @@ class IntelligenceService:
             change_5d=_safe_float(stats.get("change_5d")),
             change_20d=_safe_float(stats.get("change_20d"))
         )
+
+        if _safe_float(stats.get("points")) < 5:
+            tech_score += max(min(day_change / 1.5, 1.0), -1.0)
+            if range_position >= 68:
+                tech_score += 0.8
+            elif range_position <= 32:
+                tech_score -= 0.8
         
         consensus = calculate_consensus_verdict(
             tech_score=tech_score,
@@ -180,9 +299,31 @@ class IntelligenceService:
             social_sentiment=_safe_float(sentiment.get("score")),
             vol_ratio=_safe_float(stats.get("volume_ratio"), 1.0)
         )
+
+        if consensus["direction"] == "SIDEWAYS":
+            directional_bias = 0
+            if tech_score >= 1.75:
+                directional_bias += 1
+            elif tech_score <= -1.75:
+                directional_bias -= 1
+            if news_score >= 0.18 or _safe_float(sentiment.get("score")) >= 0.22:
+                directional_bias += 1
+            elif news_score <= -0.18 or _safe_float(sentiment.get("score")) <= -0.22:
+                directional_bias -= 1
+            if range_position >= 72:
+                directional_bias += 1
+            elif range_position <= 28:
+                directional_bias -= 1
+
+            if directional_bias >= 2:
+                consensus = {**consensus, "direction": "UP", "score": max(consensus["score"], 0.28)}
+            elif directional_bias <= -2:
+                consensus = {**consensus, "direction": "DOWN", "score": min(consensus["score"], -0.28)}
         
         # Determine primary driver
-        if abs(_safe_float(stats.get("change_20d"))) >= abs(news_score * 10):
+        if abs(news_score) >= 0.15:
+            primary_driver = "news"
+        elif abs(_safe_float(stats.get("change_20d"))) >= abs(news_score * 10):
             primary_driver = "technical"
         elif abs(_safe_float(sentiment.get("score"))) > 0.35 or abs(news_score) > 0.2:
             primary_driver = "sentiment"
@@ -196,8 +337,13 @@ class IntelligenceService:
             agreement_factor=1.2 if consensus["is_strong"] else 1.0
         )
 
+        if len(sentiment.get("top_headlines", [])) >= 3 and abs(news_score) >= 0.15:
+            confidence = max(confidence, 52.0)
+        if consensus["direction"] != "SIDEWAYS" and (abs(tech_score) >= 1.75 or abs(day_change) >= 1.2):
+            confidence = max(confidence, 58.0)
+
         volatility = _safe_float(stats.get("annualized_volatility"))
-        expected_move = round(min(max(abs(consensus["score"]) * 4.5 + volatility / 18.0, 0.6), 12.0), 2)
+        expected_move = round(min(max(abs(consensus["score"]) * 5.2 + abs(day_change) * 0.8 + volatility / 18.0, 0.75), 12.0), 2)
 
         return {
             "ticker": ticker,
@@ -208,13 +354,18 @@ class IntelligenceService:
             "composite_score": consensus["score"],
         }
 
-    def _derive_risk(self, stats: dict, price_data: dict) -> dict:
+    def _derive_risk(self, ticker: str, stats: dict, price_data: dict) -> dict:
         volatility = _safe_float(stats.get("annualized_volatility"))
         max_drawdown = _safe_float(stats.get("max_drawdown"))
         beta = round(0.7 + min(volatility / 25.0, 1.8), 2)
         var_95 = round(min(max(volatility / 8.0, 0.8), 12.0), 1)
 
-        if volatility >= 45 or max_drawdown >= 30:
+        if ticker.upper().endswith("-USD"):
+            risk_level = "HIGH"
+            vol_label = "High"
+            beta = max(beta, 1.8)
+            var_95 = max(var_95, 6.5)
+        elif volatility >= 45 or max_drawdown >= 30:
             risk_level = "HIGH"
             vol_label = "High"
         elif volatility >= 22 or max_drawdown >= 15:
@@ -259,6 +410,8 @@ class IntelligenceService:
         headwind = "supportive" if news_summary >= 0.15 else "negative" if news_summary <= -0.15 else "mixed"
         invest = prediction["prediction_direction"] == "UP" and prediction["confidence_score"] >= 60 and risk["risk_level"] != "HIGH"
         recommendation = "BUY" if invest else "HOLD / AVOID" if prediction["prediction_direction"] != "DOWN" else "AVOID"
+        day_change = _safe_float(price_data.get("pct_chg"), _safe_float(price_data.get("chg")))
+        range_position = risk["price_range_position"]
 
         sections = {
             "executive_summary": (
@@ -284,7 +437,8 @@ class IntelligenceService:
             ),
             "verdict": (
                 f"Recommendation: {recommendation}. "
-                f"{'Investable trend with acceptable risk.' if invest else 'Wait for stronger confirmation or lower risk before deploying capital.'}"
+                f"Price is {day_change:+.2f}% on the session, trading at {range_position:.1f}% of its 52-week range, "
+                f"with {headwind} headline flow and {risk['risk_level'].lower()} risk."
             ),
         }
 
@@ -353,7 +507,7 @@ class IntelligenceService:
         }
 
         prediction = self._derive_prediction(ticker, price_data, stats, news_score, sentiment)
-        risk = self._derive_risk(stats, price_data)
+        risk = self._derive_risk(ticker, stats, price_data)
         built = self._build_sections(ticker, price_data, stats, news_score, top_headlines, sentiment, prediction, risk)
 
         recommendation = (
@@ -479,6 +633,9 @@ class IntelligenceService:
         price = snapshot.get("price_data", {})
         risk = snapshot.get("risk", {})
         lat, lon = get_coords_for_ticker(ticker)
+        sector = snapshot.get("sector", "Global Equity")
+        if sector in {"Global Equity", "India Equity", "Europe Equity"}:
+            sector = self._infer_sector(ticker)
         return {
             "id": ticker,
             "name": snapshot.get("name", ticker),
@@ -488,7 +645,7 @@ class IntelligenceService:
             "mcap": format_market_cap(_safe_float(price.get("mktcap"))),
             "vol": format_volume(_safe_float(price.get("volume"))),
             "pe": str(price.get("pe", 0)),
-            "sector": snapshot.get("sector", "Global Equity"),
+            "sector": sector,
             "lat": lat,
             "lon": lon,
             "ohlcv": price.get("ohlcv", []),
@@ -513,6 +670,9 @@ class IntelligenceService:
         direction = snapshot.get("prediction_direction", "SIDEWAYS")
         expected_move = _safe_float(snapshot.get("expected_move_percent"))
         multiplier = 1 + (expected_move / 100.0) * (1 if direction == "UP" else -1 if direction == "DOWN" else 0)
+        sector = snapshot.get("sector", "Global Equity")
+        if sector in {"Global Equity", "India Equity", "Europe Equity"}:
+            sector = self._infer_sector(snapshot["ticker"])
         return {
             "ticker": snapshot["ticker"],
             "name": snapshot.get("name", snapshot["ticker"]),
@@ -525,7 +685,7 @@ class IntelligenceService:
             "reasoning_summary": snapshot.get("reasoning_summary", ""),
             "primary_driver": snapshot.get("primary_driver", "technical"),
             "source_link": "",
-            "sector": snapshot.get("sector", "Global Equity"),
+            "sector": sector,
             "chg": round(_safe_float(price.get("pct_chg"), _safe_float(price.get("chg"))), 2),
             "recommendation": snapshot.get("recommendation", "HOLD"),
             "should_invest": bool(snapshot.get("should_invest")),

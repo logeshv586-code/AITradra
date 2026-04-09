@@ -1,1 +1,1 @@
-{"ticker": "GOOGL", "source": "marketwatch_scrape", "records": 1, "last_price": 291.41, "last_date": "2026-04-02", "fetched_at": "2026-04-02T09:18:11.276641+00:00", "pct_1d": null, "pct_5d": null, "pct_30d": null, "high_52w": null, "low_52w": null}
+{"ticker": "GOOGL", "source": "cache", "records": 250, "last_price": 317.32000732421875, "last_date": "2026-04-08", "fetched_at": "2026-04-09T12:40:45.108667+00:00", "pct_1d": 3.8827, "pct_5d": 10.3491, "pct_30d": 2.065, "high_52w": 343.69000244140625, "low_52w": 147.6699981689453}

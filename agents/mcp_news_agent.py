@@ -111,7 +111,11 @@ class McpNewsAgent(BaseAgent):
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:
-        context.reflection = f"Successfully aggregated and weighted news signals. Scraped: {context.actions_taken[-1]['scraped']}"
+        latest_action = context.actions_taken[-1] if context.actions_taken else {}
+        context.reflection = (
+            "Successfully aggregated and weighted news signals. "
+            f"RSS fetched: {latest_action.get('rss_fetched', False)}"
+        )
         return context
 
 if __name__ == "__main__":

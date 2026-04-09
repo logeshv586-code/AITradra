@@ -3,15 +3,17 @@ Signal Aggregator Agent — Multi-signal fusion and consensus building.
 Combines Technical, Sentiment, Volume, and Macro into a final trade verdict.
 """
 
-import pandas as pd
-import pandas_ta as ta
-import numpy as np
 from agents.base_agent import BaseAgent, AgentContext
 from core.config import settings
 from core.logger import get_logger
 from core.scoring import calculate_consensus_verdict, calibrate_confidence
 
 logger = get_logger(__name__)
+
+
+def _ohlcv_get(bar: dict, key: str, default=0):
+    """Retrieve a value from an OHLCV dict, tolerating both 'Close' and 'close' keys."""
+    return bar.get(key, bar.get(key.lower(), bar.get(key[0].lower(), default)))
 
 class SignalAggregatorAgent(BaseAgent):
     """
@@ -61,7 +63,18 @@ class SignalAggregatorAgent(BaseAgent):
             ta_score = 0.5
             if ohlcv:
                 try:
-                    df = pd.DataFrame(ohlcv)
+                    import pandas as pd
+                    import pandas_ta  # noqa: F401 — registers .ta accessor on DataFrame
+
+                    # Normalize keys to capitalized form expected by pandas_ta
+                    normalized = [{
+                        "Open": _ohlcv_get(bar, "Open"),
+                        "High": _ohlcv_get(bar, "High"),
+                        "Low": _ohlcv_get(bar, "Low"),
+                        "Close": _ohlcv_get(bar, "Close"),
+                        "Volume": _ohlcv_get(bar, "Volume"),
+                    } for bar in ohlcv]
+                    df = pd.DataFrame(normalized)
                     df.ta.rsi(append=True)
                     rsi = df.iloc[-1].get("RSI_14", 50)
                     ta_score = 0.8 if rsi < 30 else (0.2 if rsi > 70 else 0.5)
@@ -75,10 +88,13 @@ class SignalAggregatorAgent(BaseAgent):
         # 3. Volume Anomaly
         vol_ratio = 1.0
         if ohlcv and len(ohlcv) > 20:
-            df = pd.DataFrame(ohlcv)
-            mean_vol = df['Volume'].mean()
-            last_vol = df['Volume'].iloc[-1]
-            vol_ratio = last_vol / mean_vol if mean_vol > 0 else 1.0
+            try:
+                volumes = [_ohlcv_get(bar, "Volume", 0) for bar in ohlcv]
+                mean_vol = sum(volumes) / len(volumes) if volumes else 0
+                last_vol = volumes[0] if volumes else 0  # Most recent first
+                vol_ratio = last_vol / mean_vol if mean_vol > 0 else 1.0
+            except Exception:
+                vol_ratio = 1.0
 
         # 4. Multi-Signal Fusion via Shared Scoring
         consensus = calculate_consensus_verdict(
@@ -100,7 +116,7 @@ class SignalAggregatorAgent(BaseAgent):
         if confidence < 50:
             verdict = "HOLD"
 
-        last_price = ohlcv[-1]['Close'] if ohlcv else 0
+        last_price = _ohlcv_get(ohlcv[0], "Close", 0) if ohlcv else 0  # Index 0 = most recent (DESC order)
         
         context.result = {
             "symbol": ticker,

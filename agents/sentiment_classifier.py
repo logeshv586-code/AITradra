@@ -4,8 +4,6 @@ Provides high-accuracy sentiment scores for news and social media.
 """
 
 import asyncio
-import torch
-from transformers import pipeline
 from agents.base_agent import BaseAgent, AgentContext
 from core.logger import get_logger
 
@@ -26,6 +24,9 @@ class SentimentClassifierAgent(BaseAgent):
         """Load the FinBERT pipeline only when the agent is actually used."""
         if SentimentClassifierAgent._finbert_pipeline is None:
             try:
+                import torch
+                from transformers import pipeline
+
                 logger.info("Initializing FinBERT pipeline (ProsusAI/finbert)...")
                 device = 0 if torch.cuda.is_available() else -1
                 SentimentClassifierAgent._finbert_pipeline = pipeline(
@@ -75,47 +76,43 @@ class SentimentClassifierAgent(BaseAgent):
             return context
 
         try:
-            if SentimentClassifierAgent._finbert_pipeline is None:
-                await asyncio.to_thread(self._initialize_pipeline)
+            from llm.client import LLMClient
+            llm = LLMClient()
+            
+            # Construct a prompt for the LLM
+            prompt = f"""Analyze the sentiment of the following headlines for {ticker}.
+Headlines:
+{chr(10).join(['- ' + h for h in headlines])}
 
-            if SentimentClassifierAgent._finbert_pipeline is None:
+Return a JSON object:
+{{
+  "sentiment_score": 0.0 to 1.0,
+  "label": "positive/negative/neutral",
+  "confidence": 0.0 to 1.0,
+  "reasoning": "short explanation"
+}}
+"""
+            result = await llm.complete(
+                prompt=prompt,
+                system="You are a professional financial sentiment analyst. Respond only in JSON.",
+                temperature=0.0,
+                expect_json=True
+            )
+            
+            if isinstance(result, dict):
                 context.result = {
                     "symbol": ticker,
-                    "sentiment_score": 0.5,
-                    "label": "neutral",
-                    "confidence": 0.0,
-                    "counts": {"positive": 0, "neutral": len(headlines), "negative": 0},
-                    "top_headline_sentiment": None,
+                    "sentiment_score": result.get("sentiment_score", 0.5),
+                    "label": result.get("label", "neutral"),
+                    "confidence": result.get("confidence", 0.0),
+                    "reasoning": result.get("reasoning", ""),
+                    "headlines_analyzed": len(headlines)
                 }
-                return context
+            else:
+                # Fallback if LLM output is not JSON
+                context.result = {"symbol": ticker, "sentiment_score": 0.5, "label": "neutral", "confidence": 0.0}
 
-            # FinBERT analysis
-            results = await asyncio.to_thread(SentimentClassifierAgent._finbert_pipeline, headlines)
-            
-            # Aggregate scores
-            # FinBERT labels: positive, negative, neutral
-            score_map = {"positive": 1.0, "neutral": 0.5, "negative": 0.0}
-            total_score = 0.0
-            counts = {"positive": 0, "neutral": 0, "negative": 0}
-            
-            for res in results:
-                label = res["label"]
-                total_score += score_map.get(label, 0.5)
-                counts[label] += 1
-            
-            avg_score = total_score / len(results)
-            final_label = "positive" if avg_score > 0.6 else "negative" if avg_score < 0.4 else "neutral"
-            
-            context.result = {
-                "symbol": ticker,
-                "sentiment_score": round(avg_score, 2),
-                "label": final_label,
-                "confidence": round(max([res["score"] for res in results]), 2),
-                "counts": counts,
-                "top_headline_sentiment": results[0] if results else None
-            }
-            
-            self._add_thought(context, f"FinBERT analyzed {len(headlines)} headlines. Dominant sentiment: {final_label} ({avg_score})")
+            self._add_thought(context, f"LLM analyzed {len(headlines)} headlines. Sentiment: {context.result.get('label')} ({context.result.get('sentiment_score')})")
             
         except Exception as e:
             logger.error(f"Sentiment analysis error: {e}")

@@ -175,7 +175,7 @@ export default function ChatPanel({ messages, onSend, stock, fullView = false })
 
   const renderMythicMeta = (message) => {
     if (!message.mythicData) return null;
-    const { consensus, confidence, specialist_outputs, critique } = message.mythicData;
+    const { consensus, confidence, specialist_outputs, critique, llm_provider, source, sources_used, research_mode } = message.mythicData;
     if (!consensus && !confidence) return null;
 
     return (
@@ -190,11 +190,42 @@ export default function ChatPanel({ messages, onSend, stock, fullView = false })
           )}
         </div>
 
+        <div className="flex flex-wrap gap-1.5 px-1">
+          {llm_provider && (
+            <span className="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[7px] font-black uppercase tracking-[0.18em] text-indigo-300">
+              LLM {llm_provider}
+            </span>
+          )}
+          {research_mode && (
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-[7px] font-black uppercase tracking-[0.18em] text-slate-400">
+              {research_mode}
+            </span>
+          )}
+          {source && (
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[7px] font-black uppercase tracking-[0.18em] text-emerald-300">
+              {source}
+            </span>
+          )}
+        </div>
+
         {specialist_outputs && (
           <div className="space-y-1 px-1">
             {specialist_outputs.technical_summary && <ConfidenceBar value={0.82} label="TECH" />}
             {specialist_outputs.risk_summary && <ConfidenceBar value={0.78} label="RISK" />}
             {specialist_outputs.macro_summary && <ConfidenceBar value={0.71} label="MACRO" />}
+          </div>
+        )}
+
+        {sources_used && sources_used.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-1">
+            {sources_used.map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-white/[0.08] bg-black/20 px-2 py-1 text-[7px] font-mono uppercase tracking-[0.16em] text-slate-400"
+              >
+                {item}
+              </span>
+            ))}
           </div>
         )}
       </div>

@@ -41,6 +41,8 @@ async def _warm_mem0():
 
 async def main():
     logger.info("Starting AXIOM V4 open-source intelligence stack")
+    logger.info("MythicOrchestrator initialized")
+    logger.info("Scheduler boot sequence started")
 
     # Skip automatic GGUF warming to save memory/CPU on startup. 
     # Analysis will load models on-demand if local inference is requested.
@@ -63,7 +65,10 @@ async def main():
             "interval",
             minutes=5, # Should ideally match settings.HYPERLIQUID_INTERVAL but default to 5m
             id="hyperliquid_trading",
-            next_run_time=datetime.now() + timedelta(seconds=60)
+            next_run_time=datetime.now() + timedelta(seconds=60),
+            coalesce=True,
+            misfire_grace_time=120,
+            max_instances=1,
         )
 
         # One-time startup catch-up is now backgrounded to avoid delaying API availability.
@@ -75,7 +80,10 @@ async def main():
             "interval",
             minutes=15,
             id="warm_intelligence",
-            next_run_time=datetime.now() + timedelta(seconds=30)
+            next_run_time=datetime.now() + timedelta(seconds=30),
+            coalesce=True,
+            misfire_grace_time=300,
+            max_instances=1,
         )
         
         scheduler.add_job(
@@ -83,18 +91,27 @@ async def main():
             "interval",
             minutes=settings.NEWS_FETCH_INTERVAL_MIN,
             id="smart_news",
+            coalesce=True,
+            misfire_grace_time=120,
+            max_instances=1,
         )
         scheduler.add_job(
             market_scheduler.run_scheduled_price_collection,
             "interval",
             minutes=settings.PRICE_FETCH_INTERVAL_MIN,
             id="smart_prices",
+            coalesce=True,
+            misfire_grace_time=120,
+            max_instances=1,
         )
         scheduler.add_job(
             index_knowledge_to_rag,
             "interval",
             minutes=settings.RAG_REINDEX_INTERVAL_MIN,
             id="index_rag",
+            coalesce=True,
+            misfire_grace_time=300,
+            max_instances=1,
         )
 
         deep_research_agent = DeepResearchAgent()
@@ -106,10 +123,14 @@ async def main():
             timezone="US/Eastern",
             args=[AgentContext(task="Daily deep stock research sweep")],
             id="deep_research",
+            coalesce=True,
+            misfire_grace_time=900,
+            max_instances=1,
         )
 
         scheduler.start()
         logger.info("Background scheduler started.")
+        logger.info("Scheduler running")
 
     logger.info("Launching AXIOM Gateway API on %s:%s", settings.HOST, settings.PORT)
 

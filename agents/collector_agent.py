@@ -91,12 +91,12 @@ def _cache_path(ticker: str, period: str) -> Path:
     return CACHE_DIR / f"{key}.parquet"
 
 
-def _load_cache(ticker: str, period: str, max_age_hours: int = 6) -> Optional[pd.DataFrame]:
+def _load_cache(ticker: str, period: str, max_age_hours: Optional[int] = 6) -> Optional[pd.DataFrame]:
     path = _cache_path(ticker, period)
     if not path.exists():
         return None
     age = (datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)).total_seconds() / 3600
-    if age > max_age_hours:
+    if max_age_hours is not None and age > max_age_hours:
         return None
     try:
         df = pd.read_parquet(path)
@@ -153,8 +153,27 @@ def _period_to_days(period: str) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
-    """Disabled yfinance fetching."""
-    return None
+    """Primary fetcher for standard equities, ETFs, and crypto pairs."""
+    try:
+        import yfinance as yf
+
+        df = yf.download(
+            tickers=ticker,
+            period=period,
+            interval="1d",
+            auto_adjust=False,
+            progress=False,
+            threads=False,
+        )
+        if df is None or df.empty:
+            return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+        df = _normalize_df(df, "yfinance")
+        return df if not df.empty else None
+    except Exception as e:
+        logger.debug(f"[Collector] yfinance failed for {ticker}: {e}")
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -425,6 +444,7 @@ async def fetch_ticker(
         cached = _load_cache(ticker, period)
         if cached is not None:
             return cached, "cache"
+    stale_cache = _load_cache(ticker, period, max_age_hours=None) if use_cache else None
 
     df: Optional[pd.DataFrame] = None
     source = "none"
@@ -475,6 +495,9 @@ async def fetch_ticker(
 
     # ── All sources exhausted ────────────────────────────────────────────────
     logger.warning(f"[Collector] {ticker}: no data found from any source — returning empty")
+    if stale_cache is not None and not stale_cache.empty:
+        logger.info(f"[Collector] {ticker}: live sources unavailable, using stale cache")
+        return stale_cache, "stale_cache"
     return pd.DataFrame(), "none"
 
 

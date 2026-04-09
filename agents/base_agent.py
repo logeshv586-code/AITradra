@@ -117,7 +117,10 @@ class BaseAgent(ABC):
             try:
                 return await asyncio.wait_for(self.act(ctx), timeout=self.timeout_seconds)
             except Exception as e:
-                self.logger.warning(f"[{self.name}] ACT attempt {attempt+1} failed: {e}")
+                err_type = type(e).__name__
+                err_msg = str(e).strip() or repr(e)
+                self.logger.warning(f"[{self.name}] ACT attempt {attempt+1} failed: {err_type}: {err_msg}")
+                ctx.errors.append(f"ACT attempt {attempt+1} failed: {err_type}: {err_msg}")
                 if attempt == self.max_retries - 1: raise
                 await asyncio.sleep(2 ** attempt)
         return ctx

@@ -4,7 +4,6 @@ Uses pandas-ta for robust technical evaluation.
 """
 
 import pandas as pd
-import pandas_ta as ta
 from typing import Optional, Dict
 
 class IndicatorService:
@@ -19,6 +18,8 @@ class IndicatorService:
         Expects a DataFrame with [timestamp, open, high, low, close, volume].
         Returns a DataFrame with technical indicators added.
         """
+        import pandas_ta as ta
+
         if df.empty:
             return df
         

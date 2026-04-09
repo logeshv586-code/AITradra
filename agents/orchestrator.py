@@ -55,6 +55,9 @@ class MythicOrchestrator:
         
         # Memory store for episodic recall
         self._episode_store = []
+        logger.info("MythicOrchestrator initialized")
+        logger.info("Specialist agents loaded")
+        logger.info("CritiqueAgent active")
 
     async def orchestrate(
         self, query: str, ticker: Optional[str], gathered_data: dict, 
@@ -166,16 +169,28 @@ class MythicOrchestrator:
             }
             knowledge_store.complete_episode(session_id, "MythicOrchestrator", result_payload)
 
+            self._episode_store.append({
+                "timestamp": datetime.now().isoformat(),
+                "ticker": ticker,
+                "query": query,
+                "consensus": critique_result["revised_consensus"],
+                "confidence": final_confidence,
+                "pipeline_ms": round((datetime.now() - start).total_seconds() * 1000),
+            })
+            self._episode_store = self._episode_store[-100:]
+
             elapsed = (datetime.now() - start).total_seconds()
             logger.info(f"[Orchestrator] Pipeline complete in {elapsed:.1f}s. Confidence: {final_confidence}")
 
             return {
                 **result_payload,
                 "specialist_outputs": {k: v.get("summary", "") for k, v in specialist_outputs.items() if isinstance(v, dict)},
+                "specialist_details": specialist_outputs,
                 "critique": {
                     "flags": critique_result.get("flags", []),
                     "contradictions": critique_result.get("contradiction_notes", []),
                     "audit": critique_result.get("audit_summary", ""),
+                    "agreement_score": critique_result.get("agreement_score", 0.0),
                 },
                 "sources_used": list(gathered_data.keys()),
                 "pipeline_ms": round(elapsed * 1000),

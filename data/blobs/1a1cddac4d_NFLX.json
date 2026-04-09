@@ -1,1 +1,1 @@
-{"ticker": "NFLX", "source": "yahoo_scrape_html", "records": 1, "last_price": 95.55, "last_date": "2026-04-02", "fetched_at": "2026-04-02T09:21:05.687744+00:00", "pct_1d": null, "pct_5d": null, "pct_30d": null, "high_52w": null, "low_52w": null}
+{"ticker": "NFLX", "source": "cache", "records": 250, "last_price": 99.38999938964844, "last_date": "2026-04-08", "fetched_at": "2026-04-09T12:40:45.061662+00:00", "pct_1d": 0.5768, "pct_5d": 3.3697, "pct_30d": 27.3578, "high_52w": 133.91299438476562, "low_52w": 75.86000061035156}

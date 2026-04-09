@@ -161,6 +161,7 @@ async def lifespan(app: FastAPI):
     # Core Infrastructure
     app.state.memory = MemoryManager()
     await app.state.memory.initialize()
+    logger.info("Memory connected (Mem0/Qdrant)")
     
     # LLM preloading is now DISABLED on startup to save memory and CPU.
     # Models will be loaded on-demand when a specific analysis is requested.
@@ -414,11 +415,70 @@ async def get_stock_detail_v2(ticker: str):
 @app.get("/api/stock/{ticker}/analysis")
 async def get_stock_analysis(ticker: str):
     """
-    AXIOM V5: CrewAI Multi-Agent Synthesis.
-    Combines Technical, News, and Risk agents into a final Mythic report.
+    AXIOM V4 Mythic analysis endpoint with durable prediction logging.
     """
     ticker = ticker.upper()
     snapshot = await intelligence_service.get_ticker_intelligence(ticker, max_age_minutes=120)
+    ctx = AgentContext(
+        task=f"Provide a full mythic-tier analysis for {ticker}",
+        ticker=ticker,
+        session_id=f"analysis:{ticker}",
+        metadata={"research_mode": "DEEP", "history": []},
+    )
+
+    try:
+        routed = await query_router.run(ctx)
+        result = routed.result if isinstance(routed.result, dict) else {}
+    except Exception as e:
+        logger.error(f"Mythic analysis failed for {ticker}: {e}")
+        result = {}
+
+    if result.get("response"):
+        specialist_details = result.get("specialist_details", {})
+        critique = result.get("critique", {})
+        final_decision = result.get("consensus", snapshot.get("prediction_direction", "NEUTRAL"))
+        confidence = result.get("confidence", snapshot.get("confidence_score", 0))
+        price_at_prediction = snapshot.get("price_data", {}).get("px", 0) or snapshot.get("price_data", {}).get("price", 0)
+
+        prediction_payload = {
+            "final_decision": final_decision,
+            "consensus": final_decision,
+            "confidence": confidence,
+            "source_used": snapshot.get("price_data", {}).get("source_used", "unknown"),
+            "price_at_prediction": price_at_prediction,
+        }
+        await app.state.memory.store_prediction(
+            ticker=ticker,
+            prediction=prediction_payload,
+            reasoning=result.get("response", ""),
+            confidence=confidence,
+        )
+
+        return {
+            "ticker": ticker,
+            "TechnicalSpecialist": specialist_details.get("technical", {}),
+            "MacroSpecialist": specialist_details.get("macro", {}),
+            "RiskSpecialist": specialist_details.get("risk", {}),
+            "CritiqueAgent": critique,
+            "FinalDecision": final_decision,
+            "ConfidenceScore": confidence,
+            "response": result.get("response", ""),
+            "sources_used": result.get("sources_used", []),
+            "pipeline_ms": result.get("pipeline_ms", 0),
+            "price_at_prediction": price_at_prediction,
+            "logged_to": "data/prediction_log.json",
+            # Backward-compatible fields for existing clients.
+            "consensus": final_decision,
+            "confidence": confidence,
+            "recommendation": snapshot.get("recommendation", "HOLD"),
+            "prediction_direction": snapshot.get("prediction_direction", "SIDEWAYS"),
+            "top_headlines": snapshot.get("top_headlines", []),
+            "agents": snapshot.get("agents", {}),
+            "sections": snapshot.get("sections", {}),
+            "as_of": snapshot.get("as_of"),
+        }
+
+    # Fallback to persisted backend intelligence if Mythic routing is unavailable.
     data = {
         "price_data": snapshot.get("price_data", {}),
         "historical_stats": snapshot.get("historical_stats", {}),
@@ -427,38 +487,17 @@ async def get_stock_analysis(ticker: str):
         "top_headlines": snapshot.get("top_headlines", []),
         "sections": snapshot.get("sections", {}),
     }
-    
-    # Run the multi-agent crew (offload to thread as kickoff is synchronous)
     try:
-        context_str = json.dumps(data, default=str)[:2000] # Limit context size for agents
-        result = await asyncio.to_thread(crew_manager.run_analysis, ticker, context_str)
-        
-        # If result is a string (often from crewAI), try to parse it
-        if isinstance(result, str):
-            try:
-                # Basic cleaning if LLM put code blocks
-                clean_res = result.strip().replace("```json", "").replace("```", "")
-                parsed = json.loads(clean_res)
-                if _analysis_payload_is_usable(parsed, ticker):
-                    return parsed
-            except:
-                pass
-            return snapshot.get("analysis", {})
-        if _analysis_payload_is_usable(result, ticker):
-            return result
-        return snapshot.get("analysis", {})
-    except Exception as e:
-        logger.error(f"CrewAI Synthesis failed for {ticker}: {e}")
-        # Fallback to legacy single-prompt analysis, then to persisted backend intelligence.
-        try:
-            market_ctx = MarketManager.get_ai_suggestion_context(ticker)
-            prompt = build_investment_criteria_prompt(ticker, data, market_context=market_ctx)
-            result = await llm_client.complete(prompt, expect_json=True)
-            if _analysis_payload_is_usable(result, ticker):
-                return result
-        except Exception as llm_error:
-            logger.warning(f"LLM fallback analysis failed for {ticker}: {llm_error}")
-        return snapshot.get("analysis", {})
+        market_ctx = MarketManager.get_ai_suggestion_context(ticker)
+        llm_result = await llm_client.complete(
+            build_investment_criteria_prompt(ticker, data, market_context=market_ctx),
+            expect_json=True,
+        )
+        if _analysis_payload_is_usable(llm_result, ticker):
+            return llm_result
+    except Exception as llm_error:
+        logger.warning(f"LLM fallback analysis failed for {ticker}: {llm_error}")
+    return snapshot.get("analysis", {})
 
 @app.get("/api/stock/{ticker}/explain-move")
 async def explain_price_move(ticker: str):
@@ -828,11 +867,14 @@ async def chat_endpoint(request: Request):
     
     if isinstance(result.result, dict):
         response = result.result.get("response", "")
+        llm_meta = LLMClient()
         return {
             "response": response,
             "source": "mythic_v4",
+            "llm_provider": llm_meta.provider,
             "consensus": result.result.get("consensus"),
             "confidence": result.result.get("confidence"),
+            "research_mode": result.result.get("research_mode", body.get("research_mode", "QUICK")),
             "specialist_outputs": result.result.get("specialist_outputs"),
             "critique": result.result.get("critique"),
             "pipeline_ms": result.result.get("pipeline_ms"),

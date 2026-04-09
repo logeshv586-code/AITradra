@@ -126,6 +126,7 @@ function MetricPill({ label, value }) {
 
 export default function NewsEvidenceView() {
   const [overview, setOverview] = useState(null);
+  const [fallbackNews, setFallbackNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("ALL");
 
@@ -138,6 +139,22 @@ export default function NewsEvidenceView() {
         const data = await res.json();
         if (!cancelled) {
           setOverview(data);
+          if (!(data?.news_feed || []).length) {
+            const fallbackRes = await fetch(`${API_BASE}/api/market/news-evidence`);
+            const fallbackData = await fallbackRes.json();
+            setFallbackNews(
+              (fallbackData.articles || []).map((article) => ({
+                ticker: "GLOBAL",
+                headline: article.headline,
+                source: article.source,
+                published_at: article.published_at,
+                sentiment_score: 0,
+                impact: article.impact || "LOW",
+              }))
+            );
+          } else {
+            setFallbackNews([]);
+          }
         }
       } catch (err) {
         console.error("Intel overview fetch failed:", err);
@@ -155,9 +172,9 @@ export default function NewsEvidenceView() {
   }, []);
 
   const filteredNews = useMemo(() => {
-    const news = overview?.news_feed || [];
+    const news = (overview?.news_feed || []).length ? (overview?.news_feed || []) : fallbackNews;
     return filter === "ALL" ? news : news.filter((item) => item.impact === filter);
-  }, [filter, overview]);
+  }, [fallbackNews, filter, overview]);
 
   if (loading) {
     return (

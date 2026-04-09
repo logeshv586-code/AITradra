@@ -144,15 +144,21 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSendChat = async (userText, aiText, mythicData = null) => {
+  const handleSendChat = async (userText, aiText, options = null) => {
     if (userText) {
       setChatMessages((prev) => [...prev, { role: "user", text: userText }]);
       if (!aiText) {
         try {
+          const requestOptions = options && !options.consensus ? options : {};
           const res = await fetch(`${API_BASE}/api/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: userText, ticker: activeStock?.id || "" }),
+            body: JSON.stringify({
+              message: userText,
+              ticker: activeStock?.id || "",
+              research_mode: requestOptions.research_mode || "QUICK",
+              history: requestOptions.history || [],
+            }),
           });
           const data = await res.json();
           setChatMessages((prev) => [
@@ -162,6 +168,10 @@ export default function App() {
               tag: "AXIOM MYTHIC",
               text: data.response,
               mythicData: {
+                source: data.source,
+                llm_provider: data.llm_provider,
+                research_mode: data.research_mode || requestOptions.research_mode || "QUICK",
+                sources_used: data.sources_used || [],
                 consensus: data.consensus,
                 confidence: data.confidence,
                 specialist_outputs: data.specialist_outputs,
@@ -179,7 +189,7 @@ export default function App() {
 
     if (aiText && aiText !== "auto-analyze") {
       const message = { role: "ai", tag: "AXIOM MYTHIC", text: aiText };
-      if (mythicData) message.mythicData = mythicData;
+      if (options && options.consensus) message.mythicData = options;
       setChatMessages((prev) => [...prev, message]);
     }
   };
