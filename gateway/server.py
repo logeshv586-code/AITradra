@@ -114,17 +114,16 @@ class ChatRequest(BaseModel):
 
 
 class SimulationInitRequest(BaseModel):
-    initial_balance: float
+    initial_balance: float = 100000.0
 
 class BuyRequest(BaseModel):
     ticker: str
-    amount: float
+    shares: float
     prediction: Optional[str] = None
 
 class SimulationTradeRequest(BaseModel):
     ticker: str
-    amount: Optional[float] = 0.0
-    quantity: Optional[float] = None
+    shares: float
 
 logger = get_logger(__name__)
 
@@ -1196,7 +1195,7 @@ async def simulation_init(req: SimulationInitRequest):
 async def simulation_buy(request: BuyRequest):
     """Execute virtual BUY using live market price."""
     try:
-        return app.state.simulation.buy_stock(request.ticker, request.amount, request.prediction)
+        return app.state.simulation.buy_stock(request.ticker, request.shares, request.prediction)
     except ValueError as e:
         return {"error": str(e)}
 
@@ -1204,7 +1203,7 @@ async def simulation_buy(request: BuyRequest):
 async def simulation_sell(req: SimulationTradeRequest):
     """Execute virtual SELL using live market price."""
     try:
-        return app.state.simulation.sell_stock(req.ticker, req.quantity)
+        return app.state.simulation.sell_stock(req.ticker, req.shares)
     except ValueError as e:
         return {"error": str(e)}
 

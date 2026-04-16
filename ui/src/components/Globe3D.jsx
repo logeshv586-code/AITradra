@@ -49,6 +49,7 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
   }, []);
 
   const filteredStocks = useMemo(() => {
+    if (!Array.isArray(stocks)) return [];
     if (!searchQuery.trim()) return stocks;
     const q = searchQuery.toLowerCase();
     return stocks.filter(s =>
@@ -61,17 +62,20 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
   const COL_POSITIVE = "#00f0ff"; // Original Cyan
   const COL_NEGATIVE = "#ff2a5f"; // Original Red-Pink
 
-  const STOCK_POINTS = useMemo(() => stocks.map(s => ({
-    lat: s.lat || 40.7,
-    lng: s.lon || -74.0,
-    size: s.px > 0 ? 0.8 : 0.3,
-    color: (s.chg || s.pct_chg || 0) >= 0 ? COL_POSITIVE : COL_NEGATIVE,
-    label: `${s.id || s.ticker} $${s.px || 0} (${(s.chg || s.pct_chg || 0).toFixed?.(2) || 0}%)`,
-    ticker: s.id || s.ticker
-  })), [stocks]);
+  const STOCK_POINTS = useMemo(() => {
+    if (!Array.isArray(stocks)) return [];
+    return stocks.map(s => ({
+      lat: s.lat || 40.7,
+      lng: s.lon || -74.0,
+      size: s.px > 0 ? 0.8 : 0.3,
+      color: (s.chg || s.pct_chg || 0) >= 0 ? COL_POSITIVE : COL_NEGATIVE,
+      label: `${s.id || s.ticker} $${s.px || 0} (${(s.chg || s.pct_chg || 0).toFixed?.(2) || 0}%)`,
+      ticker: s.id || s.ticker
+    }));
+  }, [stocks]);
 
   const ARCS_DATA = useMemo(() => {
-    if (stocks.length < 2) return [];
+    if (!Array.isArray(stocks) || stocks.length < 2) return [];
     return stocks.slice(0, 10).map((s, i) => {
       const next = stocks[(i + 1) % stocks.length];
       return {
@@ -82,14 +86,17 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
     }).filter(a => a.startLat && a.endLat);
   }, [stocks]);
 
-  const RINGS_DATA = useMemo(() => stocks.filter(s => s.lat && s.lon && s.px > 0).map(s => ({
-    lat: s.lat,
-    lng: s.lon,
-    maxR: (s.chg || s.pct_chg || 0) >= 0 ? 3 : 2,
-    propagationSpeed: 2,
-    repeatPeriod: 1200 + Math.random() * 800,
-    color: (s.chg || s.pct_chg || 0) >= 0 ? 'rgba(0, 240, 255, 0.5)' : 'rgba(255, 42, 95, 0.4)',
-  })), [stocks]);
+  const RINGS_DATA = useMemo(() => {
+    if (!Array.isArray(stocks)) return [];
+    return stocks.filter(s => s.lat && s.lon && s.px > 0).map(s => ({
+      lat: s.lat,
+      lng: s.lon,
+      maxR: (s.chg || s.pct_chg || 0) >= 0 ? 3 : 2,
+      propagationSpeed: 2,
+      repeatPeriod: 1200 + Math.random() * 800,
+      color: (s.chg || s.pct_chg || 0) >= 0 ? 'rgba(0, 240, 255, 0.5)' : 'rgba(255, 42, 95, 0.4)',
+    }));
+  }, [stocks]);
 
   const sidebarStocks = showAllStocks ? filteredStocks : filteredStocks.slice(0, 10);
 

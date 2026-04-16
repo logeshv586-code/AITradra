@@ -1,306 +1,204 @@
 import React, { useState, useEffect } from "react";
-import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  BarChart2, 
-  History, 
-  Brain, 
-  Cpu, 
-  ShieldAlert, 
-  Newspaper, 
-  Activity, 
-  Zap, 
-  Terminal, 
-  Loader2 
-} from "lucide-react";
-import AdvancedCandlestickChart from "./CandlestickChart";
+import { Activity, AlertTriangle, BarChart3, Layout, Loader2, Newspaper, Shield, TrendingDown, TrendingUp, Zap } from "lucide-react";
 import { API_BASE } from "../api_config";
+import CandlestickChart from "./CandlestickChart";
 
-export default function StockDetailView({ stock, isAnalyzing, analysisComplete, agentLogs }) {
+export default function StockDetailView({ stock }) {
   const [news, setNews] = useState([]);
-  const [newsLoading, setNewsLoading] = useState(true);
-  
-  const isUp = (stock.chg || 0) >= 0;
-  const col = isUp ? 'var(--accent-positive)' : 'var(--accent-negative)';
+  const [loading, setLoading] = useState(true);
+
+  const tickerId = stock?.id || "";
 
   useEffect(() => {
-    if (!stock?.id) return;
-    setNewsLoading(true);
-    
-    fetch(`${API_BASE}/api/stock/${stock.id}/news`)
-      .then(res => res.json())
-      .then(data => {
-        setNews(data.news || []);
-        setNewsLoading(false);
-      })
-      .catch(err => {
+    if (!tickerId) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/stock/${tickerId}/news`);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setNews(data.news || data.articles || []);
+        }
+      } catch (err) {
         console.error("News fetch failed:", err);
-        setNewsLoading(false);
-      });
-  }, [stock?.id]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [tickerId]);
 
-  const liveAnalysis = stock.analysis_result || {};
-  const confidence = liveAnalysis.confidence ? (liveAnalysis.confidence * 100).toFixed(1) : '82.4';
-  const signalText = liveAnalysis.signal || (isUp ? 'STRONG BUY' : 'HOLD');
-  const conclusionText = liveAnalysis.conclusion || (analysisComplete 
-    ? "Multi-agent ensemble verification confirmed. Liquidity clusters identified at current pivots. News latency adjusted for volatility spike. SYNTHESIS_COMPLETE: Action recommended."
-    : "Awaiting asynchronous agent resolution streams...");
-
-  const pastPredictions = liveAnalysis.past_predictions || [
-    { pred: isUp ? 'BUY' : 'SELL', acc: analysisComplete ? '88%' : '—', ago: 'now', target: (stock.px * 0.95).toFixed(0), actual: stock.px?.toFixed(0) || '0', note: analysisComplete ? `14-agent pipeline analysis for ${stock.id}. ${signalText} signal confirmed.` : 'Analysis in progress...' }
-  ];
-
-  const riskData = stock.risk || { var: 'N/A', beta: 1.0, vol: 'N/A' };
+  const px = stock?.px || stock?.price || 0;
+  const chg = stock?.chg || 0;
+  const isUp = chg >= 0;
+  const color = isUp ? "var(--positive)" : "var(--negative)";
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto no-scrollbar animate-fade-in institutional-bg">
-      <div className="max-w-6xl mx-auto space-y-10">
-        
-        {/* Header Section - Refined Alignment */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/[0.08] pb-8">
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-5">
-              <div className="w-14 h-14 rounded-xl flex items-center justify-center text-xl font-bold glass-card"
-                style={{ 
-                  background: `${col}10`,
-                  borderColor: `${col}20`,
-                  color: col,
-                }}>
-                {(stock.id || '?')[0]}
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-[24px] font-bold text-white tracking-tight uppercase leading-none">{stock.name || stock.id}</h1>
-                  <span className="px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.1] text-[9px] font-bold text-slate-500 tracking-widest uppercase">
-                    {stock.ex || 'N/A'} // {stock.id}
-                  </span>
-                </div>
-                <div className="flex items-center gap-5">
-                  <span className="text-[24px] font-mono font-bold text-white tracking-tighter">
-                    {stock.id?.includes('-USD') ? '' : '$'}{(stock.px || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                  </span>
-                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md font-bold text-[11px] border"
-                    style={{ 
-                      background: `${col}10`, 
-                      color: col,
-                      borderColor: `${col}20`,
-                    }}>
-                    {isUp ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
-                    {Math.abs(stock.chg || 0)}%
-                  </div>
-                </div>
-              </div>
+    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6 lg:gap-8">
+      
+      {/* ── Header Card ── */}
+      <header className="surface-card p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+         <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)] bg-[#1e232b] border border-[var(--border-color)] text-white font-bold text-lg">
+               {tickerId.slice(0, 2)}
             </div>
-          </div>
+            <div className="flex flex-col">
+               <div className="flex items-center gap-3">
+                  <h1 className="heading-1">{tickerId}</h1>
+                  <span className="surface-badge">{stock?.name || "Equity"}</span>
+               </div>
+               <div className="flex items-center gap-4 mt-1">
+                  <span className="font-mono text-xl font-semibold text-white">${px.toFixed(2)}</span>
+                  <span className="flex items-center gap-1 text-[13px] font-mono font-medium" style={{ color }}>
+                     {isUp ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
+                     {isUp ? "+" : ""}{chg.toFixed(2)}%
+                  </span>
+               </div>
+            </div>
+         </div>
 
-          {/* Quick Metrics Grid */}
-          <div className="flex gap-4">
+         {/* Mini Stats Grid */}
+         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              ['MARKET_CAP', stock.mcap || 'N/A'],
-              ['VOL_24H', stock.vol || 'N/A'],
-              ['SECTOR', stock.sector || 'N/A']
-            ].map(([l,v]) => (
-              <div key={l} className="px-5 py-3 glass-card bg-white/[0.02] flex flex-col gap-1 min-w-[120px]">
-                <span className="text-[9px] uppercase tracking-[0.2em] text-slate-500 font-bold font-mono">{l}</span>
-                <span className="font-mono text-[12px] text-white font-bold truncate">{v}</span>
-              </div>
+               { label: "Volume", value: stock?.volume ? `${(stock.volume / 1e6).toFixed(1)}M` : "n/a" },
+               { label: "52W High", value: stock?.week52_high ? `$${stock.week52_high.toFixed(0)}` : "n/a" },
+               { label: "52W Low", value: stock?.week52_low ? `$${stock.week52_low.toFixed(0)}` : "n/a" },
+               { label: "Market Cap", value: stock?.market_cap ? `$${(stock.market_cap / 1e9).toFixed(1)}B` : "n/a" },
+            ].map((s) => (
+               <div key={s.label} className="flex flex-col border-l border-[var(--border-color)] pl-4">
+                  <span className="text-small-caps">{s.label}</span>
+                  <span className="font-mono text-[14px] text-white mt-1">{s.value}</span>
+               </div>
             ))}
-          </div>
-        </div>
+         </div>
+      </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-          {/* Main Visualizer Area */}
-          <div className="lg:col-span-2 space-y-10">
-            {/* Technical Chart */}
-            <div className="glass-card p-6 animate-slide-up">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-                    <BarChart2 size={16} className="text-indigo-400" />
-                  </div>
-                  <h3 className="text-[12px] font-bold uppercase tracking-widest text-white">Advanced Data Matrix</h3>
-                </div>
-                <div className="skeuo-toggle">
-                  {['1H','4H','1D','1W'].map(t => (
-                    <button key={t} className={`skeuo-toggle-item ${t==='1D' ? 'active' : ''}`}>{t}</button>
-                  ))}
-                </div>
-              </div>
+      {/* ── Main Layout ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 lg:gap-8">
+         
+         {/* Left Col: Chart & Setup */}
+         <div className="flex flex-col gap-6 lg:gap-8">
+            <section className="surface-card flex flex-col">
+               <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
+                  <BarChart3 size={16} className="text-[var(--accent)]" />
+                  <h2 className="heading-3">Price Action</h2>
+               </div>
+               <div className="p-5 h-[340px] md:h-[400px]">
+                  <CandlestickChart ticker={tickerId} />
+               </div>
+            </section>
 
-              <div className="min-h-[300px]">
-                {stock.ohlcv && stock.ohlcv.length > 0 ? (
-                  <AdvancedCandlestickChart data={stock.ohlcv} />
-                ) : (
-                  <div className="flex flex-col items-center justify-center p-20 gap-3 text-slate-700 font-mono text-[10px]">
-                    <Loader2 size={20} className="animate-spin text-indigo-500" />
-                    SYNCING_CANDLE_STREAM...
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Neural Insights / Past Predictions */}
-            <div className="glass-card p-6 animate-slide-up">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                  <Terminal size={16} className="text-purple-400" />
-                </div>
-                <h3 className="text-[12px] font-bold uppercase tracking-widest text-white">Synaptic Model Recall</h3>
-              </div>
-
-              <div className="space-y-3">
-                {pastPredictions.map((p,i) => (
-                  <div key={i} className="flex gap-4 p-4 rounded-xl border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-all duration-120">
-                    <div className="w-14 h-14 rounded-lg flex flex-col items-center justify-center shrink-0 border"
-                      style={{ 
-                        background: `${p.pred==='BUY'? 'var(--accent-positive)' : 'var(--accent-negative)'}08`,
-                        borderColor: `${p.pred==='BUY'? 'var(--accent-positive)' : 'var(--accent-negative)'}15`,
-                      }}>
-                      <span className="text-[9px] font-bold tracking-widest" style={{ color: p.pred==='BUY'?'var(--accent-positive)':'var(--accent-negative)' }}>{p.pred}</span>
-                      <span className="text-[8px] text-slate-500 font-mono mt-1 font-bold">{p.acc}</span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="text-[9px] font-mono text-indigo-400 font-bold">{(p.ago || 'NOW').toString().toUpperCase()}</span>
-                        <div className="h-[1px] flex-1 bg-white/[0.05]" />
-                        <span className="text-[8px] font-mono text-slate-500 uppercase font-bold tracking-wider">TGT: ${p.target} // ACT: ${p.actual}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 leading-relaxed italic">"{p.note}"</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Analysis & Risk Sidebar */}
-          <div className="space-y-10">
-            {/* AI Synthesis Summary */}
-            <div className={`glass-panel p-6 rounded-xl space-y-6 ${isAnalyzing ? 'border-indigo-500/30' : ''} animate-slide-up`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-                    <Brain size={16} className="text-indigo-400" />
-                  </div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-white">Synthesis Consensus</h3>
-                </div>
-                {isAnalyzing && <Loader2 size={12} className="text-indigo-400 animate-spin" />}
-              </div>
-
-              {analysisComplete ? (
-                <div className="flex items-center gap-6 py-2">
-                  <div className="w-20 h-20 rounded-full flex items-center justify-center shrink-0 border-2"
-                    style={{ 
-                      background: `${col}08`,
-                      borderColor: `${col}20`,
-                      boxShadow: `0 0 20px ${col}10`
-                    }}>
-                    <span className="text-2xl" style={{ color: col }}>{isUp ? '▲' : '▼'}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="text-[28px] font-mono font-bold text-white tracking-tighter leading-none mb-1">{confidence}<span className="text-slate-700">%</span></div>
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Node Confidence</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center py-4 gap-4">
-                  <Activity size={32} className="text-indigo-500/40 animate-pulse" />
-                  <span className="text-[9px] font-mono font-bold text-slate-600 uppercase tracking-widest animate-pulse">Resolving Synaptic Clusters...</span>
-                </div>
-              )}
-
-              <div className="space-y-3 pt-4 border-t border-white/[0.08]">
-                <div className="flex items-center gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                  <Zap size={10} className="text-amber-500" /> Executive Verdict
-                </div>
-                <p className="text-[11px] leading-relaxed text-slate-400 italic">
-                  {conclusionText}
-                </p>
-                {analysisComplete && (
-                  <button className="skeuo-button w-full h-10 mt-2 gap-2">
-                    <ShieldAlert size={14} />
-                    ACTIVATE_POSITION
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Risk Dynamics */}
-            <div className="glass-card p-6 space-y-6 animate-slide-up">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                  <ShieldAlert size={16} className="text-amber-400" />
-                </div>
-                <h3 className="text-[11px] font-bold uppercase tracking-widest text-white">Risk Engineering</h3>
-              </div>
-
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest">
-                    <span className="text-slate-500">Value at Risk (95%)</span>
-                    <span className="text-white font-mono">{riskData.var}</span>
-                  </div>
-                  <div className="h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/[0.04]">
-                    <div className="h-full bg-amber-500/60" style={{ width: riskData.var || '0%' }} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+            <section className="surface-card flex flex-col">
+               <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
+                  <Activity size={16} className="text-[var(--accent)]" />
+                  <h2 className="heading-3">Key Fundamentals</h2>
+               </div>
+               <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
                   {[
-                    ['BETA_COEFF', riskData.beta, 'var(--text-primary)'],
-                    ['VOLATILITY', riskData.vol, riskData.vol==='High'?'var(--accent-negative)':'var(--accent-positive)']
-                  ].map(([l,v,c]) => (
-                    <div key={l} className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.04]">
-                      <span className="text-[8px] uppercase tracking-wider block mb-1 text-slate-600 font-bold">{l}</span>
-                      <span className="font-mono text-sm font-bold" style={{ color: c }}>{v}</span>
-                    </div>
+                     { l: "P/E R.", v: stock?.pe_ratio?.toFixed(1) || "n/a" },
+                     { l: "EPS", v: stock?.eps ? `$${stock.eps.toFixed(2)}` : "n/a" },
+                     { l: "Div Y.", v: stock?.dividend_yield ? `${stock.dividend_yield.toFixed(2)}%` : "n/a" },
+                     { l: "Beta", v: stock?.beta?.toFixed(2) || "n/a" },
+                     { l: "Sec.", v: stock?.sector || "n/a" },
+                     { l: "Exch.", v: stock?.exchange || "n/a" },
+                     { l: "Vol.", v: stock?.avg_volume ? `${(stock.avg_volume / 1e6).toFixed(1)}M` : "n/a" },
+                     { l: "Float", v: stock?.float_shares ? `${(stock.float_shares / 1e6).toFixed(0)}M` : "n/a" }
+                  ].map((m) => (
+                     <div key={m.l} className="flex flex-col gap-1">
+                        <span className="text-small-caps">{m.l}</span>
+                        <span className="text-[13px] text-white font-medium">{m.v}</span>
+                     </div>
                   ))}
-                </div>
-              </div>
-            </div>
+               </div>
+            </section>
+         </div>
 
-            {/* Catalog Indicators / News */}
-            <div className="glass-card p-6 space-y-6 animate-slide-up">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                    <Newspaper size={16} className="text-emerald-400" />
+         {/* Right Col: Signal, Risk & News */}
+         <div className="flex flex-col gap-6">
+            
+            <section className="surface-card flex flex-col">
+               <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
+                  <Zap size={16} className="text-[var(--warning)]" />
+                  <h2 className="heading-3">Mythic Signal</h2>
+               </div>
+               <div className="p-6 flex flex-col items-center justify-center text-center">
+                  <p className="text-small-caps mb-3">Consensus Direction</p>
+                  <div className={`inline-flex items-center gap-2 px-6 py-2 rounded-[var(--radius-lg)] border ${isUp ? "bg-[#10b98115] border-[#10b98130] text-[var(--positive)]" : "bg-[#ef444415] border-[#ef444430] text-[var(--negative)]"}`}>
+                     {isUp ? <TrendingUp size={16}/> : <TrendingDown size={16}/>}
+                     <span className="font-bold tracking-wider">{isUp ? "BULLISH" : "BEARISH"}</span>
                   </div>
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-white">Catalyst Feed</h3>
-                </div>
-                <div className="flex items-center gap-1.5">
-                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                   <span className="text-[8px] font-bold text-slate-500 tracking-widest uppercase">LIVE</span>
-                </div>
-              </div>
+                  <p className="mt-4 text-[11px] text-[var(--text-muted)] leading-relaxed">
+                     Derived from 5 specialized agent outputs within the past hour.
+                  </p>
+               </div>
+            </section>
 
-              <div className="space-y-4">
-                {newsLoading ? (
-                  <div className="flex flex-col items-center py-6 gap-2">
-                    <Loader2 size={16} className="text-emerald-500 animate-spin" />
-                    <span className="text-[9px] text-slate-700 font-mono animate-pulse uppercase">Syncing Flux...</span>
+            <section className="surface-card flex flex-col">
+               <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
+                  <Shield size={16} className="text-[var(--accent)]" />
+                  <h2 className="heading-3">Risk Overview</h2>
+               </div>
+               <div className="p-6 flex flex-col gap-5">
+                  {[
+                     { l: "Volatility", v: stock?.volatility || 24, max: 100, c: "var(--warning)" },
+                     { l: "Risk Score", v: stock?.risk_score || 4, max: 10, c: "var(--negative)" },
+                  ].map((m) => {
+                     const pct = Math.min((m.v / m.max) * 100, 100);
+                     return (
+                        <div key={m.l} className="flex flex-col gap-2">
+                           <div className="flex justify-between items-center text-[11px]">
+                              <span className="font-medium text-[var(--text-muted)] uppercase tracking-wider">{m.l}</span>
+                              <span className="font-mono text-white">{m.v}</span>
+                           </div>
+                           <div className="h-1.5 w-full bg-[#1e232b] rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: m.c }} />
+                           </div>
+                        </div>
+                     );
+                  })}
+               </div>
+            </section>
+
+            <section className="surface-card flex flex-col flex-1">
+               <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between bg-[#1b1f27]">
+                  <div className="flex items-center gap-2">
+                     <Newspaper size={16} className="text-[var(--accent)]" />
+                     <h2 className="heading-3">Latest News</h2>
                   </div>
-                ) : news.length > 0 ? (
-                  news.slice(0, 3).map((n,i) => (
-                    <div key={i} className="flex flex-col gap-2 p-3 rounded-lg border border-white/[0.04] bg-white/[0.01] hover:bg-white/[0.03] transition-all duration-120 cursor-pointer">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[8px] font-bold font-mono text-indigo-400">{(n.src || 'FEED').toUpperCase()}</span>
-                        <span className={`text-[8px] font-bold px-1.5 rounded ${ (n.s || 0) > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400' }`}>
-                          {(n.s || 0) > 0 ? 'BULL' : 'BEAR'}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-slate-400 leading-normal line-clamp-2">"{n.txt}"</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-6">
-                    <span className="text-[9px] text-slate-700 font-mono uppercase tracking-widest">No Catalyst Clusters Found</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+                  <span className="surface-badge">{news.length}</span>
+               </div>
+               
+               <div className="p-4 flex flex-col gap-3 max-h-[400px] overflow-y-auto no-scrollbar">
+                  {loading ? (
+                     <div className="py-8 flex justify-center w-full">
+                        <Loader2 size={20} className="text-[var(--accent)] animate-spin" />
+                     </div>
+                  ) : news.length === 0 ? (
+                     <p className="py-8 text-center text-[12px] text-[var(--text-muted)]">No recent news available.</p>
+                  ) : (
+                     news.slice(0, 8).map((item, i) => (
+                        <a key={i} href={item.url || "#"} target="_blank" rel="noopener noreferrer"
+                           className="group flex flex-col gap-2 p-3 rounded-[var(--radius-md)] border border-transparent hover:border-[var(--border-color)] hover:bg-[#1e232b] transition-colors">
+                           <p className="text-[12px] font-medium text-[var(--text-main)] leading-snug line-clamp-2 group-hover:text-[var(--accent)] transition-colors">
+                              {item.title || item.headline}
+                           </p>
+                           <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-[var(--text-muted)]">{item.source || "Feed"}</span>
+                              {item.sentiment && (
+                                 <span className={`text-[9px] font-bold uppercase tracking-wider ${
+                                    item.sentiment === "positive" ? "text-[var(--positive)]" : item.sentiment === "negative" ? "text-[var(--negative)]" : "text-[var(--text-muted)]"
+                                 }`}>
+                                    {item.sentiment}
+                                 </span>
+                              )}
+                           </div>
+                        </a>
+                     ))
+                  )}
+               </div>
+            </section>
+         </div>
       </div>
     </div>
   );

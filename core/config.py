@@ -29,15 +29,14 @@ class Settings(BaseSettings):
 
     # Database URLs
     DATABASE_URL: str = "sqlite+aiosqlite:///data/axiom_knowledge.db"
-    
+
     @property
     def KNOWLEDGE_DB_PATH(self) -> str:
         return str((BASE_DIR / self.DATA_DIR / self.KNOWLEDGE_DB_NAME).resolve())
-    
+
     @property
     def MARKET_DATA_DB_PATH(self) -> str:
         return str((BASE_DIR / self.DATA_DIR / self.MARKET_DATA_DB_NAME).resolve())
-
 
     # ChromaDB
     CHROMADB_HOST: str = "localhost"
@@ -82,26 +81,36 @@ class Settings(BaseSettings):
     # NVIDIA NIM LLM Settings
     LLM_PROVIDER: str = "nvidia_nim"
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
-    
-    MOONSHOT_API_KEY: str = "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"
-    NEMOTRON_API_KEY: str = "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"
-    MINIMAX_API_KEY: str = "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"
-    MISTRAL_API_KEY: str = "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"
-    
+
+    MOONSHOT_API_KEY: str = (
+        "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"
+    )
+    NEMOTRON_API_KEY: str = (
+        "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"
+    )
+    MINIMAX_API_KEY: str = (
+        "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"
+    )
+    MISTRAL_API_KEY: str = (
+        "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"
+    )
+
     # Model Assignments (NIM)
     SENTIMENT_MODEL: str = "mistralai/mistral-small-4-119b-2603"
     REASONING_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
     ANALYSIS_MODEL: str = "moonshotai/kimi-k2.5"
     GENERAL_MODEL: str = "minimaxai/minimax-m2.5"
-    
+
     # Local LLM Fallbacks (Store filenames in .env, resolved to absolute at runtime)
     LOCAL_REASONING_MODEL_PATH: str = "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
     LOCAL_GENERAL_MODEL_PATH: str = "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
 
     # LM Studio Settings
     LM_STUDIO_URL: str = "http://localhost:1234/v1"
-    LM_STUDIO_MODEL: str = "Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF"
-    USE_LM_STUDIO: bool = True
+    LM_STUDIO_MODEL: str = (
+        "Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF"
+    )
+    USE_LM_STUDIO: bool = False
 
     @field_validator("DEBUG", mode="before")
     @classmethod
@@ -115,7 +124,15 @@ class Settings(BaseSettings):
             normalized = v.strip().lower()
             if normalized in {"1", "true", "yes", "on", "debug", "development", "dev"}:
                 return True
-            if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+            if normalized in {
+                "0",
+                "false",
+                "no",
+                "off",
+                "release",
+                "prod",
+                "production",
+            }:
                 return False
         return v
 
@@ -126,7 +143,7 @@ class Settings(BaseSettings):
         # If it's already an absolute path (unlikely in .env but possible), return it
         if Path(v).is_absolute():
             return str(v)
-        
+
         # Join with BASE_DIR for universal absolute path
         abs_path = (BASE_DIR / v).resolve()
         return str(abs_path)
@@ -152,7 +169,7 @@ class Settings(BaseSettings):
     HYPERLIQUID_VAULT_ADDRESS: Optional[str] = None
     HYPERLIQUID_ASSETS: list[str] = ["BTC", "ETH", "SOL"]
     HYPERLIQUID_INTERVAL: str = "5m"
-    
+
     # Extended Risk Controls
     FORCE_CLOSE_LOSS_PCT: float = 0.20
     MAX_LEVERAGE: int = 10
@@ -162,24 +179,97 @@ class Settings(BaseSettings):
     # Watchlist (Expanded for comprehensive global visibility)
     DEFAULT_WATCHLIST: list[str] = [
         # US Tech & Megacap
-        "AAPL", "GOOGL", "MSFT", "AMZN", "NVDA", "TSLA", "META", "NFLX", "AMD", "INTC", 
-        "CRM", "ADBE", "PYPL", "SQ", "UBER", "ABNB", "SPOT", "PLTR", "SNOW", "SHOP", "ORCL", "IBM",
-
+        "AAPL",
+        "GOOGL",
+        "MSFT",
+        "AMZN",
+        "NVDA",
+        "TSLA",
+        "META",
+        "NFLX",
+        "AMD",
+        "INTC",
+        "CRM",
+        "ADBE",
+        "PYPL",
+        "SQ",
+        "UBER",
+        "ABNB",
+        "SPOT",
+        "PLTR",
+        "SNOW",
+        "SHOP",
+        "ORCL",
+        "IBM",
         # US Finance / Traditional
-        "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "JNJ", "PFE", "UNH", "PG", "KO", "PEP", "WMT", "TGT", "HD", "XOM", "CVX",
-
+        "JPM",
+        "BAC",
+        "WFC",
+        "GS",
+        "MS",
+        "V",
+        "MA",
+        "JNJ",
+        "PFE",
+        "UNH",
+        "PG",
+        "KO",
+        "PEP",
+        "WMT",
+        "TGT",
+        "HD",
+        "XOM",
+        "CVX",
         # Indian / Asian Equities
-        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", 
-        "TATAMOTORS.NS", "BABA", "TCEHY", "TSM", "SONY",
-
+        "RELIANCE.NS",
+        "TCS.NS",
+        "INFY.NS",
+        "HDFCBANK.NS",
+        "ICICIBANK.NS",
+        "SBIN.NS",
+        "BHARTIARTL.NS",
+        "ITC.NS",
+        "TATAMOTORS.NS",
+        "BABA",
+        "TCEHY",
+        "TSM",
+        "SONY",
         # European / Other Internationals
-        "ASML", "NVO", "NVS", "SAP", "SIE.DE", "LVMUY", "NSRGY", "RY", "TD", "BHP", "RIO",
-
+        "ASML",
+        "NVO",
+        "NVS",
+        "SAP",
+        "SIE.DE",
+        "LVMUY",
+        "NSRGY",
+        "RY",
+        "TD",
+        "BHP",
+        "RIO",
         # Major Indices & ETFs
-        "SPY", "QQQ", "DIA", "IWM", "VTI", "VEA", "VWO", "GLD", "SLV", "USO", "TLT",
-
+        "SPY",
+        "QQQ",
+        "DIA",
+        "IWM",
+        "VTI",
+        "VEA",
+        "VWO",
+        "GLD",
+        "SLV",
+        "USO",
+        "TLT",
         # Cryptocurrencies
-        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD", "AVAX-USD", "DOGE-USD", "DOT-USD", "LINK-USD", "MATIC-USD"
+        "BTC-USD",
+        "ETH-USD",
+        "SOL-USD",
+        "BNB-USD",
+        "XRP-USD",
+        "ADA-USD",
+        "AVAX-USD",
+        "DOGE-USD",
+        "DOT-USD",
+        "LINK-USD",
+        "MATIC-USD",
     ]
 
     class Config:

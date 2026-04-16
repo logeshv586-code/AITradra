@@ -86,19 +86,20 @@ class SimulationEngine:
             return self.calculate_live_portfolio()
         return self.state
 
-    def buy_stock(self, ticker: str, amount: float, prediction: Optional[str] = None):
+    def buy_stock(self, ticker: str, quantity: float, prediction: Optional[str] = None):
         if not self.state["initialized"]:
             raise ValueError("Simulation not initialized")
         
-        if amount > self.state["available_cash"]:
-            raise ValueError("Insufficient virtual funds")
-
         price = self._get_live_price(ticker)
         if price <= 0:
             raise ValueError(f"Could not fetch live price for {ticker}")
 
+        amount = quantity * price
+        
+        if amount > self.state["available_cash"]:
+            raise ValueError(f"Insufficient virtual funds for ${amount:.2f} purchase")
+
         signal_context = self._get_signal_context(ticker)
-        quantity = amount / price
 
         # Update position
         existing_pos = next((p for p in self.state["positions"] if p["ticker"] == ticker), None)
