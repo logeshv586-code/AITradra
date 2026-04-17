@@ -1,70 +1,79 @@
-# 🧠 AXIOM — AI Trading Intelligence Platform
+# 🧠 AITradra — High-Conviction Market Intelligence Platform
 
-> Multi-agent AI system that observes, analyzes, and predicts global markets using Claude Flow architecture.
+> An autonomous, multi-agent AI system designed for institutional-grade market analysis. AITradra observes global markets, filters noise through rigorous quantitative validation (Mythic Pipeline), and continuously improves its predictive logic.
 
-## Architecture
+## 🏗️ Architecture
+
+AITradra operates on a highly concurrent, dynamic agent network orchestrated via a central logic loop, supported by a self-improving memory architecture:
 
 ```
-User → FastAPI Gateway → LangGraph Orchestrator → [6 Agents in parallel]
-                                                    ├── DataAgent (yfinance)
-                                                    ├── NewsAgent (RSS + sentiment)
-                                                    ├── TrendAgent (RSI, MACD, BB)
-                                                    ├── RiskAgent (VaR, Beta)
-                                                    ├── MLAgent (LSTM + XGBoost)
-                                                    └── SynthesisAgent (LLM CoT)
-                                                         ↓
-                                              Memory System + Self-Improvement
+User Interface (React/Vite) 
+        ↓ 
+FastAPI Gateway Endpoint
+        ↓
+Model Router (Dynamic Provider Switching: LM Studio ↔ NVIDIA NIM)
+        ↓
+Agent Orchestrator (14+ Specialist Agents)
+  ├── 📡 Data Sources: yFinance, RSS, News Agents
+  ├── 🧠 Intelligence: Sentiment Classifier, Macro Analyst, Trend Agent
+  ├── 🛡️ Validation: Mythic Pipeline (SMC, Monte Carlo, Bootstrap)
+  └── 🗣️ Interface: AI Expert Chat (Direct User Interaction)
+        ↓
+Prediction Memory & Self-Improvement Loop (AccuracyStore)
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
-### Frontend (Vite + React)
+### 1. Frontend (Vite + React)
 ```bash
-cd axiom/ui
+cd ui
 npm install
 npm run dev
 # → http://localhost:5173
 ```
 
-### Backend (FastAPI)
+### 2. Backend (FastAPI)
 ```bash
-cd axiom
+# Return to the root directory
 pip install -r requirements.txt
 cp .env.example .env
+
+# Start the Gateway Server
 python -m uvicorn gateway.server:app --reload --port 8000
 # → http://localhost:8000/docs
 ```
 
-### Docker (Full Stack)
-```bash
-cd axiom
-docker compose up -d
-```
+### 3. Local Model Setup (LM Studio)
+AITradra is configured for unparalleled privacy via Local LLMs. You will need:
+- An instance of [LM Studio](https://lmstudio.ai/) running locally on port `1234`.
+- The primary reasoning model loaded (e.g., `Qwen2.5-3B-Instruct/Nemotron`).
+- *Note: You can place your `.gguf` weights in the `models/` directory.*
 
-## API Endpoints
+## 🔌 Core API Endpoints
+
+AITradra exposes several critical REST and WebSocket endpoints defining the intelligence network:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/health` | System health check |
-| `GET` | `/api/analyze/{ticker}` | Full multi-agent analysis |
-| `GET` | `/api/market/overview` | Global market overview |
-| `GET` | `/api/agents/status` | Agent matrix health |
-| `GET` | `/api/memory/predictions/{ticker}` | Past predictions |
-| `WS` | `/ws/analyze/{ticker}` | Real-time agent thinking stream |
+| `GET` | `/api/analyze/{ticker}` | Runs the complete high-conviction analysis pipeline |
+| `GET` | `/api/market/overview` | Scans for trending tickers and general market state |
+| `POST` | `/api/chat` | Interacts dynamically with the Agent Network via the Chat UI |
+| `GET` | `/api/intelligence/status` | Real-time telemetry on active models, agent latency, and learning loops |
+| `GET` | `/api/admin/accuracy-leaderboard` | View aggregate prediction accuracies across models and tickers |
+| `POST` | `/api/admin/force-score-predictions` | Manually triggers the engine to score matured market predictions |
+| `WS` | `/ws/analyze/{ticker}` | Live, streaming WebSocket connection of agent thoughts |
 
-## Core Principles
+## ⚙️ Core Capabilities
 
-1. **Every prediction has a reason** — no black boxes
-2. **Every agent has a clear role** — OBSERVE → THINK → PLAN → ACT → REFLECT → IMPROVE
-3. **Memory is intelligence** — episodic + semantic + structured
-4. **Self-improvement is priority** — automatic prediction scoring + prompt optimization
-5. **Failure is data** — log everything, learn from everything
+1. **Mythic Validation Pipeline**: Eliminates predictive noise. Before any signal is pushed to the UI, it passes through Monte Carlo simulations, Bootstrap tests, and Smart Money Concepts (SMC) filters to ensure institutional-grade conviction.
+2. **Dynamic LLM Routing**: Intelligently switches inference models mid-flight based on latency and failure states. Automatically falls back to secondary API providers if the local LM Studio instance is burdened.
+3. **Continuous Self-Improvement**: Stores rolling, aggregate prediction metadata (AccuracyStore). A background orchestrator continuously checks the actual market price against predictions >24h old, grading the pipeline components and models on real-world accuracy.
+4. **Vite Code Splitting**: The User Interface is extremely lightweight, deferring massive graphical libraries (like Three.js and React-Globe) into dynamic vendor chunks to maintain 60FPS UI interactions.
 
-## Tech Stack
+## 🛠️ Tech Stack
 
-- **Frontend**: Vite + React + Tailwind CSS + Recharts + Lucide Icons
-- **Backend**: FastAPI + Python 3.11+
-- **LLM**: Ollama (local) with Qwen2.5
-- **Memory**: SQLite → PostgreSQL + ChromaDB (vector store)
-- **ML**: XGBoost + LSTM (PyTorch)
-- **Orchestration**: LangGraph StateGraph
+- **Frontend**: React 19, Vite 8, Tailwind CSS v4, Recharts, Three.js / React-Globe, Lucide
+- **Backend**: FastAPI, Python 3.12, APScheduler
+- **AI Infrastructure**: LM Studio (Local Inference), LangGraph concepts, ReAct Query Routing
+- **Persistence**: SQLite (AccuracyStore / Memory), Local JSON States for high-IO persistence
+- **Quantitative**: Pandas-TA, Numpy, Scikit-learn (Simulations & Bootstrapping)

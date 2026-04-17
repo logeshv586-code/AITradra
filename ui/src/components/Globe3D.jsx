@@ -28,6 +28,30 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllStocks, setShowAllStocks] = useState(false);
 
+  // User-provided Globe Configuration
+  const globeConfig = {
+    pointSize: 4,
+    globeColor: "#062056",
+    showAtmosphere: true,
+    atmosphereColor: "#FFFFFF",
+    atmosphereAltitude: 0.1,
+    emissive: "#062056",
+    emissiveIntensity: 0.1,
+    shininess: 0.9,
+    polygonColor: "rgba(255,255,255,0.7)",
+    ambientLight: "#38bdf8",
+    directionalLeftLight: "#ffffff",
+    directionalTopLight: "#ffffff",
+    pointLight: "#ffffff",
+    arcTime: 1000,
+    arcLength: 0.9,
+    rings: 1,
+    maxRings: 3,
+    initialPosition: { lat: 22.3193, lng: 114.1694 },
+    autoRotate: true,
+    autoRotateSpeed: 0.5,
+  };
+
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
@@ -39,8 +63,15 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
     };
     updateSize();
     window.addEventListener('resize', updateSize);
+
+    // Apply auto-rotate from config config
+    if (globeRef.current && globeConfig.autoRotate) {
+      globeRef.current.controls().autoRotate = true;
+      globeRef.current.controls().autoRotateSpeed = globeConfig.autoRotateSpeed;
+    }
+
     return () => window.removeEventListener('resize', updateSize);
-  }, []);
+  }, [globeConfig.autoRotate, globeConfig.autoRotateSpeed]);
 
   const filteredStocks = useMemo(() => {
     if (!Array.isArray(stocks)) return [];
@@ -68,16 +99,43 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
     }));
   }, [stocks]);
 
+  // Combine dynamic stock arcs with user-provided sample arcs
   const ARCS_DATA = useMemo(() => {
-    if (!Array.isArray(stocks) || stocks.length < 2) return [];
-    return stocks.slice(0, 10).map((s, i) => {
-      const next = stocks[(i + 1) % stocks.length];
-      return {
-        startLat: s.lat, startLng: s.lon,
-        endLat: next.lat, endLng: next.lon,
-        color: ['rgba(0, 240, 255, 0.6)', 'rgba(168, 85, 247, 0.6)'],
-      };
-    }).filter(a => a.startLat && a.endLat);
+    const stockArcs = [];
+    if (Array.isArray(stocks) && stocks.length >= 2) {
+      stocks.slice(0, 10).forEach((s, i) => {
+        const next = stocks[(i + 1) % stocks.length];
+        if (s.lat && next.lat) {
+          stockArcs.push({
+            startLat: s.lat, startLng: s.lon,
+            endLat: next.lat, endLng: next.lon,
+            color: ['rgba(0, 240, 255, 0.6)', 'rgba(168, 85, 247, 0.6)'],
+            arcAlt: 0.3
+          });
+        }
+      });
+    }
+
+    const colors = ["#06b6d4", "#3b82f6", "#6366f1"];
+    const baseSampleArcs = [
+      { startLat: -19.885592, startLng: -43.951191, endLat: -22.9068, endLng: -43.1729, arcAlt: 0.1 },
+      { startLat: 28.6139, startLng: 77.209, endLat: 3.139, endLng: 101.6869, arcAlt: 0.2 },
+      { startLat: -19.885592, startLng: -43.951191, endLat: -1.303396, endLng: 36.852443, arcAlt: 0.5 },
+      { startLat: 1.3521, startLng: 103.8198, endLat: 35.6762, endLng: 139.6503, arcAlt: 0.2 },
+      { startLat: 51.5072, startLng: -0.1276, endLat: 3.139, endLng: 101.6869, arcAlt: 0.3 },
+      { startLat: -15.785493, startLng: -47.909029, endLat: 36.162809, endLng: -115.119411, arcAlt: 0.3 },
+      { startLat: -33.8688, startLng: 151.2093, endLat: 22.3193, endLng: 114.1694, arcAlt: 0.3 },
+      { startLat: 21.3099, startLng: -157.8581, endLat: 40.7128, endLng: -74.006, arcAlt: 0.3 },
+      { startLat: -6.2088, startLng: 106.8456, endLat: 51.5072, endLng: -0.1276, arcAlt: 0.3 },
+      { startLat: 11.986597, startLng: 8.571831, endLat: -15.595412, endLng: -56.05918, arcAlt: 0.5 },
+      { startLat: -34.6037, startLng: -58.3816, endLat: 22.3193, endLng: 114.1694, arcAlt: 0.7 },
+      { startLat: 51.5072, startLng: -0.1276, endLat: 48.8566, endLng: -2.3522, arcAlt: 0.1 },
+      { startLat: 14.5995, startLng: 120.9842, endLat: 51.5072, endLng: -0.1276, arcAlt: 0.3 },
+      { startLat: 1.3521, startLng: 103.8198, endLat: -33.8688, endLng: 151.2093, arcAlt: 0.2 },
+      { startLat: 34.0522, startLng: -118.2437, endLat: 48.8566, endLng: -2.3522, arcAlt: 0.2 }
+    ].map(a => ({ ...a, color: colors[Math.floor(Math.random() * colors.length)] }));
+
+    return [...stockArcs, ...baseSampleArcs];
   }, [stocks]);
 
   const RINGS_DATA = useMemo(() => {
@@ -119,15 +177,18 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         backgroundColor="rgba(0,0,0,0)"
         globeImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg"
         bumpImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png"
-        atmosphereColor="#6366f1"
-        atmosphereAltitude={0.25}
+
+        // Applied globeConfig attributes
+        atmosphereColor={globeConfig.atmosphereColor}
+        atmosphereAltitude={globeConfig.atmosphereAltitude}
+        showAtmosphere={globeConfig.showAtmosphere}
 
         hexPolygonsData={countriesGeo.features}
         hexPolygonResolution={3}
-        hexPolygonMargin={0.4}
+        hexPolygonMargin={0.7} // tweaked margin based loosely on Aceternity
         hexPolygonUseDots={true}
-        hexPolygonColor={d => getCountryColor(d.properties?.ISO_A2)}
-        hexPolygonAltitude={0.01}
+        hexPolygonColor={() => globeConfig.polygonColor}
+        hexPolygonAltitude={globeConfig.polygonAltitude || 0.01}
 
         pointsData={STOCK_POINTS}
         pointAltitude={0.07}
@@ -138,9 +199,9 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
 
         arcsData={ARCS_DATA}
         arcColor="color"
-        arcDashLength={0.4}
-        arcDashAnimateTime={2500}
-        arcAltitudeAutoScale={0.3}
+        arcDashLength={globeConfig.arcLength}
+        arcDashAnimateTime={globeConfig.arcTime}
+        arcAltitude="arcAlt"
 
         ringsData={RINGS_DATA}
         ringColor="color"
@@ -159,13 +220,13 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
           <div className="w-[1px] h-4 bg-white/10" />
           <div className="flex items-center gap-2">
             <Zap size={10} className="text-indigo-400" />
-            <span className="text-[9px] font-mono text-slate-500 font-bold uppercase tracking-widest">Axiom v4.2 Active</span>
+            <span className="text-[9px] font-mono text-slate-500 font-bold uppercase tracking-widest">AITradra PRO Active</span>
           </div>
         </div>
       </div>
 
       {/* Floating Stock Navigator (Clay Style Cards) */}
-      <div className="absolute top-6 right-6 z-30 w-64 flex flex-col gap-3">
+      <div className="absolute top-6 right-6 z-30 w-64 flex flex-col gap-3 pointer-events-auto">
         {/* Soft Search Bar */}
         <div className="relative group mb-1">
           <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
@@ -190,12 +251,12 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
             const signal = getSignalStyle(chg);
             return (
               <button key={s.id || s.ticker} onClick={() => onStockSelect?.(s.id || s.ticker)}
-                className="flex items-center gap-4 px-3 py-2.5 rounded-2xl w-full transition-all hover:scale-[1.02] bg-[#0a0f1e]/60 backdrop-blur-xl border border-white/5 hover:border-indigo-500/20 shadow-lg group relative overflow-hidden">
+                className="flex items-center gap-4 px-3 py-2.5 rounded-2xl w-full transition-all hover:scale-[1.02] bg-[#0a0f1e]/60 backdrop-blur-xl border border-white/5 hover:border-indigo-500/20 shadow-lg group relative overflow-hidden text-left">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-120 group-hover:scale-110"
                    style={{ background: `${signal.text}15`, borderColor: `${signal.text}30`, color: signal.text }}>
                    {chg >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
                 </div>
-                <div className="text-left flex-1 min-w-0">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="font-bold text-[12px] text-white group-hover:text-cyan-400 transition-colors uppercase tracking-tight">{s.id || s.ticker}</span>
                     <span className="text-[7px] px-1.5 py-0.5 rounded font-black tracking-widest uppercase"

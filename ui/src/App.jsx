@@ -14,6 +14,7 @@ const NewsEvidenceView = lazy(() => import("./components/NewsEvidenceView"));
 const PortfolioInsightsView = lazy(() => import("./components/PortfolioInsightsView"));
 const VirtualPortfolioView = lazy(() => import("./components/VirtualPortfolioView"));
 const IntelligenceStatusView = lazy(() => import("./components/IntelligenceStatusView"));
+import Logo from "./components/Logo";
 
 import { MessageSquareText, Search, Activity, Cpu, Globe2, Layout, X, Bell, LayoutDashboard, Shield, TrendingUp, Presentation, Network, Clock, DollarSign, Loader2 } from "lucide-react";
 import { API_BASE } from "./api_config";
@@ -209,12 +210,14 @@ function AppContent() {
         {/* Logo Area */}
         <div className="h-16 flex items-center px-6 border-b border-[var(--border-color)]">
            <div className="flex items-center gap-3 w-full">
-              <div className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent)] text-white">
-                <Activity size={18} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] bg-[#0c0e12] border border-[var(--border-color)] shadow-inner">
+                <Logo size={24} />
               </div>
               <div className="flex flex-col">
-                 <h1 className="text-[14px] font-bold tracking-wide text-white leading-tight">AXIOM<span className="text-[var(--accent)]">.AI</span></h1>
-                 <span className="text-[9px] font-medium tracking-[0.1em] text-[var(--text-muted)] uppercase">Trading Intelligence</span>
+                 <h1 className="text-[15px] font-bold tracking-wide text-white leading-tight flex items-center gap-1">
+                   AITradra<span className="text-[var(--accent)] text-[10px]">PRO</span>
+                 </h1>
+                 <span className="text-[9px] font-medium tracking-[0.1em] text-[var(--text-muted)] uppercase">Market Intelligence</span>
               </div>
            </div>
         </div>
@@ -243,12 +246,12 @@ function AppContent() {
         {/* Footer Settings/User Area */}
         <div className="p-4 border-t border-[var(--border-color)]">
            <div className="flex items-center gap-3 px-2 py-2 rounded-[var(--radius-md)] hover:bg-[#1e232b] cursor-pointer transition">
-              <div className="h-8 w-8 rounded-full bg-[#1e232b] flex items-center justify-center border border-[var(--border-color)] text-[var(--text-muted)]">
-                 AX
+              <div className="h-8 w-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-white bg-opacity-20 border border-[var(--accent)] font-semibold text-[11px]">
+                 AIT
               </div>
               <div>
                  <p className="text-[13px] font-medium text-white">Operator</p>
-                 <p className="text-[10px] text-[var(--text-muted)]">AXIOM PRO</p>
+                 <p className="text-[10px] text-[var(--text-muted)] font-mono tracking-wider">AITRADRA PRO</p>
               </div>
            </div>
         </div>

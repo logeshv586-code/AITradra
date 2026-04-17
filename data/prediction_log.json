@@ -12,7 +12,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:40:39.788931+00:00",
     "timestamp": "2026-04-09T12:40:39.788931+00:00",
-    "id": "a0d2f7a8-aef8-47c3-a1a0-339a76d4b026"
+    "id": "a0d2f7a8-aef8-47c3-a1a0-339a76d4b026",
+    "actual_price": 1067.15,
+    "accuracy_score": 0.161,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 1040.95,
+      "target_price": 1040.95,
+      "actual_price": 1067.15,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.933526+00:00"
   },
   {
     "ticker": "AAPL",
@@ -27,7 +39,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:41:22.451782+00:00",
     "timestamp": "2026-04-09T12:41:22.451782+00:00",
-    "id": "3e5205da-eb1c-4f50-ba21-78f269162e24"
+    "id": "3e5205da-eb1c-4f50-ba21-78f269162e24",
+    "actual_price": 262.11,
+    "accuracy_score": 0.5018,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 258.25,
+      "target_price": 258.25,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.942022+00:00"
   },
   {
     "ticker": "MSFT",
@@ -42,7 +66,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:04.109951+00:00",
     "timestamp": "2026-04-09T12:42:04.109951+00:00",
-    "id": "fe40d1d9-6169-4fba-8d0c-3cc08c09cdfd"
+    "id": "fe40d1d9-6169-4fba-8d0c-3cc08c09cdfd",
+    "actual_price": 414.87,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 374.78,
+      "target_price": 374.78,
+      "actual_price": 414.87,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.952582+00:00"
   },
   {
     "ticker": "GOOGL",
@@ -57,7 +93,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:04.160096+00:00",
     "timestamp": "2026-04-09T12:42:04.160096+00:00",
-    "id": "13e0e05f-c6b4-47e5-a66b-2ae933251ebe"
+    "id": "13e0e05f-c6b4-47e5-a66b-2ae933251ebe",
+    "actual_price": 336.73,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 315.62,
+      "target_price": 315.62,
+      "actual_price": 336.73,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.960250+00:00"
   },
   {
     "ticker": "AMD",
@@ -72,7 +120,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:04.169308+00:00",
     "timestamp": "2026-04-09T12:42:04.169308+00:00",
-    "id": "6f9c1326-70ac-4ddd-8c01-cd9e3c3c3b77"
+    "id": "6f9c1326-70ac-4ddd-8c01-cd9e3c3c3b77",
+    "actual_price": 267.26,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 230.0,
+      "target_price": 230.0,
+      "actual_price": 267.26,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.968079+00:00"
   },
   {
     "ticker": "NFLX",
@@ -87,7 +147,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:04.182060+00:00",
     "timestamp": "2026-04-09T12:42:04.182060+00:00",
-    "id": "9de70b4b-041f-49dc-9515-8b277645e782"
+    "id": "9de70b4b-041f-49dc-9515-8b277645e782",
+    "actual_price": 107.6,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 99.42,
+      "target_price": 99.42,
+      "actual_price": 107.6,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.975710+00:00"
   },
   {
     "ticker": "PYPL",
@@ -102,7 +174,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:05.862639+00:00",
     "timestamp": "2026-04-09T12:42:05.863636+00:00",
-    "id": "059a808f-1be6-4714-ab49-1bb86492c049"
+    "id": "059a808f-1be6-4714-ab49-1bb86492c049",
+    "actual_price": 49.12,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 45.85,
+      "target_price": 45.85,
+      "actual_price": 49.12,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.982004+00:00"
   },
   {
     "ticker": "SBIN.NS",
@@ -117,7 +201,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:06.522760+00:00",
     "timestamp": "2026-04-09T12:42:06.522760+00:00",
-    "id": "0e1287f8-f44b-4d38-a26a-29e36444d19e"
+    "id": "0e1287f8-f44b-4d38-a26a-29e36444d19e",
+    "actual_price": 1067.15,
+    "accuracy_score": 0.161,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 1040.95,
+      "target_price": 1040.95,
+      "actual_price": 1067.15,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.987611+00:00"
   },
   {
     "ticker": "PYPL",
@@ -132,7 +228,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:07.587400+00:00",
     "timestamp": "2026-04-09T12:42:07.587400+00:00",
-    "id": "ab7f6bf6-0831-49b6-9d0e-61b39bf06a27"
+    "id": "ab7f6bf6-0831-49b6-9d0e-61b39bf06a27",
+    "actual_price": 49.12,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 45.85,
+      "target_price": 45.85,
+      "actual_price": 49.12,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.993900+00:00"
   },
   {
     "ticker": "CRM",
@@ -147,7 +255,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:07.629290+00:00",
     "timestamp": "2026-04-09T12:42:07.629290+00:00",
-    "id": "e3b266e0-3b1b-4e80-923f-7128dd5ad29f"
+    "id": "e3b266e0-3b1b-4e80-923f-7128dd5ad29f",
+    "actual_price": 179.35,
+    "accuracy_score": 0.3443,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 175.89,
+      "target_price": 175.89,
+      "actual_price": 179.35,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:44.999999+00:00"
   },
   {
     "ticker": "PYPL",
@@ -162,6 +282,93 @@
     "confidence": 0.55,
     "created_at": "2026-04-09T12:42:14.860423+00:00",
     "timestamp": "2026-04-09T12:42:14.860423+00:00",
-    "id": "72206b62-358f-4864-a319-a0248cd8a3af"
+    "id": "72206b62-358f-4864-a319-a0248cd8a3af",
+    "actual_price": 49.12,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 45.85,
+      "target_price": 45.85,
+      "actual_price": 49.12,
+      "price_source": "cache",
+      "scored_at": "2026-04-17T10:48:44.927722+00:00"
+    },
+    "resolved_at": "2026-04-17T10:48:45.008894+00:00"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T11:12:57.621647+00:00",
+    "timestamp": "2026-04-17T11:12:57.621647+00:00",
+    "id": "ec709d96-38fc-480d-8135-d3436b07155f"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T11:12:57.633835+00:00",
+    "timestamp": "2026-04-17T11:12:57.633835+00:00",
+    "id": "862a88c4-cbad-420c-a4ba-3e0c352ebc8c"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T11:13:10.337386+00:00",
+    "timestamp": "2026-04-17T11:13:10.337386+00:00",
+    "id": "a43f5114-700f-4066-9f08-0701f9e66684"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-17T11:13:22.355632+00:00",
+    "timestamp": "2026-04-17T11:13:22.355632+00:00",
+    "id": "8ed00d1c-4179-4c92-b268-9eabc3db5362"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\n**Consensus: NEUTRAL | Confidence: 55%**\n\nAAPL receives a NEUTRAL rating with moderate confidence, reflecting limited agent signals across all specialist categories. The sole positive catalyst stems from Jim Cramer's recent endorsement, though his track record warrants measured interpretation. Without granular technical, fundamental, or sentiment data from agent analyses, the conviction level remains subdued.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**Status: INSUFFICIENT DATA**\n\nAll technical and risk agent signals returned N/A, preventing a comprehensive technical alignment assessment. Price action, support/resistance levels, and volatility metrics cannot be evaluated. Risk parameters remain undefined, limiting our ability to establish precise entry/exit zones.\n\n---\n\n## 3. Macro/Fundamental Context\n\n**Status: INSUFFICIENT DATA**\n\nMacro, fundamental, sector, and FinBERT sentiment agents all returned N/A. The broader market backdrop for AAPL\u2014particularly interest rate dynamics, consumer spending trends, and AI hardware cycle expectations\u2014cannot be assessed against agent-generated signals.\n\n**Catalyst Note**: Jim Cramer's recent bullish commentary provides a marginal sentiment lift. However, Cramer's historically mixed record suggests this should be weighted cautiously rather than as a decisive fundamental driver.\n\n---\n\n## 4. Investment Verdict\n\n**VERDICT: HOLD**\n\nGiven the NEUTRAL consensus (55% confidence) and complete absence of supporting agent signals across technical, fundamental, and sentiment dimensions, a defensive stance is warranted.\n\n- **No clear bullish setup** without technical breakout or fundamental catalyst confirmation\n- **No bearish pressure** sufficient to justify active selling\n- **Cramer endorsement** alone insufficient to upgrade conviction\n\n**Recommendation**: Maintain current positions. Await agent signal activation before deploying new capital. Monitor for earnings, product cycle announcements, or AI partnership developments that could shift the consensus.\n\n---\n\n*Note: This analysis reflects available data. The N/A status across all specialist agents suggests the signal generation pipeline may require refresh or additional data ingestion.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T11:16:31.389453+00:00",
+    "timestamp": "2026-04-17T11:16:31.389453+00:00",
+    "id": "4638d111-a8ad-4825-8646-b078daf044b0"
   }
 ]
