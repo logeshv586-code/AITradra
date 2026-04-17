@@ -29,7 +29,7 @@ export default function StockDetailPanel({ ticker, onClose }) {
     setChatOpen(false);
     
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 12000);
+    const timeoutId = setTimeout(() => abortController.abort(), 300000); // Extended to 5 minutes to allow deep intelligence generation
 
     const safeFetch = (url) => 
       fetch(url, { signal: abortController.signal })

@@ -83,10 +83,9 @@ export default function StockDetailView({ ticker }) {
     };
 
     load();
-    const id = setInterval(load, 30_000);
+    // Removed the aggressive 30s polling interval to prevent blocking the local LLM node with queued analysis jobs
     return () => {
       cancelled = true;
-      clearInterval(id);
     };
   }, [tickerId]);
 

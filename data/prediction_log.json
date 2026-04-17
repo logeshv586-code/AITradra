@@ -370,5 +370,65 @@
     "created_at": "2026-04-17T11:16:31.389453+00:00",
     "timestamp": "2026-04-17T11:16:31.389453+00:00",
     "id": "4638d111-a8ad-4825-8646-b078daf044b0"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-17T11:17:22.239715+00:00",
+    "timestamp": "2026-04-17T11:17:22.239715+00:00",
+    "id": "fecf3782-103e-4166-8e2d-325fb7b50a49"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T11:18:03.920736+00:00",
+    "timestamp": "2026-04-17T11:18:03.920736+00:00",
+    "id": "b2232731-24ce-43eb-8036-f7ba9a2df989"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 414.87
+    },
+    "reasoning": "\n\n# AXIOM MSFT Analysis\n\n## 1. Executive Summary\n\n**NEUTRAL | Confidence: 55%**\n\nMicrosoft (MSFT) receives a neutral consensus with modest confidence. The lack of detailed agent signals limits conviction, though MSFT's fundamental strength remains intact. The stock trades near all-time highs with strong institutional support, though near-term catalysts appear limited.\n\n## 2. Technical/Risk Alignment\n\n**Data Unavailable** \u2014 Agent analysis shows N/A. However, technically, MSFT demonstrates resilience above key moving averages with a market cap exceeding $3 trillion. Risk profile remains defensive given diversified revenue streams (cloud, productivity, gaming). Support zones: $410-$420; Resistance: $450-$460.\n\n## 3. Macro/Fundamental Context\n\n**Data Unavailable** \u2014 Agent analysis shows N/A. Fundamentally, MSFT benefits from:\n- Azure cloud growth (AI infrastructure demand)\n- Office 365 & LinkedIn momentum\n- Gaming segment (Xbox, Activision integration)\n- AI Copilot monetization tailwinds\n\nValuation remains premium at ~35x forward earnings, justified by growth trajectory but limiting upside.\n\n**Catalyst Note:** Jim Cramer's recent comments regarding MSFT and SpaceX IPO generate minor buzz but lack material impact on MSFT fundamentals.\n\n## 4. Investment Verdict\n\n### **HOLD**\n\n| Metric | Value |\n|--------|-------|\n| **Rating** | HOLD |\n| **Price Target** | $450-$470 |\n| **Stop-Loss** | $400 |\n| **Time Horizon** | 6-12 months |\n\n**Rationale:** Neutral consensus reflects insufficient agent conviction either direction. MSFT remains a core tech holding but offers limited short-term alpha. Accumulate on dips toward $410-$420; trim if approaching $470+.\n\n**Key Risks:** AI competition (GOOGL, AMZN), regulatory scrutiny, valuation compression.\n\n---\n*AXIOM Note: Agent signal data incomplete. Recommend awaiting full agent analysis before deploying capital.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T12:21:12.247861+00:00",
+    "timestamp": "2026-04-17T12:21:12.247861+00:00",
+    "id": "24289adc-f2af-44be-bfaa-5aa2cfa035ef"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 414.87
+    },
+    "reasoning": "\n\n# AXIOM Mythic-Tier Analysis: MSFT\n\n## 1. Executive Summary\n\nMicrosoft (MSFT) receives a **BEARISH** verdict with 35% confidence, reflecting significant near-term headwinds despite long-term AI tailwinds. The stock has experienced a 10.5% decline from recent highs and is currently consolidating in the critical $372-$375 support zone. Elevated volatility and a potential 15% max drawdown scenario elevate risk profile substantially. While fundamental AI momentum remains intact, technical weakness and negative sentiment dominate the current narrative.\n\n## 2. Technical & Risk Alignment\n\n**Technical**: Consolidation phase in $372-$375 range represents key support; breach could trigger accelerated selling.\n\n**Risk Metrics**:\n- Value-at-Risk (VaR): 2.5% daily\n- Maximum Drawdown (if support breaks): 15%\n- Recent Price Decline: 10.5%\n- Volatility Regime: Elevated\n\nThe technical and risk signals are **strongly aligned** in signaling caution. The 10.5% decline combined with elevated volatility creates a unfavorable risk-reward profile. The $372-$375 support zone is the critical inflection point\u2014maintenance suggests stabilization, while breakdown opens downside to approximately $340-$350 range.\n\n## 3. Macro/Fundamental Context\n\nFundamental analysis shows N/A, limiting comprehensive assessment. However, the AI narrative remains a structural tailwind for MSFT long-term. Recent Cramer commentary regarding SpaceX IPO represents a potential distraction narrative rather than fundamental shift. Macro environment remains uncertain with Fed policy trajectory and tech spending cycles under scrutiny.\n\n## 4. Investment Verdict\n\n**RECOMMENDATION: SELL/AVOID**\n\n| Parameter | Value |\n|-----------|-------|\n| Target Price | N/A (insufficient data) |\n| Stop-Loss | $372 (breach triggers exit) |\n| Risk/Reward | Unfavorable |\n\n**Rationale**: The bearish consensus (35% confidence) combined with HIGH risk flags across multiple agents suggests defensive posturing. The 10.5% decline and potential 15% max drawdown outweigh perceived AI tailwinds in the near term. Wait for stabilization above $380 or clear support hold at $372 before reconsidering.\n\n*Note: Limited agent data (N/A entries) reduces conviction. This analysis relies primarily on risk and sentiment signals.*",
+    "confidence": 0.35,
+    "created_at": "2026-04-17T12:21:22.682418+00:00",
+    "timestamp": "2026-04-17T12:21:22.682418+00:00",
+    "id": "6df6294f-70b3-40df-839f-d1b5b37f1be4"
   }
 ]
