@@ -1178,7 +1178,7 @@ async def chat_endpoint(request: Request):
     )
 
     try:
-        result = await asyncio.wait_for(query_router.run(ctx), timeout=120)
+        result = await asyncio.wait_for(query_router.run(ctx), timeout=40)
     except asyncio.TimeoutError:
         logger.warning(f"Chat query timed out for: {user_msg[:80]}")
         result = ctx
