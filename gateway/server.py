@@ -1109,43 +1109,43 @@ async def stock_news(ticker: str):
     return {"ticker": ticker, "news": articles, "articles": articles}
 
 
+
+
 @app.post("/api/chat")
 @app.post("/api/agents/chat")
 async def chat_endpoint(request: Request):
-    """AXIOM MYTHIC — Multi-agent orchestrated intelligence.
+    """AXIOM MYTHIC - Multi-agent orchestrated intelligence.
 
     Routes through MythicOrchestrator pipeline:
-    Parallel Fan-Out → Specialist Fleet → Critique → Calibrated Synthesis
+    Parallel Fan-Out, Specialist Fleet, Critique, Calibrated Synthesis
     """
     body = await request.json()
     user_msg = body.get("message", "").strip()
     ticker = body.get("ticker", "")
 
-    # ─── INTERCEPT COMMANDS ────────────────────────────────────────────────
+    # Intercept scrape commands
     if user_msg.startswith("> scrape"):
         try:
             from scrapers.playwright_news import run_scraper
             import shlex
 
-            # e.g., > scrape "Indian IT" TCS INFY
             parts = shlex.split(user_msg[8:].strip())
             query = parts[0] if parts else "Indian stock market"
             tickers = parts[1:] if len(parts) > 1 else []
 
             saved = await run_scraper(query, tickers, headless=True)
             return {
-                "response": f"✅ Scrape completed. Found and saved **{saved}** new articles for `{query}` and tickers `{tickers}` into `stock_news.db`.",
+                "response": f"Scrape completed. Found and saved **{saved}** new articles for `{query}` and tickers `{tickers}` into `stock_news.db`.",
                 "source": "playwright_scraper",
             }
         except Exception as e:
             logger.error(f"Scrape command failed: {e}")
-            return {"response": f"⚠️ Scraper failed: {e}", "source": "system"}
+            return {"response": f"Scraper failed: {e}", "source": "system"}
 
     if user_msg.startswith("> compare") or user_msg.startswith("> sentiment"):
         try:
             from agents.sentiment_engine import sentiment_engine
 
-            # extract tickers, e.g., > compare TCS INFY WIPRO
             cmd_parts = user_msg.split(" ")[1:]
             tickers = [t.upper() for t in cmd_parts if len(t) < 10]
             if not tickers and ticker:
@@ -1165,10 +1165,9 @@ async def chat_endpoint(request: Request):
             }
         except Exception as e:
             logger.error(f"Sentiment command failed: {e}")
-            return {"response": f"⚠️ Sentiment analysis failed: {e}", "source": "system"}
-    # ───────────────────────────────────────────────────────────────────────
+            return {"response": f"Sentiment analysis failed: {e}", "source": "system"}
 
-    # Route through the intelligent QueryRouter → MythicOrchestrator
+    # Route through the intelligent QueryRouter and MythicOrchestrator
     ctx = AgentContext(
         task=user_msg,
         ticker=ticker.upper() if ticker else None,
@@ -1177,9 +1176,17 @@ async def chat_endpoint(request: Request):
             "history": body.get("history", []),
         },
     )
-    result = await query_router.run(ctx)
 
-    if isinstance(result.result, dict):
+    try:
+        result = await asyncio.wait_for(query_router.run(ctx), timeout=120)
+    except asyncio.TimeoutError:
+        logger.warning(f"Chat query timed out for: {user_msg[:80]}")
+        result = ctx
+    except Exception as e:
+        logger.error(f"Chat pipeline error: {e}")
+        result = ctx
+
+    if isinstance(result.result, dict) and result.result.get("response"):
         response = result.result.get("response", "")
         llm_meta = get_shared_llm().runtime_profile()
         return {
@@ -1189,17 +1196,41 @@ async def chat_endpoint(request: Request):
             "model_router": llm_meta,
             "consensus": result.result.get("consensus"),
             "confidence": result.result.get("confidence"),
-            "research_mode": result.result.get(
-                "research_mode", body.get("research_mode", "QUICK")
-            ),
+            "research_mode": result.result.get("research_mode", body.get("research_mode", "QUICK")),
             "intelligence_profile": result.result.get("intelligence_profile", {}),
             "specialist_outputs": result.result.get("specialist_outputs"),
             "critique": result.result.get("critique"),
             "pipeline_ms": result.result.get("pipeline_ms"),
             "sources_used": result.result.get("sources_used", []),
         }
-    else:
-        return {"response": str(result.result), "source": "mythic_v4_fallback"}
+
+    # Fallback: direct LLM call when the full pipeline fails or returns empty
+    try:
+        llm = get_shared_llm()
+        system = (
+            "You are AXIOM, an expert AI trading intelligence assistant. "
+            "You analyze markets, stocks, and investment strategies with deep financial knowledge. "
+            "Be specific, data-driven, and actionable. Use professional financial tone. "
+            f"Current time: {datetime.now().isoformat()}"
+        )
+        prompt = f"User question: {user_msg}"
+        if ticker:
+            prompt += f"\nContext ticker: {ticker.upper()}"
+
+        direct_response = await llm.complete(prompt=prompt, system=system, temperature=0.3, max_tokens=1200)
+        llm_meta = llm.runtime_profile()
+        return {
+            "response": direct_response,
+            "source": "direct_llm_fallback",
+            "llm_provider": llm_meta.get("last_provider_used") or llm_meta.get("active_provider"),
+            "model_router": llm_meta,
+        }
+    except Exception as fallback_err:
+        logger.error(f"Direct LLM fallback also failed: {fallback_err}")
+        return {
+            "response": "The intelligence pipeline is currently initializing. Please retry in a moment.",
+            "source": "system_fallback",
+        }
 
 
 @app.get("/api/analyze/{ticker}")

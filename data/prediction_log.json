@@ -430,5 +430,80 @@
     "created_at": "2026-04-17T12:21:22.682418+00:00",
     "timestamp": "2026-04-17T12:21:22.682418+00:00",
     "id": "6df6294f-70b3-40df-839f-d1b5b37f1be4"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 414.87
+    },
+    "reasoning": "\n\n# AXIOM MSFT Analysis\n\n## 1. Executive Summary\n\nMicrosoft (MSFT) receives a **NEUTRAL** consensus with 55% confidence\u2014reflecting limited actionable signal from the agent network. Core metrics remain indeterminate; most specialist agents are initializing or returning neutral readings. The stock lacks clear directional momentum from technical, fundamental, or sentiment frameworks at this time.\n\n## 2. Technical & Risk Alignment\n\n- **Technical**: Data pending (agent warming up)\n- **Risk**: NEUTRAL \u2014 No acute risk flags identified\n- **Sector**: NEUTRAL \u2014 Tech sector showing no exceptional strength or weakness\n\nRisk profile remains stable. MSFT's enterprise fundamentals and cloud revenue streams (Azure) continue providing downside insulation, though no immediate technical breakout is signaled.\n\n## 3. Macro/Fundamental Context\n\n- **Macro**: Data pending\n- **Fundamental**: Data pending\n- **Catalysts**: NEUTRAL \u2014 Jim Cramer commented on MSFT and SpaceX IPO speculation, but this represents noise rather than fundamental driver\n\nMicrosoft's positioning in AI infrastructure, enterprise software, and cloud computing remains structurally sound. However, without concrete fundamental data from the agent network, valuation assumptions cannot be validated.\n\n## 4. Investment Verdict\n\n| Rating | Confidence | Rationale |\n|--------|------------|-----------|\n| **HOLD** | 55% | Neutral consensus; insufficient agent conviction for directional trade |\n\n**Key Takeaways:**\n- No compelling BUY case emerges from current signals\n- No deterioration warranting immediate SELL\n- Await stronger agent data before deploying capital\n\n**Action:** Maintain existing positions. Do not initiate new longs or shorts until specialist agents provide higher-conviction readings. Monitor for catalyst injection (earnings, AI announcements, competitive developments).\n\n---\n*AXIOM System \u2014 Data-driven. Unbiased. NVIDIA NIM-powered.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T12:27:00.820560+00:00",
+    "timestamp": "2026-04-17T12:27:00.820560+00:00",
+    "id": "1ce55821-1090-423e-870d-6b7c1304e092"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T12:27:41.693842+00:00",
+    "timestamp": "2026-04-17T12:27:41.693842+00:00",
+    "id": "ce733b6e-5c83-4926-8b1e-ed81fb17afc6"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 414.87
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for MSFT is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-17T12:27:43.882464+00:00",
+    "timestamp": "2026-04-17T12:27:43.882464+00:00",
+    "id": "2c4c5bc7-3032-4ea4-9625-0c861fa8735f"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 414.87
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for MSFT is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T12:27:43.927123+00:00",
+    "timestamp": "2026-04-17T12:27:43.927123+00:00",
+    "id": "4598c42f-4a57-4d21-9f68-9e8acf275529"
+  },
+  {
+    "ticker": "MSFT",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 414.87
+    },
+    "reasoning": "\n\n# MSFT Mythic-Tier Analysis\n\n## Executive Summary\n\n**Consensus: NEUTRAL** | Confidence: 55%\n\nThe analysis pipeline shows significant data gaps, with multiple agent outputs indicating incomplete assessments (\"LLM engine warming up\"). The limited available data supports a cautious neutral stance. No actionable bullish or bearish conviction can be established with current signal coverage.\n\n---\n\n## Technical & Risk Assessment\n\n**TECHNICAL:** NEUTRAL (Data incomplete)\n\n**RISK:** N/A (Insufficient data for risk modeling)\n\nWithout complete technical indicators (moving averages, RSI, MACD, support/resistance levels), a rigorous technical assessment is not possible. The neutral technical reading reflects this data void rather than a definitive market stance.\n\n---\n\n## Macro & Fundamental Context\n\n**MACRO:** NEUTRAL (Data incomplete)\n**FUNDAMENTAL:** NEUTRAL (Data incomplete)\n\nCloud computing tailwinds (Azure), AI infrastructure investments, and enterprise software resilience remain MSFT structural strengths. However, valuation concerns at current levels and macro uncertainty warrant caution. The Jim Cramer/SpaceX IPO catalyst mentioned provides no clear directional bias for MSFT.\n\n---\n\n## Investment Verdict\n\n### **HOLD**\n\nGiven the 55% confidence NEUTRAL consensus and incomplete agent coverage, **HOLD** is the appropriate stance. Insufficient conviction exists for BUY or SELL positioning.\n\n- **No clear price target** can be established due to data limitations\n- **No stop-loss** recommendation available\n- **Position sizing:** Maintain current exposure; avoid aggressive accumulation or reduction\n\n**Rationale:** The lack of definitive signal strength precludes confident directional trading. Await complete agent analysis before adjusting positions.\n\n---\n\n*Note: This analysis reflects incomplete data. Recommend re-query when LLM engines provide full technical, fundamental, and sentiment outputs.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-17T12:29:55.349727+00:00",
+    "timestamp": "2026-04-17T12:29:55.349727+00:00",
+    "id": "a7901a6a-6581-47bc-88ab-a356fb489c05"
   }
 ]

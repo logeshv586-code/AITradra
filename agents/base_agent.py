@@ -62,10 +62,11 @@ class BaseAgent(ABC):
         """Standard execution flow with integrated telemetry."""
         from datetime import datetime
         from gateway.knowledge_store import knowledge_store
-        
+
         start_time = datetime.now()
+        # Always clear previous error state when starting a fresh run
         knowledge_store.update_agent_health(self.name, "active", task=context.task)
-        
+
         try:
             context = await self._observe(context)
             context = await self._think(context)
@@ -73,19 +74,23 @@ class BaseAgent(ABC):
             context = await self._act_with_retry(context)
             context = await self._reflect(context)
             await self._improve(context)
-            
+
             latency = int((datetime.now() - start_time).total_seconds() * 1000)
             knowledge_store.update_agent_health(self.name, "idle", latency_ms=latency)
-            
+
             return context
         except asyncio.TimeoutError:
+            latency = int((datetime.now() - start_time).total_seconds() * 1000)
             context.errors.append(f"Agent {self.name} timed out after {self.timeout_seconds}s")
             self.logger.error(f"Agent {self.name} timed out")
-            knowledge_store.update_agent_health(self.name, "error", error=True)
+            # Mark as idle (recovered) rather than error to avoid permanently stuck status
+            knowledge_store.update_agent_health(self.name, "idle", latency_ms=latency, error=True)
         except Exception as e:
+            latency = int((datetime.now() - start_time).total_seconds() * 1000)
             context.errors.append(f"Agent {self.name} failed: {str(e)}")
             self.logger.error(f"Agent {self.name} failed: {traceback.format_exc()}")
-            knowledge_store.update_agent_health(self.name, "error", error=True)
+            # Mark as idle (recovered) so next run is not blocked by stale error state
+            knowledge_store.update_agent_health(self.name, "idle", latency_ms=latency, error=True)
             await self._improve(context)
         return context
 
@@ -113,9 +118,16 @@ class BaseAgent(ABC):
         return await asyncio.wait_for(self.plan(ctx), timeout=self.timeout_seconds)
 
     async def _act_with_retry(self, ctx: AgentContext) -> AgentContext:
+        # Act step gets 3x timeout since it contains the full pipeline (LLM calls etc.)
+        act_timeout = self.timeout_seconds * 3
         for attempt in range(self.max_retries):
             try:
-                return await asyncio.wait_for(self.act(ctx), timeout=self.timeout_seconds)
+                return await asyncio.wait_for(self.act(ctx), timeout=act_timeout)
+            except asyncio.TimeoutError:
+                self.logger.warning(f"[{self.name}] ACT attempt {attempt+1} timed out after {act_timeout}s")
+                ctx.errors.append(f"ACT attempt {attempt+1} timed out after {act_timeout}s")
+                if attempt == self.max_retries - 1: raise
+                await asyncio.sleep(2 ** attempt)
             except Exception as e:
                 err_type = type(e).__name__
                 err_msg = str(e).strip() or repr(e)

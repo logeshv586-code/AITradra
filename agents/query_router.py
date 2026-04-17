@@ -91,11 +91,28 @@ class QueryRouter(BaseAgent):
     async def act(self, context: AgentContext) -> AgentContext:
         ticker = context.observations.get("ticker")
         query = context.observations["query"]
+        research_mode = context.metadata.get("research_mode", "QUICK")
 
         # ─── PARALLEL FAN-OUT to all 4 data sources ─────────────────────────
         gathered_context = await self._parallel_gather(query, ticker)
 
+        if research_mode == "QUICK":
+            logger.info(f"Using FAST PATH synthesis for ticker: {ticker or 'general'}")
+            response = await self._fallback_llm_synthesize(query, ticker, gathered_context)
+            context.result = {
+                "response": response,
+                "ticker": ticker,
+                "intent": context.observations.get("intent", "general"),
+                "research_mode": "QUICK",
+                "confidence": 0.8,
+                "sources_used": list(gathered_context.keys()),
+                "data_freshness": datetime.now().isoformat(),
+            }
+            context.actions_taken.append({"action": "fast_path_complete"})
+            return context
+
         # ─── Route through MythicOrchestrator ────────────────────────────────
+
         try:
             from agents.orchestrator import mythic_orchestrator
             orchestrator_result = await mythic_orchestrator.orchestrate(

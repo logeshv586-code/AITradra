@@ -55,35 +55,42 @@ export default function StockDetailView({ ticker }) {
       setLoading(true);
       setError("");
       try {
-        const [stockRes, analysisRes] = await Promise.all([
-          fetch(`${API_BASE}/api/stock/${tickerId}`),
-          fetch(`${API_BASE}/api/stock/${tickerId}/analysis`),
-        ]);
-
+        // Step 1: Load stock data FIRST (fast endpoint, no LLM required)
+        const stockRes = await fetch(`${API_BASE}/api/stock/${tickerId}`);
         if (!stockRes.ok) {
           throw new Error(`Failed to load ${tickerId} terminal data`);
         }
-
         const stockPayload = await stockRes.json();
-        const analysisPayload = analysisRes.ok ? await analysisRes.json() : null;
-
         if (!cancelled) {
           setStockData(stockPayload);
-          setAnalysis(analysisPayload);
+          setLoading(false); // Render terminal immediately with stock data
+        }
+
+        // Step 2: Load analysis in background (slow LLM pipeline — don't block UI)
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 120000); // 2 min max
+          const analysisRes = await fetch(`${API_BASE}/api/stock/${tickerId}/analysis`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (analysisRes.ok && !cancelled) {
+            const analysisPayload = await analysisRes.json();
+            setAnalysis(analysisPayload);
+          }
+        } catch (analysisErr) {
+          // Analysis is non-critical — terminal still works without it
+          console.warn(`Analysis lazy-load for ${tickerId}:`, analysisErr.name === 'AbortError' ? 'timed out' : analysisErr.message);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err.message || "Terminal data unavailable");
-        }
-      } finally {
-        if (!cancelled) {
           setLoading(false);
         }
       }
     };
 
     load();
-    // Removed the aggressive 30s polling interval to prevent blocking the local LLM node with queued analysis jobs
     return () => {
       cancelled = true;
     };
