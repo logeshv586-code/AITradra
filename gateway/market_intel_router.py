@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -122,6 +123,14 @@ AGENT_REGISTRY = [
         "cadence_hours": 2,
     },
     {
+        "id": "swarm_intelligence",
+        "name": "SwarmIntelligence",
+        "aliases": ["SwarmIntelligence", "swarm_intelligence"],
+        "tier": "v4_mythic",
+        "role": "Multi-agent swarm coordinator for committee-grade research",
+        "cadence_hours": 2,
+    },
+    {
         "id": "techspec",
         "name": "TechnicalSpecialist",
         "aliases": ["TechnicalSpecialist"],
@@ -191,6 +200,22 @@ AGENT_REGISTRY = [
         "aliases": ["SignalAggregatorAgent"],
         "tier": "specialist",
         "role": "Signal weighting and ensemble alignment",
+        "cadence_hours": 6,
+    },
+    {
+        "id": "quantic_analysis",
+        "name": "QuanticAnalysis",
+        "aliases": ["QuanticAnalysis", "quantic_analysis"],
+        "tier": "specialist",
+        "role": "SMC validation, Monte Carlo risk modeling, and flow imbalance detection",
+        "cadence_hours": 2,
+    },
+    {
+        "id": "strategy_gen",
+        "name": "StrategyGenerator",
+        "aliases": ["StrategyGenerator", "strategy_gen"],
+        "tier": "specialist",
+        "role": "Algorithmic strategy synthesis across Pine, Python, and execution engines",
         "cadence_hours": 6,
     },
     {
@@ -452,6 +477,116 @@ def _build_action_card(snapshot: dict, held_position: dict | None, plugin_signal
     }
 
 
+def _research_priority(snapshot: dict) -> float:
+    score = _safe_float(snapshot.get("confidence_score"))
+    if snapshot.get("recommendation") == "BUY":
+        score += 10
+    elif snapshot.get("prediction_direction") == "DOWN":
+        score += 4
+
+    if snapshot.get("risk_level") == "LOW":
+        score += 5
+    elif snapshot.get("risk_level") == "HIGH":
+        score -= 8
+
+    if snapshot.get("freshness", {}).get("stale"):
+        score -= 15
+    return round(score, 1)
+
+
+def _suggestion_type(primary_driver: str, signal: str) -> str:
+    driver = str(primary_driver or "").lower()
+    signal = str(signal or "").upper()
+    if driver == "news":
+        return "CATALYST"
+    if driver == "macro":
+        return "MACRO"
+    if driver == "sentiment":
+        return "FLOW"
+    if signal in {"BUY", "SELL"}:
+        return "QUANTIC"
+    return "RESEARCH"
+
+
+def _format_stored_suggestion(row: dict) -> dict:
+    breakdown = {}
+    raw_breakdown = row.get("breakdown_json")
+    if raw_breakdown:
+        try:
+            breakdown = json.loads(raw_breakdown)
+        except (TypeError, ValueError):
+            breakdown = {}
+
+    ticker = str(row.get("ticker", "")).upper()
+    signal = str(row.get("signal", "HOLD")).upper()
+    score = round(_safe_float(row.get("score")), 1)
+    title = breakdown.get("title") or f"{ticker} {signal.title()} research vector"
+    desc = (
+        row.get("reasoning")
+        or breakdown.get("summary")
+        or f"Latest high-conviction research queue for {ticker}."
+    )
+
+    return {
+        "id": f"{ticker.lower()}-{row.get('created_at', '')}",
+        "ticker": ticker,
+        "title": title,
+        "desc": desc,
+        "type": _suggestion_type(
+            breakdown.get("primary_driver", breakdown.get("driver", "")), signal
+        ),
+        "signal": signal,
+        "score": score,
+        "perf_1m": round(_safe_float(row.get("perf_1m")), 2),
+        "updated_at": row.get("created_at"),
+        "source": "knowledge_store",
+        "breakdown": breakdown,
+    }
+
+
+def _build_dynamic_suggestion(snapshot: dict) -> dict:
+    ticker = snapshot["ticker"]
+    recommendation = snapshot.get("recommendation", "HOLD")
+    direction = snapshot.get("prediction_direction", "SIDEWAYS")
+    confidence = round(_safe_float(snapshot.get("confidence_score")), 1)
+    primary_driver = snapshot.get("primary_driver", "technical")
+    risk_level = snapshot.get("risk_level", "MEDIUM")
+
+    if direction == "UP":
+        title = f"{ticker} institutional accumulation scan"
+    elif direction == "DOWN":
+        title = f"{ticker} downside defense scan"
+    else:
+        title = f"{ticker} regime confirmation scan"
+
+    desc = (
+        snapshot.get("reasoning_summary")
+        or snapshot.get("sections", {}).get("verdict")
+        or f"{ticker} remains on the active watchlist for premium research coverage."
+    )
+
+    return {
+        "id": f"{ticker.lower()}-{snapshot.get('updated_at', snapshot.get('as_of', ''))}",
+        "ticker": ticker,
+        "title": title,
+        "desc": desc,
+        "type": _suggestion_type(primary_driver, recommendation),
+        "signal": recommendation,
+        "score": confidence,
+        "perf_1m": round(_safe_float(snapshot.get("expected_move_percent")), 2),
+        "updated_at": snapshot.get("updated_at") or snapshot.get("as_of"),
+        "source": "intelligence_fallback",
+        "breakdown": {
+            "prediction_direction": direction,
+            "risk_level": risk_level,
+            "primary_driver": primary_driver,
+            "expected_move_percent": round(
+                _safe_float(snapshot.get("expected_move_percent")), 2
+            ),
+        },
+    }
+
+
 def _merge_news_feed(snapshots: list[dict]) -> list[dict]:
     seen: set[str] = set()
     feed: list[dict] = []
@@ -487,6 +622,40 @@ async def get_local_plugins():
         "plugins": local_plugin_registry.get_plugins(),
         "summary": local_plugin_registry.get_summary(),
         "signal_count": len(local_plugin_registry.load_signals(limit=500)),
+    }
+
+
+@router.get("/suggestions")
+async def get_research_suggestions(limit: int = 6):
+    limit = max(1, min(limit, 12))
+    suggestions: list[dict] = []
+    seen_tickers: set[str] = set()
+
+    for row in knowledge_store.get_latest_research_suggestions(limit=limit * 2):
+        item = _format_stored_suggestion(row)
+        if not item["ticker"] or item["ticker"] in seen_tickers:
+            continue
+        seen_tickers.add(item["ticker"])
+        suggestions.append(item)
+        if len(suggestions) >= limit:
+            break
+
+    if len(suggestions) < limit:
+        snapshots = await intelligence_service.get_watchlist_intelligence(max_age_minutes=240)
+        ranked = sorted(snapshots, key=_research_priority, reverse=True)
+        for snapshot in ranked:
+            ticker = snapshot["ticker"]
+            if ticker in seen_tickers:
+                continue
+            seen_tickers.add(ticker)
+            suggestions.append(_build_dynamic_suggestion(snapshot))
+            if len(suggestions) >= limit:
+                break
+
+    return {
+        "suggestions": suggestions[:limit],
+        "count": min(len(suggestions), limit),
+        "generated_at": datetime.now().isoformat(),
     }
 
 

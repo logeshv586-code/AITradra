@@ -13,6 +13,7 @@ from gateway.data_engine import data_engine
 from gateway.knowledge_store import knowledge_store
 from gateway.stock_geo import get_coords_for_ticker, format_market_cap, format_volume
 from core.scoring import calculate_technical_score, calculate_consensus_verdict, calibrate_confidence
+from llm.client import get_shared_llm
 
 logger = get_logger(__name__)
 
@@ -466,6 +467,134 @@ class IntelligenceService:
         }
         return {"sections": sections, "agents": agents}
 
+    def _data_quality_score(
+        self,
+        price_data: dict,
+        stats: dict,
+        news: list[dict],
+        sentiment: dict,
+    ) -> dict:
+        price_points = 30 if _safe_float(price_data.get("px")) > 0 else 0
+        history_points = min(_safe_float(stats.get("points")) / 60.0, 1.0) * 30
+        news_points = min(len(news) / 6.0, 1.0) * 20
+        sentiment_points = 10 if _safe_float(sentiment.get("mentions")) > 0 else 0
+        source_points = 10 if price_data.get("source_used") not in {"unknown", "N/A", None, ""} else 0
+        score = round(price_points + history_points + news_points + sentiment_points + source_points, 1)
+        score = max(0.0, min(score, 100.0))
+        return {
+            "score": score,
+            "grade": "HIGH" if score >= 75 else "MEDIUM" if score >= 45 else "LOW",
+            "price_available": price_points > 0,
+            "history_points": int(_safe_float(stats.get("points"))),
+            "news_items": len(news),
+            "sentiment_mentions": int(_safe_float(sentiment.get("mentions"))),
+            "source": price_data.get("source_used", "unknown"),
+        }
+
+    def _adaptive_action_plan(self, prediction: dict, risk: dict, quality: dict) -> dict:
+        direction = prediction.get("prediction_direction", "SIDEWAYS")
+        confidence = _safe_float(prediction.get("confidence_score"))
+        risk_level = risk.get("risk_level", "MEDIUM")
+        quality_grade = quality.get("grade", "LOW")
+
+        if quality_grade == "LOW":
+            mode = "collect_more_evidence"
+            next_actions = [
+                "refresh price and OHLCV cache",
+                "expand recent news evidence",
+                "avoid decisive sizing until data quality improves",
+            ]
+        elif risk_level == "HIGH" and direction != "UP":
+            mode = "capital_preservation"
+            next_actions = [
+                "tighten risk limits",
+                "seek downside confirmation",
+                "prefer watch or trim actions over new exposure",
+            ]
+        elif direction == "UP" and confidence >= 60 and risk_level != "HIGH":
+            mode = "opportunity_seeking"
+            next_actions = [
+                "stage entries near support",
+                "monitor headline drift",
+                "re-score after the next price update",
+            ]
+        elif direction == "DOWN":
+            mode = "defensive_research"
+            next_actions = [
+                "prioritize risk and catalyst checks",
+                "avoid averaging down without fresh confirmation",
+                "scan peers for relative weakness",
+            ]
+        else:
+            mode = "confirmation_wait"
+            next_actions = [
+                "watch for volume confirmation",
+                "compare technical and news agreement",
+                "keep position sizing neutral",
+            ]
+
+        return {
+            "mode": mode,
+            "next_actions": next_actions,
+            "learning_objective": (
+                "increase confidence only when price, news, sentiment, and risk agents agree"
+            ),
+            "recheck_minutes": 30 if mode in {"opportunity_seeking", "capital_preservation"} else 60,
+        }
+
+    def _build_intelligence_profile(
+        self,
+        ticker: str,
+        price_data: dict,
+        stats: dict,
+        news: list[dict],
+        sentiment: dict,
+        prediction: dict,
+        risk: dict,
+    ) -> dict:
+        quality = self._data_quality_score(price_data, stats, news, sentiment)
+        adaptive_plan = self._adaptive_action_plan(prediction, risk, quality)
+        model_profile = get_shared_llm().runtime_profile()
+        return {
+            "version": "adaptive_intelligence_v1",
+            "ticker": ticker,
+            "generated_at": datetime.now().isoformat(),
+            "model_router": model_profile,
+            "data_quality": quality,
+            "adaptive_plan": adaptive_plan,
+            "agent_mesh": {
+                "core_agents": [
+                    "technical_agent",
+                    "macro_agent",
+                    "sentiment_agent",
+                    "risk_agent",
+                ],
+                "advanced_layers": [
+                    "query_router",
+                    "mythic_orchestrator",
+                    "critique_layer",
+                    "quantic_layer",
+                    "swarm_consensus",
+                    "self_improvement_engine",
+                ],
+            },
+            "active_signal": {
+                "direction": prediction.get("prediction_direction", "SIDEWAYS"),
+                "confidence_score": prediction.get("confidence_score", 0),
+                "risk_level": risk.get("risk_level", "MEDIUM"),
+                "primary_driver": prediction.get("primary_driver", "technical"),
+            },
+            "self_improvement": {
+                "enabled": True,
+                "feedback_loops": [
+                    "prediction_logging",
+                    "agent_health_telemetry",
+                    "confidence_calibration",
+                    "paper_trade_accuracy",
+                ],
+            },
+        }
+
     def _analysis_payload(self, snapshot: dict) -> dict:
         return {
             "ticker": snapshot["ticker"],
@@ -483,8 +612,42 @@ class IntelligenceService:
             "sections": snapshot["sections"],
             "agents": snapshot["agents"],
             "top_headlines": snapshot["top_headlines"],
+            "intelligence_profile": snapshot.get("intelligence_profile", {}),
+            "adaptive_plan": snapshot.get("adaptive_plan", {}),
             "as_of": snapshot["as_of"],
         }
+
+    def _ensure_intelligence_profile(self, snapshot: dict) -> dict:
+        """Backfill adaptive metadata for cached snapshots created before this layer."""
+        if not isinstance(snapshot, dict) or snapshot.get("intelligence_profile"):
+            return snapshot
+
+        price_data = snapshot.get("price_data", {})
+        stats = snapshot.get("historical_stats", {})
+        news = snapshot.get("top_headlines", [])
+        sentiment = snapshot.get("sentiment", {})
+        prediction = {
+            "prediction_direction": snapshot.get("prediction_direction", "SIDEWAYS"),
+            "confidence_score": snapshot.get("confidence_score", 0),
+            "primary_driver": snapshot.get("primary_driver", "technical"),
+        }
+        risk = snapshot.get("risk", {"risk_level": snapshot.get("risk_level", "MEDIUM")})
+
+        profile = self._build_intelligence_profile(
+            snapshot.get("ticker", ""),
+            price_data,
+            stats,
+            news,
+            sentiment,
+            prediction,
+            risk,
+        )
+        snapshot["intelligence_profile"] = profile
+        snapshot["adaptive_plan"] = profile.get("adaptive_plan", {})
+        if "analysis" in snapshot and isinstance(snapshot["analysis"], dict):
+            snapshot["analysis"]["intelligence_profile"] = profile
+            snapshot["analysis"]["adaptive_plan"] = profile.get("adaptive_plan", {})
+        return snapshot
 
     async def refresh_ticker_intelligence(self, ticker: str, allow_scrape: bool = False) -> dict:
         if not ticker or str(ticker).strip().lower() in ("none", "null", ""):
@@ -509,6 +672,16 @@ class IntelligenceService:
         prediction = self._derive_prediction(ticker, price_data, stats, news_score, sentiment)
         risk = self._derive_risk(ticker, stats, price_data)
         built = self._build_sections(ticker, price_data, stats, news_score, top_headlines, sentiment, prediction, risk)
+        intelligence_profile = self._build_intelligence_profile(
+            ticker,
+            price_data,
+            stats,
+            news,
+            sentiment,
+            prediction,
+            risk,
+        )
+        adaptive_plan = intelligence_profile.get("adaptive_plan", {})
 
         recommendation = (
             "BUY"
@@ -541,6 +714,8 @@ class IntelligenceService:
             "news_count": len(news),
             "sections": built["sections"],
             "agents": built["agents"],
+            "intelligence_profile": intelligence_profile,
+            "adaptive_plan": adaptive_plan,
             "freshness": {
                 "price_source": price_data.get("source_used", "unknown"),
                 "stale": bool(price_data.get("is_estimated", False) or price_data.get("syncing", False)),
@@ -568,7 +743,7 @@ class IntelligenceService:
         if not force_refresh:
             existing = self.store.get_ticker_intelligence(ticker)
             if existing and not self._is_stale(existing, max_age_minutes):
-                return existing
+                return self._ensure_intelligence_profile(existing)
         
         # In a request-response cycle, we don't allow blocking scrapes
         return await self.refresh_ticker_intelligence(ticker, allow_scrape=False)
@@ -580,7 +755,13 @@ class IntelligenceService:
         max_age_minutes: int = 180,
     ) -> list[dict]:
         tickers = [ticker.upper() for ticker in (tickers or settings.DEFAULT_WATCHLIST)]
-        stored = {item["ticker"]: item for item in self.store.get_all_ticker_intelligence(tickers=tickers, limit=len(tickers) + 10)}
+        stored = {
+            item["ticker"]: self._ensure_intelligence_profile(item)
+            for item in self.store.get_all_ticker_intelligence(
+                tickers=tickers,
+                limit=len(tickers) + 10,
+            )
+        }
         results: list[dict] = []
         missing: list[str] = []
 
@@ -632,6 +813,9 @@ class IntelligenceService:
         ticker = snapshot["ticker"]
         price = snapshot.get("price_data", {})
         risk = snapshot.get("risk", {})
+        profile = snapshot.get("intelligence_profile", {})
+        quality = profile.get("data_quality", {}) if isinstance(profile, dict) else {}
+        plan = profile.get("adaptive_plan", {}) if isinstance(profile, dict) else {}
         lat, lon = get_coords_for_ticker(ticker)
         sector = snapshot.get("sector", "Global Equity")
         if sector in {"Global Equity", "India Equity", "Europe Equity"}:
@@ -662,6 +846,8 @@ class IntelligenceService:
             "pct_chg": round(_safe_float(price.get("pct_chg"), _safe_float(price.get("chg"))), 2),
             "recommendation": snapshot.get("recommendation", "HOLD"),
             "confidence_score": snapshot.get("confidence_score", 0),
+            "intelligence_grade": quality.get("grade", "LOW"),
+            "adaptive_mode": plan.get("mode", "confirmation_wait"),
         }
 
     def to_prediction_record(self, snapshot: dict) -> dict:
@@ -671,6 +857,8 @@ class IntelligenceService:
         expected_move = _safe_float(snapshot.get("expected_move_percent"))
         multiplier = 1 + (expected_move / 100.0) * (1 if direction == "UP" else -1 if direction == "DOWN" else 0)
         sector = snapshot.get("sector", "Global Equity")
+        profile = snapshot.get("intelligence_profile", {})
+        quality = profile.get("data_quality", {}) if isinstance(profile, dict) else {}
         if sector in {"Global Equity", "India Equity", "Europe Equity"}:
             sector = self._infer_sector(snapshot["ticker"])
         return {
@@ -689,6 +877,7 @@ class IntelligenceService:
             "chg": round(_safe_float(price.get("pct_chg"), _safe_float(price.get("chg"))), 2),
             "recommendation": snapshot.get("recommendation", "HOLD"),
             "should_invest": bool(snapshot.get("should_invest")),
+            "intelligence_grade": quality.get("grade", "LOW"),
             "as_of": snapshot.get("as_of"),
         }
 

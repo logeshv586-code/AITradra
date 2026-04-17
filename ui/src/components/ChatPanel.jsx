@@ -2,10 +2,15 @@ import React, { useState, useRef, useEffect } from "react";
 import { MessageSquareText, Send, Loader2, Bot, User, ShieldAlert, Sparkles } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 
-export default function ChatPanel({ messages = [], onSend, fullView = false }) {
+export default function ChatPanel({ messages = [], onSend, fullView = false, intelligenceStatus = null }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const providerLabel =
+    intelligenceStatus?.model_router?.last_provider_used ||
+    intelligenceStatus?.model_router?.active_provider ||
+    "adaptive";
+  const learningLabel = intelligenceStatus?.self_improvement?.loop_running ? "learning loop active" : "telemetry standby";
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -116,7 +121,7 @@ export default function ChatPanel({ messages = [], onSend, fullView = false }) {
           </button>
         </form>
          <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-medium">Powered by Qwen-3.5 Local Synthesis</span>
+            <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-medium">{providerLabel} | {learningLabel}</span>
          </div>
       </div>
 

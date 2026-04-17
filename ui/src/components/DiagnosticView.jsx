@@ -2,7 +2,7 @@ import React from 'react';
 import { Activity, Zap, Server, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 export default function DiagnosticView({ agents }) {
-  const issues = agents?.filter(a => a.health_score < 100 || a.status === "ERROR") || [];
+  const issues = agents?.filter(a => a.health_score < 100 || (a.status || "").toLowerCase() === "error") || [];
 
   return (
     <div className="flex flex-col h-full bg-[var(--card-bg)]">
@@ -33,7 +33,7 @@ export default function DiagnosticView({ agents }) {
                             {iss.name} - Performance Suboptimal
                          </span>
                          <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                            Diagnostic ping returned {iss.latency || "timeout"}. Health is at {iss.health_score}%.
+                            Diagnostic ping returned {iss.latency_ms ? `${iss.latency_ms}ms` : "timeout"}. Health is at {iss.health_score}%.
                          </span>
                       </div>
                    </div>

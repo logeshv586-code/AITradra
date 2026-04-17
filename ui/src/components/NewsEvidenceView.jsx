@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Newspaper, Loader2, Shield, Calendar, ArrowUpRight, TrendingUp, TrendingDown, Target, Zap, Activity } from "lucide-react";
+import { Newspaper, Loader2, Shield, Calendar, TrendingUp, TrendingDown, Target, Zap, Activity } from "lucide-react";
 import { API_BASE } from "../api_config";
 
 function getSentimentStyle(sentiment) {
@@ -7,6 +7,66 @@ function getSentimentStyle(sentiment) {
   if (s === "positive" || s === "bullish" || s === "high") return "text-[var(--positive)]";
   if (s === "negative" || s === "bearish" || s === "low")  return "text-[var(--negative)]";
   return "text-[var(--warning)]";
+}
+
+function buildSummary(overview) {
+  const universe = overview?.universe || {};
+  const freshness = overview?.freshness || {};
+  const tracked = universe.tracked_assets || 0;
+  if (!tracked) return "";
+
+  return `${universe.bullish || 0} bullish setups versus ${universe.bearish || 0} bearish setups across ${tracked} tracked assets. ${universe.buy_setups || 0} buy setups are active, and ${freshness.fresh_assets || 0} assets are fresh in the current scan cycle.`;
+}
+
+function buildThemes(overview) {
+  const drivers = (overview?.top_opportunities || [])
+    .map((item) => item.primary_driver)
+    .filter(Boolean);
+  const sectors = (overview?.top_opportunities || [])
+    .map((item) => item.sector)
+    .filter(Boolean);
+  return [...new Set([...drivers, ...sectors])].slice(0, 8);
+}
+
+function buildOverviewArticles(overview) {
+  return (overview?.news_feed || []).map((item) => ({
+    title: item.headline,
+    headline: item.headline,
+    summary: item.ticker ? `${item.ticker} moved onto the live intelligence feed.` : "",
+    url: "",
+    source: item.source,
+    published_at: item.published_at,
+    impact: item.impact,
+    sentiment:
+      item.sentiment_score >= 0.2
+        ? "positive"
+        : item.sentiment_score <= -0.2
+          ? "negative"
+          : "neutral",
+  }));
+}
+
+function normalizeIntelPayload(overview, evidence) {
+  const universe = overview?.universe || {};
+  const overallSentiment =
+    (universe.bullish || 0) > (universe.bearish || 0)
+      ? "bullish"
+      : (universe.bullish || 0) < (universe.bearish || 0)
+        ? "bearish"
+        : "neutral";
+
+  return {
+    summary: buildSummary(overview),
+    articles: evidence?.articles?.length ? evidence.articles : buildOverviewArticles(overview),
+    key_themes: buildThemes(overview),
+    overall_sentiment: overallSentiment,
+    sentiment_distribution: {
+      bullish: universe.bullish || 0,
+      bearish: universe.bearish || 0,
+      buy_setups: universe.buy_setups || 0,
+      stale_assets: universe.stale_assets || 0,
+    },
+  };
 }
 
 export default function NewsEvidenceView() {
@@ -18,16 +78,19 @@ export default function NewsEvidenceView() {
     let cancelled = false;
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/intel/overview`);
-        if (!res.ok) {
-           const fb = await fetch(`${API_BASE}/api/market/news-evidence`);
-           if (!fb.ok) throw new Error("Could not fetch intelligence data");
-           const d = await fb.json();
-           if (!cancelled) setData(d);
-           return;
+        if (!cancelled) setError(null);
+        const [overviewRes, evidenceRes] = await Promise.all([
+          fetch(`${API_BASE}/api/intel/overview`),
+          fetch(`${API_BASE}/api/market/news-evidence`),
+        ]);
+
+        if (!overviewRes.ok && !evidenceRes.ok) {
+          throw new Error("Could not fetch intelligence data");
         }
-        const json = await res.json();
-        if (!cancelled) setData(json.market_intel || json);
+
+        const overview = overviewRes.ok ? await overviewRes.json() : {};
+        const evidence = evidenceRes.ok ? await evidenceRes.json() : {};
+        if (!cancelled) setData(normalizeIntelPayload(overview, evidence));
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {

@@ -5,6 +5,7 @@ export function GlassCard({ children, className = '', glowCol = 'transparent', i
   return (
     <div className={`glass-card ${interactive ? 'interactive' : ''} ${className}`}
          style={{
+           "--glow-color": glowCol,
            ...style
          }}
          {...props}>

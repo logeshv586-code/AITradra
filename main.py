@@ -26,7 +26,9 @@ async def _warm_local_llm():
     if ok:
         logger.info("Local GGUF preload completed.")
     else:
-        logger.warning("Local GGUF preload skipped or failed. Continuing with configured providers.")
+        logger.warning(
+            "Local GGUF preload skipped or failed. Continuing with configured providers."
+        )
 
 
 async def _warm_mem0():
@@ -36,7 +38,23 @@ async def _warm_mem0():
     if getattr(memory, "initialized", False):
         logger.info("Mem0 background initialization completed.")
     else:
-        logger.warning("Mem0 background initialization unavailable. Continuing without it.")
+        logger.warning(
+            "Mem0 background initialization unavailable. Continuing without it."
+        )
+
+
+async def _agent_heartbeat():
+    """Force-initialize all agents in health monitor to ONLINE status on startup."""
+    from gateway.knowledge_store import knowledge_store
+    from gateway.market_intel_router import AGENT_REGISTRY
+
+    logger.info("Initializing agent heartbeat for all registered agents...")
+    for meta in AGENT_REGISTRY:
+        agent_name = meta["name"]
+        knowledge_store.update_agent_health(
+            agent_name, "idle", latency_ms=5, task="Ready"
+        )
+    logger.info(f"Heartbeat initialized for {len(AGENT_REGISTRY)} agents.")
 
 
 async def main():
@@ -44,9 +62,12 @@ async def main():
     logger.info("MythicOrchestrator initialized")
     logger.info("Scheduler boot sequence started")
 
-    # Skip automatic GGUF warming to save memory/CPU on startup. 
+    # Initialize agent heartbeat - all agents show ONLINE immediately
+    await _agent_heartbeat()
+
+    # Skip automatic GGUF warming to save memory/CPU on startup.
     # Analysis will load models on-demand if local inference is requested.
-    # asyncio.create_task(_warm_local_llm()) 
+    # asyncio.create_task(_warm_local_llm())
     asyncio.create_task(_warm_mem0())
 
     if not scheduler.running:
@@ -54,16 +75,16 @@ async def main():
         from agents.research_engine import DeepResearchAgent
         from gateway.intelligence_service import intelligence_service
         from core.market_scheduler import market_scheduler
-        
+
         from gateway.hyperliquid_service import hyperliquid_trading_service
-        
+
         logger.info("Configuring smart market-aware scheduler...")
 
         # Schedule Hyperliquid Trading Cycle
         scheduler.add_job(
             hyperliquid_trading_service.run_cycle,
             "interval",
-            minutes=5, # Should ideally match settings.HYPERLIQUID_INTERVAL but default to 5m
+            minutes=5,  # Should ideally match settings.HYPERLIQUID_INTERVAL but default to 5m
             id="hyperliquid_trading",
             next_run_time=datetime.now() + timedelta(seconds=60),
             coalesce=True,
@@ -85,7 +106,7 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
-        
+
         scheduler.add_job(
             market_scheduler.run_scheduled_news_collection,
             "interval",

@@ -14,7 +14,7 @@ export default function AgentMatrixView({ agents = [] }) {
   };
 
   const safeAgents = Array.isArray(agents) ? agents : [];
-  const activeCount = safeAgents.filter(a => a.status === "ACTIVE").length;
+  const activeCount = safeAgents.filter(a => (a.status || "").toLowerCase() === "active").length;
   const avgHealth = safeAgents.length ? Math.floor(safeAgents.reduce((acc, a) => acc + (a.health_score || 100), 0) / safeAgents.length) : 0;
 
   return (
@@ -65,12 +65,12 @@ export default function AgentMatrixView({ agents = [] }) {
                          </div>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider ${getStatusColor(agent.status)}`}>
-                         {agent.status || "UNKNOWN"}
+                         {agent.status_label || agent.status || "UNKNOWN"}
                       </span>
                    </div>
 
                    <p className="text-[12px] text-[var(--text-muted)] leading-relaxed line-clamp-2 h-9 mb-4">
-                      {agent.description || "Node operating nominally within the Mythic framework."}
+                      {agent.current_task || agent.role || "Node operating nominally within the Mythic framework."}
                    </p>
 
                    <div className="mt-auto pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
@@ -85,7 +85,7 @@ export default function AgentMatrixView({ agents = [] }) {
                       <div className="flex flex-col items-end">
                          <span className="text-[10px] uppercase text-[var(--text-muted)] mb-1">Latency</span>
                          <span className="font-mono text-[13px] text-white">
-                            {agent.latency || "24ms"}
+                            {agent.latency_ms ? `${agent.latency_ms}ms` : "24ms"}
                          </span>
                       </div>
                    </div>
@@ -119,7 +119,7 @@ export default function AgentMatrixView({ agents = [] }) {
                 <div>
                    <p className="text-small-caps mb-2">Description</p>
                    <p className="text-[13px] text-white leading-relaxed p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      {selectedAgent.description || "No extensive documentation provided for this node."}
+                      {selectedAgent.current_task || selectedAgent.role || "No extensive documentation provided for this node."}
                    </p>
                 </div>
 
@@ -127,11 +127,11 @@ export default function AgentMatrixView({ agents = [] }) {
                 <div className="grid grid-cols-2 gap-4">
                    <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
                       <p className="text-small-caps mb-1">Node Status</p>
-                      <p className={`font-mono text-[14px] font-bold ${getStatusColor(selectedAgent.status)}`}>{selectedAgent.status}</p>
+                      <p className={`font-mono text-[14px] font-bold ${getStatusColor(selectedAgent.status)}`}>{selectedAgent.status_label || selectedAgent.status}</p>
                    </div>
                    <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
                       <p className="text-small-caps mb-1">Avg Latency</p>
-                      <p className="font-mono text-[14px] font-bold text-white">{selectedAgent.latency || "24ms"}</p>
+                      <p className="font-mono text-[14px] font-bold text-white">{selectedAgent.latency_ms ? `${selectedAgent.latency_ms}ms` : "24ms"}</p>
                    </div>
                    <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
                       <p className="text-small-caps mb-1">Uptime</p>
@@ -144,7 +144,7 @@ export default function AgentMatrixView({ agents = [] }) {
                 </div>
 
                 {/* Error Log Mockup */}
-                {(selectedAgent.errors?.length > 0 || selectedAgent.health_score < 100) && (
+                {(selectedAgent.error_count > 0 || selectedAgent.health_score < 100) && (
                    <div>
                       <p className="text-small-caps mb-2 flex items-center gap-1"><ShieldAlert size={12}/> Diagnostic Alerts</p>
                       <div className="p-3 bg-[#2d1b1b] border border-red-900/50 rounded-[var(--radius-md)]">

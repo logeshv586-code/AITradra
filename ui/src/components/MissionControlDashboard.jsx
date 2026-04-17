@@ -4,12 +4,13 @@ import DeepResearchSuggestions from "./DeepResearchSuggestions";
 import DiagnosticView from "./DiagnosticView";
 import ShadowPortfolioCard from "./ShadowPortfolioCard";
 
-function SystemCard({ title, value, sub, icon: Icon, color }) {
+function SystemCard({ title, value, sub, icon, color }) {
+  const CardIcon = icon;
   return (
     <div className="surface-card p-5 flex flex-col gap-3 group border border-transparent transition-all hover:border-[var(--border-color)]">
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[#1e232b] border border-[var(--border-color)] group-hover:bg-[#1b1f27] transition-colors">
-          <Icon size={18} style={{ color }} />
+          <CardIcon size={18} style={{ color }} />
         </div>
         <div className="flex flex-col">
           <span className="text-small-caps">{title}</span>
@@ -21,7 +22,7 @@ function SystemCard({ title, value, sub, icon: Icon, color }) {
   );
 }
 
-export default function MissionControlDashboard({ agentsStatus, liveStocks }) {
+export default function MissionControlDashboard({ agentsStatus }) {
   const [activeTab, setActiveTab] = useState("overview");
 
   const aCount = agentsStatus?.length || 5;

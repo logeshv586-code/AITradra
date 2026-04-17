@@ -59,3 +59,4 @@ backtrader>=1.9.78.123
 pyportfolioopt>=1.5.5
 PyGithub>=2.5.0
 hyperliquid-python-sdk>=0.1.0
+vibe-trading-ai

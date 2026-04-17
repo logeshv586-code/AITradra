@@ -9,7 +9,7 @@ Uses open-source local LLM (NVIDIA Nemotron GGUF / Ollama) instead of cloud APIs
 import json
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from core.logger import get_logger
 from agents.base_agent import AgentContext
 
@@ -44,6 +44,11 @@ class MythicOrchestrator:
         from agents.risk_manager import RiskManagerAgent
         from agents.signal_aggregator import SignalAggregatorAgent
 
+        # Vibe Trading AI Agents
+        from agents.swarm_agent import swarm_agent
+        from agents.quantic_agent import quantic_agent
+        from agents.strategy_generator_agent import strategy_generator_agent
+
         # Core Trio
         self.technical = TechnicalSpecialist()
         self.risk = RiskSpecialist()
@@ -62,11 +67,36 @@ class MythicOrchestrator:
 
         self.critique = CritiqueAgent()
 
+        # Vibe AI Agents
+        self.swarm = swarm_agent
+        self.quantic = quantic_agent
+        self.strategy_gen = strategy_generator_agent
+
+        logger.info("Vibe AI agents loaded: Swarm, Quantic, StrategyGenerator")
+
         # Memory store for episodic recall
         self._episode_store = []
         logger.info("MythicOrchestrator initialized")
         logger.info("Specialist agents loaded")
         logger.info("CritiqueAgent active")
+
+    def attach_improvement_engine(self, improvement_engine) -> None:
+        """Attach self-improvement telemetry to every managed specialist."""
+        for agent in (
+            self.technical,
+            self.risk,
+            self.macro,
+            self.sentiment,
+            self.sentiment_finbert,
+            self.fundamental,
+            self.sector,
+            self.catalysts,
+            self.risk_manager,
+            self.signal_aggregator,
+            self.critique,
+        ):
+            if hasattr(agent, "improvement_engine"):
+                agent.improvement_engine = improvement_engine
 
     async def orchestrate(
         self,
@@ -145,6 +175,24 @@ class MythicOrchestrator:
                     metadata={"history": history},
                 )
 
+                # ─── Phase 4.0: Vibe Swarm Consensus (INSTITUTIONAL only) ───────
+                if (
+                    research_mode == "INSTITUTIONAL"
+                    and hasattr(self, "swarm")
+                    and self.swarm.is_available
+                ):
+                    logger.info(f"[Orchestrator] Running Vibe Swarm Consensus...")
+                    swarm_result = await self.run_vibe_swarm(
+                        query=query,
+                        team_preset="investment-committee",
+                        market="crypto"
+                        if ticker and ("BTC" in ticker or "ETH" in ticker)
+                        else "stocks",
+                    )
+                    specialist_outputs["vibe_swarm"] = swarm_result
+                    decision_ctx.observations["vibe_swarm"] = swarm_result
+                    self.signal_aggregator.set_swarm_consensus(swarm_result)
+
                 # ─── Phase 4.1: Sentiment Refinement (FinBERT) ──────────────
                 logger.info(
                     f"[Orchestrator] Running high-precision Sentiment Refinement..."
@@ -163,7 +211,26 @@ class MythicOrchestrator:
                 # Inject aggregator result into context for Risk Manager
                 decision_ctx.observations["signal_aggregator_result"] = agg_res.result
 
-                # ─── Phase 4.3: Risk Approval ───────────────────────────────
+                # ─── Phase 4.3: Quantic Vetting (DEEP/INSTITUTIONAL) ───────────────
+                if (
+                    research_mode in ("DEEP", "INSTITUTIONAL")
+                    and hasattr(self, "quantic")
+                    and self.quantic.is_available
+                ):
+                    logger.info(
+                        f"[Orchestrator] Running Quantic Vetting (SMC/Monte Carlo)..."
+                    )
+                    quantic_result = await self.run_quantic_analysis(
+                        ticker=ticker, analysis_type="full", timeframe="1h"
+                    )
+                    specialist_outputs["quantic"] = quantic_result
+                    decision_ctx.observations["quantic"] = quantic_result
+                    self.signal_aggregator.set_quantic_validation(quantic_result)
+
+                    agg_res = await self.signal_aggregator.run(decision_ctx)
+                    specialist_outputs["signal_aggregator"] = agg_res.result
+
+                # ─── Phase 4.4: Risk Approval ───────────────────────────────
                 logger.info(f"[Orchestrator] Running Risk Manager Approval...")
                 risk_res = await self.risk_manager.run(decision_ctx)
                 specialist_outputs["risk_manager"] = risk_res.result
@@ -214,6 +281,40 @@ class MythicOrchestrator:
                 news_recency_hours=news_recency,
                 specialist_avg_confidence=avg_spec_conf,
             )
+
+            # ─── Step 6.5: Cross-Market Sanity Check (INSTITUTIONAL) ───────────────
+            cross_market_divergence = False
+            if (
+                research_mode == "INSTITUTIONAL"
+                and hasattr(self, "swarm")
+                and self.swarm.is_available
+                and ticker
+            ):
+                logger.info(f"[Orchestrator] Running Cross-Market Sanity Check...")
+
+                reference_assets = (
+                    ["SPY", "QQQ", "DXY"]
+                    if not any(x in ticker.upper() for x in ["BTC", "ETH", "SOL"])
+                    else ["BTC", "DXY"]
+                )
+
+                cross_result = await self.run_cross_market_analysis(
+                    assets=reference_assets,
+                    query=f"Compare market sentiment for {ticker} vs {', '.join(reference_assets)}",
+                )
+
+                specialist_outputs["cross_market"] = cross_result
+
+                if cross_result.get("success"):
+                    verdict = specialist_outputs.get("signal_aggregator", {}).get(
+                        "verdict", ""
+                    )
+                    if cross_result.get("divergence"):
+                        cross_market_divergence = True
+                        final_confidence *= 0.8
+                        logger.warning(
+                            f"[Orchestrator] Cross-market divergence detected! Reducing confidence."
+                        )
 
             # ─── Step 7: Final LLM synthesis ───────────────────
             response = await self._synthesize_final(
@@ -268,6 +369,7 @@ class MythicOrchestrator:
                     "audit": critique_result.get("audit_summary", ""),
                     "agreement_score": critique_result.get("agreement_score", 0.0),
                 },
+                "intelligence_profile": gathered_data.get("intelligence_profile", {}),
                 "sources_used": list(gathered_data.keys()),
                 "pipeline_ms": round(elapsed * 1000),
             }
@@ -310,11 +412,25 @@ class MythicOrchestrator:
         ohlcv = data.get("history", [])
         price = data.get("price_data", {})
         news = data.get("news", [])
+        knowledge = data.get("knowledge_results", {})
+        intelligence_snapshot = data.get("intelligence_snapshot", {})
 
         ctx = AgentContext(
             task=f"Analyze {ticker}",
             ticker=ticker,
-            metadata={"ohlcv_data": ohlcv, "price_data": price, "news_data": news},
+            observations={
+                "news": news,
+                "knowledge_results": knowledge,
+                "price_data": price,
+                "intelligence_snapshot": intelligence_snapshot,
+            },
+            metadata={
+                "ohlcv_data": ohlcv,
+                "price_data": price,
+                "news_data": news,
+                "knowledge_results": knowledge,
+                "intelligence_snapshot": intelligence_snapshot,
+            },
         )
 
         results = await asyncio.gather(
@@ -336,11 +452,25 @@ class MythicOrchestrator:
         ohlcv = data.get("history", [])
         price = data.get("price_data", {})
         news = data.get("news", [])
+        knowledge = data.get("knowledge_results", {})
+        intelligence_snapshot = data.get("intelligence_snapshot", {})
 
         ctx = AgentContext(
             task=f"Advanced analyze {ticker}",
             ticker=ticker,
-            metadata={"ohlcv_data": ohlcv, "price_data": price, "news_data": news},
+            observations={
+                "news": news,
+                "knowledge_results": knowledge,
+                "price_data": price,
+                "intelligence_snapshot": intelligence_snapshot,
+            },
+            metadata={
+                "ohlcv_data": ohlcv,
+                "price_data": price,
+                "news_data": news,
+                "knowledge_results": knowledge,
+                "intelligence_snapshot": intelligence_snapshot,
+            },
         )
 
         results = await asyncio.gather(
@@ -493,6 +623,196 @@ Flags: {", ".join(critique.get("flags", [])) or "None"}
         if ticker:
             episodes = [e for e in episodes if e.get("ticker") == ticker]
         return episodes[-limit:]
+
+    # ─── Vibe AI Integration ────────────────────────────────────────────────────
+
+    async def run_vibe_swarm(
+        self,
+        query: str,
+        team_preset: str = "investment-committee",
+        market: str = "crypto",
+    ) -> dict:
+        """Run Vibe swarm analysis as part of the orchestration."""
+        from gateway.knowledge_store import knowledge_store
+
+        if not hasattr(self.swarm, "is_available") or not self.swarm.is_available:
+            return {"error": "Vibe Trading AI not available", "swarm_disabled": True}
+
+        task_label = f"Swarm consensus for {market}: {query[:80]}"
+        started = datetime.now()
+        knowledge_store.update_agent_health(
+            "SwarmIntelligence",
+            "active",
+            task=task_label,
+        )
+
+        try:
+            result = await self.swarm.execute(
+                query=query, team_preset=team_preset, market=market
+            )
+        except Exception as exc:
+            latency_ms = round((datetime.now() - started).total_seconds() * 1000)
+            knowledge_store.update_agent_health(
+                "SwarmIntelligence",
+                "error",
+                latency_ms=latency_ms,
+                task=task_label,
+                error=True,
+            )
+            raise exc
+
+        latency_ms = round((datetime.now() - started).total_seconds() * 1000)
+        knowledge_store.update_agent_health(
+            "SwarmIntelligence",
+            "idle" if result.success else "error",
+            latency_ms=latency_ms,
+            task=task_label,
+            error=not result.success,
+        )
+
+        return {
+            "success": result.success,
+            "query": query,
+            "preset": result.preset_used,
+            "synthesis": result.synthesis,
+            "agents": result.agents_activated,
+            "agent_count": len(result.agents_activated),
+            "confidence": result.confidence_score,
+            "errors": result.errors,
+            "execution_time_ms": result.execution_time_ms,
+        }
+
+    async def run_quantic_analysis(
+        self, ticker: str, analysis_type: str = "full", timeframe: str = "1h"
+    ) -> dict:
+        """Run quantic analysis as part of the orchestration."""
+        from gateway.knowledge_store import knowledge_store
+
+        if not hasattr(self.quantic, "is_available") or not self.quantic.is_available:
+            return {"error": "Vibe Trading AI not available", "quantic_disabled": True}
+
+        task_label = f"Quantic {analysis_type} scan for {ticker} ({timeframe})"
+        started = datetime.now()
+        knowledge_store.update_agent_health(
+            "QuanticAnalysis",
+            "active",
+            task=task_label,
+        )
+
+        try:
+            result = await self.quantic.execute(
+                ticker=ticker, analysis_type=analysis_type, timeframe=timeframe
+            )
+        except Exception as exc:
+            latency_ms = round((datetime.now() - started).total_seconds() * 1000)
+            knowledge_store.update_agent_health(
+                "QuanticAnalysis",
+                "error",
+                latency_ms=latency_ms,
+                task=task_label,
+                error=True,
+            )
+            raise exc
+
+        latency_ms = round((datetime.now() - started).total_seconds() * 1000)
+        knowledge_store.update_agent_health(
+            "QuanticAnalysis",
+            "idle" if result.success else "error",
+            latency_ms=latency_ms,
+            task=task_label,
+            error=not result.success,
+        )
+
+        return {
+            "success": result.success,
+            "ticker": result.ticker,
+            "timeframe": result.timeframe,
+            "smart_money_score": result.smart_money_score,
+            "smc": {
+                "signal": result.smc.smart_money_signal if result.smc else None,
+                "confidence": result.smc.confidence if result.smc else 0,
+                "institutional_order_blocks": (
+                    result.smc.institutional_order_blocks if result.smc else []
+                ),
+                "fair_value_gaps": result.smc.fair_value_gaps if result.smc else [],
+                "liquidity_pools": result.smc.liquidity_pools if result.smc else [],
+                "order_flow_imbalance": (
+                    result.smc.order_flow_imbalance if result.smc else 0
+                ),
+            },
+            "monte_carlo": {
+                "expected_return": (
+                    result.monte_carlo.expected_return if result.monte_carlo else 0
+                ),
+                "volatility": result.monte_carlo.volatility if result.monte_carlo else 0,
+                "sharpe": result.monte_carlo.sharpe_ratio if result.monte_carlo else 0,
+                "max_dd": result.monte_carlo.max_drawdown if result.monte_carlo else 0,
+                "var_95": result.monte_carlo.var_95 if result.monte_carlo else 0,
+                "cvar_95": result.monte_carlo.cvar_95 if result.monte_carlo else 0,
+                "percentile_5": (
+                    result.monte_carlo.percentile_5 if result.monte_carlo else 0
+                ),
+                "percentile_95": (
+                    result.monte_carlo.percentile_95 if result.monte_carlo else 0
+                ),
+                "distribution": (
+                    result.monte_carlo.distribution if result.monte_carlo else []
+                ),
+            }
+            if result.monte_carlo
+            else None,
+            "bootstrap": {
+                "mean_estimate": (
+                    result.bootstrap.mean_estimate if result.bootstrap else 0
+                ),
+                "std_error": result.bootstrap.std_error if result.bootstrap else 0,
+                "confidence_interval": (
+                    list(result.bootstrap.confidence_interval)
+                    if result.bootstrap
+                    else [0, 0]
+                ),
+                "p_value": result.bootstrap.p_value if result.bootstrap else 1,
+                "is_significant": (
+                    result.bootstrap.is_significant if result.bootstrap else False
+                ),
+            }
+            if result.bootstrap
+            else None,
+            "synthesis": result.synthesis,
+            "errors": result.errors,
+            "execution_time_ms": result.execution_time_ms,
+        }
+
+    async def generate_strategy(
+        self, description: str, language: str = "pine", market: str = "crypto"
+    ) -> dict:
+        """Generate trading strategy as part of the orchestration."""
+        if (
+            not hasattr(self.strategy_gen, "is_available")
+            or not self.strategy_gen.is_available
+        ):
+            return {
+                "error": "Vibe Trading AI not available",
+                "strategy_gen_disabled": True,
+            }
+
+        result = await self.strategy_gen.generate(
+            description=description, language=language, market=market
+        )
+
+        return {
+            "success": result.success,
+            "language": result.language,
+            "code": result.code,
+            "errors": result.errors,
+        }
+
+    async def run_cross_market_analysis(self, assets: List[str], query: str) -> dict:
+        """Run analysis across multiple markets."""
+        if not hasattr(self.swarm, "is_available") or not self.swarm.is_available:
+            return {"error": "Vibe Trading AI not available"}
+
+        return await self.swarm.run_cross_market_analysis(assets=assets, query=query)
 
 
 # Global singleton

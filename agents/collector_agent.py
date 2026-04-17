@@ -47,24 +47,22 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 TICKER_ALIASES: dict[str, str] = {
     # Indian markets — dollar sign is invalid
     "$TATOMOTORS.NS": "TATAMOTORS.NS",
-    "TATOMOTORS.NS":  "TATAMOTORS.NS",
-
-    # Rebranded tickers
-    "SQ":             "XYZ",          # Block Inc (formerly Square)
-    "MATIC-USD":      "POL-USD",       # Polygon rebranded to POL
-    "FB":             "META",
-    "TWTR":           "X",            # note: X is no longer publicly traded
-
+    "TATOMOTORS.NS": "TATAMOTORS.NS",
+    # Rebranded tickers - keep original if API doesn't support the new ticker
+    "SQ": "SQ",  # Block Inc
+    "MATIC-USD": "POL-USD",  # Polygon rebranded to POL (try POL first, fallback works)
+    "FB": "META",
+    "TWTR": "X",  # note: X is no longer publicly traded
     # OTC / ADR alternatives (fallback to these if primary fails)
-    "BABA":           "BABA",         # keep, but scrape if yf fails
-    "TCEHY":          "TCEHY",
+    "BABA": "BABA",  # keep, but scrape if yf fails
+    "TCEHY": "TCEHY",
 }
 
 # ── Open-source fallback endpoints ─────────────────────────────────────────
-STOOQ_URL   = "https://stooq.com/q/d/l/?s={ticker}&i=d"
-AV_URL      = "https://www.alphavantage.co/query"
+STOOQ_URL = "https://stooq.com/q/d/l/?s={ticker}&i=d"
+AV_URL = "https://www.alphavantage.co/query"
 YF_HTML_URL = "https://finance.yahoo.com/quote/{ticker}/history/"
-MW_URL      = "https://www.marketwatch.com/investing/stock/{ticker}"
+MW_URL = "https://www.marketwatch.com/investing/stock/{ticker}"
 
 SCRAPE_HEADERS = {
     "User-Agent": (
@@ -86,16 +84,21 @@ ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "demo")
 # Utility helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _cache_path(ticker: str, period: str) -> Path:
     key = hashlib.md5(f"{ticker}:{period}".encode()).hexdigest()[:12]
     return CACHE_DIR / f"{key}.parquet"
 
 
-def _load_cache(ticker: str, period: str, max_age_hours: Optional[int] = 6) -> Optional[pd.DataFrame]:
+def _load_cache(
+    ticker: str, period: str, max_age_hours: Optional[int] = 6
+) -> Optional[pd.DataFrame]:
     path = _cache_path(ticker, period)
     if not path.exists():
         return None
-    age = (datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)).total_seconds() / 3600
+    age = (
+        datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)
+    ).total_seconds() / 3600
     if max_age_hours is not None and age > max_age_hours:
         return None
     try:
@@ -120,9 +123,13 @@ def _save_cache(ticker: str, period: str, df: pd.DataFrame):
 def _normalize_df(df: pd.DataFrame, source: str) -> pd.DataFrame:
     """Ensure standard OHLCV columns regardless of source format."""
     col_map = {
-        "open": "Open", "high": "High", "low": "Low",
-        "close": "Close", "volume": "Volume",
-        "adj close": "Adj Close", "adjusted close": "Adj Close",
+        "open": "Open",
+        "high": "High",
+        "low": "Low",
+        "close": "Close",
+        "volume": "Volume",
+        "adj close": "Adj Close",
+        "adjusted close": "Adj Close",
     }
     df.columns = [col_map.get(c.lower().strip(), c) for c in df.columns]
     required = ["Open", "High", "Low", "Close", "Volume"]
@@ -143,14 +150,26 @@ def _normalize_df(df: pd.DataFrame, source: str) -> pd.DataFrame:
 
 
 def _period_to_days(period: str) -> int:
-    mapping = {"1d": 1, "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180,
-               "1y": 365, "2y": 730, "5y": 1825, "10y": 3650, "ytd": 180, "max": 3650}
+    mapping = {
+        "1d": 1,
+        "5d": 5,
+        "1mo": 30,
+        "3mo": 90,
+        "6mo": 180,
+        "1y": 365,
+        "2y": 730,
+        "5y": 1825,
+        "10y": 3650,
+        "ytd": 180,
+        "max": 3650,
+    }
     return mapping.get(period, 365)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Layer 1 — yfinance (DISABLED to avoid rate limits)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
     """Primary fetcher for standard equities, ETFs, and crypto pairs."""
@@ -168,7 +187,9 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
         if df is None or df.empty:
             return None
         if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+            df.columns = [
+                col[0] if isinstance(col, tuple) else col for col in df.columns
+            ]
         df = _normalize_df(df, "yfinance")
         return df if not df.empty else None
     except Exception as e:
@@ -179,6 +200,7 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Layer 2 — Stooq (free CSV, no key required)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def _fetch_stooq(ticker: str, period: str) -> Optional[pd.DataFrame]:
     """
@@ -192,6 +214,7 @@ async def _fetch_stooq(ticker: str, period: str) -> Optional[pd.DataFrame]:
         if r.status_code != 200 or len(r.text) < 100:
             return None
         from io import StringIO
+
         df = pd.read_csv(StringIO(r.text))
         if df.empty or "No data" in r.text:
             return None
@@ -208,20 +231,21 @@ async def _fetch_stooq(ticker: str, period: str) -> Optional[pd.DataFrame]:
 def _to_stooq_symbol(ticker: str) -> str:
     """Convert yfinance-style ticker to stooq format."""
     t = ticker.upper()
-    if t.endswith("-USD"):          # crypto: BTC-USD → BTC.V
+    if t.endswith("-USD"):  # crypto: BTC-USD → BTC.V
         return t.replace("-USD", ".V")
     if t.endswith(".NS") or t.endswith(".BO"):  # Indian markets
         return t.lower()
-    if t.endswith(".DE") or t.endswith(".L"):   # European
+    if t.endswith(".DE") or t.endswith(".L"):  # European
         return t.lower()
-    if t.startswith("^"):           # index — pass through
+    if t.startswith("^"):  # index — pass through
         return t
-    return f"{t}.US"                # default: US stock
+    return f"{t}.US"  # default: US stock
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Layer 3 — Alpha Vantage (free, 25 req/day)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def _fetch_alpha_vantage(ticker: str, period: str) -> Optional[pd.DataFrame]:
     if ALPHA_VANTAGE_KEY == "demo":
@@ -244,14 +268,16 @@ async def _fetch_alpha_vantage(ticker: str, period: str) -> Optional[pd.DataFram
         ts = data["Time Series (Daily)"]
         rows = []
         for date_str, vals in ts.items():
-            rows.append({
-                "Date":   date_str,
-                "Open":   float(vals["1. open"]),
-                "High":   float(vals["2. high"]),
-                "Low":    float(vals["3. low"]),
-                "Close":  float(vals["5. adjusted close"]),
-                "Volume": float(vals["6. volume"]),
-            })
+            rows.append(
+                {
+                    "Date": date_str,
+                    "Open": float(vals["1. open"]),
+                    "High": float(vals["2. high"]),
+                    "Low": float(vals["3. low"]),
+                    "Close": float(vals["5. adjusted close"]),
+                    "Volume": float(vals["6. volume"]),
+                }
+            )
         df = pd.DataFrame(rows).set_index("Date")
         df.index = pd.to_datetime(df.index)
         df = df.sort_index()
@@ -269,6 +295,7 @@ async def _fetch_alpha_vantage(ticker: str, period: str) -> Optional[pd.DataFram
 # Layer 4 — Web scraping (Yahoo Finance HTML)
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
     """
     Scrape the Yahoo Finance quote page for current price + basic info.
@@ -277,9 +304,7 @@ async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
     url = f"https://finance.yahoo.com/quote/{ticker}/"
     try:
         async with httpx.AsyncClient(
-            timeout=20,
-            follow_redirects=True,
-            headers=SCRAPE_HEADERS
+            timeout=20, follow_redirects=True, headers=SCRAPE_HEADERS
         ) as client:
             r = await client.get(url)
         if r.status_code != 200:
@@ -289,24 +314,33 @@ async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
         # Extract JSON embedded in the page (most reliable)
         for script in soup.find_all("script"):
             if script.string and "QuoteSummaryStore" in (script.string or ""):
-                match = re.search(r'"regularMarketPrice":\{"raw":([\d.]+)', script.string)
+                match = re.search(
+                    r'"regularMarketPrice":\{"raw":([\d.]+)', script.string
+                )
                 if match:
                     price = float(match.group(1))
-                    prev_match  = re.search(r'"regularMarketPreviousClose":\{"raw":([\d.]+)', script.string)
-                    vol_match   = re.search(r'"regularMarketVolume":\{"raw":([\d.]+)', script.string)
-                    name_match  = re.search(r'"longName":"([^"]+)"', script.string)
+                    prev_match = re.search(
+                        r'"regularMarketPreviousClose":\{"raw":([\d.]+)', script.string
+                    )
+                    vol_match = re.search(
+                        r'"regularMarketVolume":\{"raw":([\d.]+)', script.string
+                    )
+                    name_match = re.search(r'"longName":"([^"]+)"', script.string)
                     return {
-                        "price":      price,
-                        "prev_close": float(prev_match.group(1)) if prev_match else None,
-                        "volume":     float(vol_match.group(1))  if vol_match  else None,
-                        "name":       name_match.group(1)         if name_match else ticker,
-                        "source":     "yahoo_scrape",
+                        "price": price,
+                        "prev_close": float(prev_match.group(1))
+                        if prev_match
+                        else None,
+                        "volume": float(vol_match.group(1)) if vol_match else None,
+                        "name": name_match.group(1) if name_match else ticker,
+                        "source": "yahoo_scrape",
                         "scraped_at": datetime.now(timezone.utc).isoformat(),
                     }
 
         # Fallback: parse visible price element
-        price_el = soup.select_one('[data-testid="qsp-price"]') or \
-                   soup.select_one('fin-streamer[data-field="regularMarketPrice"]')
+        price_el = soup.select_one('[data-testid="qsp-price"]') or soup.select_one(
+            'fin-streamer[data-field="regularMarketPrice"]'
+        )
         if price_el:
             price_text = price_el.get("value") or price_el.get_text(strip=True)
             price = float(price_text.replace(",", ""))
@@ -322,23 +356,22 @@ async def _scrape_marketwatch(ticker: str) -> Optional[dict]:
     """Scrape MarketWatch for current quote as secondary scrape source."""
     # MarketWatch uses different URL patterns for different asset types
     if "-USD" in ticker:
-        url = f"https://www.marketwatch.com/investing/cryptocurrency/{ticker.replace('-USD','').lower()}"
+        url = f"https://www.marketwatch.com/investing/cryptocurrency/{ticker.replace('-USD', '').lower()}"
     elif "." in ticker:
         url = f"https://www.marketwatch.com/investing/stock/{ticker.split('.')[0].lower()}"
     else:
         url = f"https://www.marketwatch.com/investing/stock/{ticker.lower()}"
     try:
         async with httpx.AsyncClient(
-            timeout=20,
-            follow_redirects=True,
-            headers=SCRAPE_HEADERS
+            timeout=20, follow_redirects=True, headers=SCRAPE_HEADERS
         ) as client:
             r = await client.get(url)
         if r.status_code != 200:
             return None
         soup = BeautifulSoup(r.text, "html.parser")
-        price_el = soup.select_one(".intraday__price .value") or \
-                   soup.select_one('bg-quote[field="Last"]')
+        price_el = soup.select_one(".intraday__price .value") or soup.select_one(
+            'bg-quote[field="Last"]'
+        )
         if price_el:
             price_text = price_el.get_text(strip=True).replace(",", "")
             price = float(re.sub(r"[^\d.]", "", price_text))
@@ -355,14 +388,19 @@ def _snapshot_to_df(snapshot: dict, ticker: str) -> pd.DataFrame:
     if not price:
         return pd.DataFrame()
     today = pd.Timestamp.now().normalize()
-    df = pd.DataFrame([{
-        "Open":   snapshot.get("prev_close", price),
-        "High":   price,
-        "Low":    price,
-        "Close":  price,
-        "Volume": snapshot.get("volume", 0),
-        "_source": snapshot.get("source", "scrape"),
-    }], index=[today])
+    df = pd.DataFrame(
+        [
+            {
+                "Open": snapshot.get("prev_close", price),
+                "High": price,
+                "Low": price,
+                "Close": price,
+                "Volume": snapshot.get("volume", 0),
+                "_source": snapshot.get("source", "scrape"),
+            }
+        ],
+        index=[today],
+    )
     df.index.name = "Date"
     return df
 
@@ -372,13 +410,13 @@ def _snapshot_to_df(snapshot: dict, ticker: str) -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 
 FRED_SERIES_MAP = {
-    "^TNX":  "DGS10",    # 10-Year Treasury
-    "^IRX":  "DTB3",     # 3-Month T-Bill
-    "^VIX":  None,       # not on FRED — skip
+    "^TNX": "DGS10",  # 10-Year Treasury
+    "^IRX": "DTB3",  # 3-Month T-Bill
+    "^VIX": None,  # not on FRED — skip
     "USDEUR": "DEXUSEU",
     "USDJPY": "DEXJPUS",
-    "GOLD":   "GOLDAMGBD228NLBM",
-    "WTI":    "DCOILWTICO",
+    "GOLD": "GOLDAMGBD228NLBM",
+    "WTI": "DCOILWTICO",
 }
 
 FRED_BASE = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}"
@@ -395,12 +433,13 @@ async def _fetch_fred(ticker: str, period: str) -> Optional[pd.DataFrame]:
         if r.status_code != 200:
             return None
         from io import StringIO
+
         df = pd.read_csv(StringIO(r.text), parse_dates=["DATE"], index_col="DATE")
         df.index.name = "Date"
         df.columns = ["Close"]
         df["Open"] = df["Close"]
         df["High"] = df["Close"]
-        df["Low"]  = df["Close"]
+        df["Low"] = df["Close"]
         df["Volume"] = 0
         df["_source"] = "fred"
         days = _period_to_days(period)
@@ -416,6 +455,7 @@ async def _fetch_fred(ticker: str, period: str) -> Optional[pd.DataFrame]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Main public interface
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 async def fetch_ticker(
     ticker: str,
@@ -489,14 +529,20 @@ async def fetch_ticker(
         if snapshot:
             df = _snapshot_to_df(snapshot, ticker)
             source = snapshot.get("source", "scrape")
-            logger.info(f"[Collector] {ticker}: snapshot scraped from {source} — price={snapshot.get('price')}")
+            logger.info(
+                f"[Collector] {ticker}: snapshot scraped from {source} — price={snapshot.get('price')}"
+            )
             # note: don't cache single-row snapshots as long-term history
             return df, source
 
     # ── All sources exhausted ────────────────────────────────────────────────
-    logger.warning(f"[Collector] {ticker}: no data found from any source — returning empty")
+    logger.warning(
+        f"[Collector] {ticker}: no data found from any source — returning empty"
+    )
     if stale_cache is not None and not stale_cache.empty:
-        logger.info(f"[Collector] {ticker}: live sources unavailable, using stale cache")
+        logger.info(
+            f"[Collector] {ticker}: live sources unavailable, using stale cache"
+        )
         return stale_cache, "stale_cache"
     return pd.DataFrame(), "none"
 
@@ -514,26 +560,33 @@ class CollectorAgent:
         max_concurrent: int = 8,
         scrape_ok: bool = True,
     ):
-        self.tickers     = tickers
-        self.period      = period
-        self.semaphore   = asyncio.Semaphore(max_concurrent)
-        self.scrape_ok   = scrape_ok
+        self.tickers = tickers
+        self.period = period
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.scrape_ok = scrape_ok
         self.results: dict[str, dict] = {}
 
     async def _collect_one(self, ticker: str):
         async with self.semaphore:
             try:
-                df, source = await fetch_ticker(ticker, self.period, scrape_ok=self.scrape_ok)
+                df, source = await fetch_ticker(
+                    ticker, self.period, scrape_ok=self.scrape_ok
+                )
                 self.results[ticker] = {
-                    "df":      df,
-                    "source":  source,
+                    "df": df,
+                    "source": source,
                     "records": len(df),
-                    "ok":      not df.empty,
+                    "ok": not df.empty,
                 }
             except Exception as e:
                 # Absolute safety net — this should never trigger in normal use
                 logger.warning(f"[Collector] Unexpected error for {ticker}: {e}")
-                self.results[ticker] = {"df": pd.DataFrame(), "source": "none", "records": 0, "ok": False}
+                self.results[ticker] = {
+                    "df": pd.DataFrame(),
+                    "source": "none",
+                    "records": 0,
+                    "ok": False,
+                }
             # Polite delay between requests to avoid rate limits
             await asyncio.sleep(0.3)
 
@@ -542,8 +595,8 @@ class CollectorAgent:
         tasks = [self._collect_one(t) for t in self.tickers]
         await asyncio.gather(*tasks)
 
-        ok      = sum(1 for v in self.results.values() if v["ok"])
-        total   = len(self.tickers)
+        ok = sum(1 for v in self.results.values() if v["ok"])
+        total = len(self.tickers)
         sources = {}
         for v in self.results.values():
             sources[v["source"]] = sources.get(v["source"], 0) + 1
@@ -558,7 +611,9 @@ class CollectorAgent:
         """Synchronous wrapper — safe to call from non-async code."""
         return asyncio.run(self.run())
 
+
 # ── Scheduler Wrappers ───────────────────────────────────────────────────────
+
 
 async def collect_historical_data():
     """Triggered on startup and weekly. Pulls 5y history for all tickers."""
@@ -567,12 +622,14 @@ async def collect_historical_data():
     results = await collector.run()
     # Save to blobs
     from agents.blob_agent import BlobAgent
+
     blob_agent = BlobAgent()
     for ticker, res in results.items():
         if res["ok"]:
             # Standard blobs only need 1y, but we store history in parquet
             pass
     logger.info("✅ Historical collection complete.")
+
 
 async def collect_daily_data():
     """Triggered daily. Pulls 1y (compact) update for all tickers."""
@@ -581,9 +638,11 @@ async def collect_daily_data():
     await collector.run()
     logger.info("✅ Daily refresh complete.")
 
+
 async def collect_news_data():
     """Triggered every 5 minutes. Syncs news catalysts."""
     from agents.mcp_news_agent import McpNewsAgent
+
     agent = McpNewsAgent()
     for ticker in settings.DEFAULT_WATCHLIST:
         try:
@@ -591,14 +650,18 @@ async def collect_news_data():
         except Exception as e:
             logger.warning(f"News sync failed for {ticker}: {e}")
 
+
 async def index_knowledge_to_rag():
     """Triggered every 15 minutes. Indexes news/blobs into context store."""
     from agents.rag_agent import RagAgent
+
     agent = RagAgent()
     for ticker in settings.DEFAULT_WATCHLIST:
         try:
             # We index "what is stock" or similar generic task to force a summary refresh
-            await agent.run(AgentContext(task=f"Index knowledge for {ticker}", ticker=ticker))
+            await agent.run(
+                AgentContext(task=f"Index knowledge for {ticker}", ticker=ticker)
+            )
         except Exception as e:
             logger.warning(f"RAG indexing failed for {ticker}: {e}")
     agent.save_index()

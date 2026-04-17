@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "nvidia_nim"
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
 
+    # Generic OpenAI-compatible provider. This works for OpenAI, OpenRouter,
+    # Groq, Together, local gateways, or any /chat/completions-compatible API.
+    OPENAI_COMPATIBLE_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_COMPATIBLE_API_KEY: str = ""
+    OPENAI_COMPATIBLE_MODEL: str = "gpt-4o-mini"
+
     MOONSHOT_API_KEY: str = (
         "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"
     )

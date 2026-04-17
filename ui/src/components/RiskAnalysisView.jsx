@@ -23,7 +23,7 @@ function Bar({ label, value, max, color }) {
   );
 }
 
-export default function RiskAnalysisView({ onSelect }) {
+export default function RiskAnalysisView() {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

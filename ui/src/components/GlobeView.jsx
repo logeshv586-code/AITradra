@@ -32,10 +32,10 @@ export default function GlobeView({ onSelect, stocks = [] }) {
 
   // Dynamically build globe data from live stocks
   const STOCK_POINTS = useMemo(() => stocks.map(s => ({
-    lat: s.lat || 40.7,
-    lng: s.lon || -74.0,
+    lat: s.lat || s.latitude || 40.7,
+    lng: s.lon || s.longitude || -74.0,
     size: 0.6,
-    color: s.chg >= 0 ? '#00f0ff' : '#ff2a5f',
+    color: (s.pct_chg || s.chg || 0) >= 0 ? '#00f0ff' : '#ff2a5f',
     stock: s,
   })), [stocks]);
 
@@ -56,14 +56,18 @@ export default function GlobeView({ onSelect, stocks = [] }) {
     return arcs;
   }, [stocks]);
 
-  const RINGS_DATA = useMemo(() => stocks.filter(s => s.lat && s.lon).map(s => ({
-    lat: s.lat,
-    lng: s.lon,
-    maxR: s.chg >= 0 ? 3 : 2,
-    propagationSpeed: 2,
-    repeatPeriod: 1200 + Math.random() * 800,
-    color: s.chg >= 0 ? 'rgba(0,240,255,0.5)' : 'rgba(255,42,95,0.4)',
-  })), [stocks]);
+  const RINGS_DATA = useMemo(() => stocks.filter(s => s.lat && s.lon).map((s, index) => {
+    const key = String(s.id || s.ticker || s.name || index);
+    const pulseOffset = [...key].reduce((sum, char) => sum + char.charCodeAt(0), index * 97) % 800;
+    return {
+      lat: s.lat,
+      lng: s.lon,
+      maxR: (s.pct_chg || s.chg || 0) >= 0 ? 3 : 2,
+      propagationSpeed: 2,
+      repeatPeriod: 1200 + pulseOffset,
+      color: (s.pct_chg || s.chg || 0) >= 0 ? 'rgba(0,240,255,0.5)' : 'rgba(255,42,95,0.4)',
+    };
+  }), [stocks]);
 
   // Load GeoJSON
   useEffect(() => {

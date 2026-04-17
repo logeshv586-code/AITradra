@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { TrendingUp, TrendingDown, DollarSign, Wallet, Activity, ShieldCheck, Zap } from "lucide-react";
 
-export default function DummyInvestment({ ticker, currentPrice }) {
-  const [trade, setTrade] = useState(null);
-  const investmentAmount = 1000;
+function loadSavedTrades() {
+  try {
+    return JSON.parse(localStorage.getItem("axiom_dummy_trades") || "{}");
+  } catch {
+    return {};
+  }
+}
 
-  useEffect(() => {
-    const savedTrades = JSON.parse(localStorage.getItem("axiom_dummy_trades") || "{}");
-    if (savedTrades[ticker]) {
-      setTrade(savedTrades[ticker]);
-    } else {
-      setTrade(null);
-    }
-  }, [ticker]);
+export default function DummyInvestment({ ticker, currentPrice }) {
+  const [savedTrades, setSavedTrades] = useState(loadSavedTrades);
+  const trade = savedTrades[ticker] || null;
+  const investmentAmount = 1000;
 
   const handleInvest = () => {
     const newTrade = {
@@ -21,17 +21,16 @@ export default function DummyInvestment({ ticker, currentPrice }) {
       amount: investmentAmount,
       timestamp: new Date().toISOString(),
     };
-    const savedTrades = JSON.parse(localStorage.getItem("axiom_dummy_trades") || "{}");
-    savedTrades[ticker] = newTrade;
-    localStorage.setItem("axiom_dummy_trades", JSON.stringify(savedTrades));
-    setTrade(newTrade);
+    const nextTrades = { ...savedTrades, [ticker]: newTrade };
+    localStorage.setItem("axiom_dummy_trades", JSON.stringify(nextTrades));
+    setSavedTrades(nextTrades);
   };
 
   const handleReset = () => {
-    const savedTrades = JSON.parse(localStorage.getItem("axiom_dummy_trades") || "{}");
-    delete savedTrades[ticker];
-    localStorage.setItem("axiom_dummy_trades", JSON.stringify(savedTrades));
-    setTrade(null);
+    const nextTrades = { ...savedTrades };
+    delete nextTrades[ticker];
+    localStorage.setItem("axiom_dummy_trades", JSON.stringify(nextTrades));
+    setSavedTrades(nextTrades);
   };
 
   if (!currentPrice) return null;

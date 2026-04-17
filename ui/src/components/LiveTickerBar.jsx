@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Clock, Zap } from "lucide-react";
 import MarketStatusBadges from "./MarketStatusBadges";
 
-export default function LiveTickerBar({ stocks = [] }) {
+export default function LiveTickerBar({ stocks = [], onSelect }) {
   const [offset, setOffset] = useState(0);
   const [time, setTime] = useState(new Date());
 
@@ -34,29 +34,34 @@ export default function LiveTickerBar({ stocks = [] }) {
             style={{ transform: `translateX(-${offset}%)`, transition: "transform 50ms linear" }}
           >
             {items.map((s, i) => {
-              const isUp = (s.chg || 0) >= 0;
+              const ticker = s.id || s.ticker || "N/A";
+              const price = s.px ?? s.price ?? 0;
+              const change = s.chg ?? s.change_pct ?? s.pct_chg ?? 0;
+              const isUp = change >= 0;
               const col = isUp ? "var(--positive)" : "var(--negative)";
               return (
-                <span
-                  key={`${s.id}-${i}`}
+                <button
+                  key={`${ticker}-${i}`}
+                  type="button"
+                  onClick={() => onSelect?.(ticker)}
                   className="flex items-center gap-3 cursor-pointer px-1"
                 >
                   <span className="text-[10px] font-bold text-white tracking-wider uppercase">
-                    {s.id}
+                    {ticker}
                   </span>
                   <span className="text-[10px] font-mono text-slate-500 font-semibold tabular-nums">
-                    {s.id.includes("-USD") ? "" : "$"}
-                    {(s.px || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {ticker.includes("-USD") ? "" : "$"}
+                    {price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                   <span
                     className="text-[10px] font-mono font-bold tabular-nums"
                     style={{ color: col }}
                   >
                     {isUp ? "+" : ""}
-                    {s.chg || 0}%
+                    {change}%
                   </span>
                   <div className="w-px h-3 bg-white/[0.05]" />
-                </span>
+                </button>
               );
             })}
           </div>

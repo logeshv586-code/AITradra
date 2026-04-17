@@ -279,11 +279,19 @@ class PredictionStore:
     async def get_predictions_for_ticker(self, ticker: str, limit: int = 10) -> list:
         return [p for p in reversed(self._predictions) if p.get("ticker") == ticker][:limit]
 
-    async def update_outcome(self, pred_id: str, actual_price: float, accuracy_score: float) -> None:
+    async def update_outcome(
+        self,
+        pred_id: str,
+        actual_price: float,
+        accuracy_score: float,
+        outcome: Optional[dict] = None,
+    ) -> None:
         for p in self._predictions:
             if p.get("id") == pred_id:
                 p["actual_price"] = actual_price
                 p["accuracy_score"] = accuracy_score
+                if outcome:
+                    p["outcome"] = outcome
                 p["resolved_at"] = datetime.now(timezone.utc).isoformat()
                 break
         self._persist()
@@ -357,9 +365,19 @@ class MemoryManager:
     async def get_past_predictions(self, ticker: str, limit: int = 10) -> list:
         return await self.structured.get_predictions_for_ticker(ticker, limit)
 
-    async def update_prediction_outcome(self, prediction_id: str,
-                                        actual_price: float, accuracy_score: float) -> None:
-        await self.structured.update_outcome(prediction_id, actual_price, accuracy_score)
+    async def update_prediction_outcome(
+        self,
+        prediction_id: str,
+        actual_price: float,
+        accuracy_score: float,
+        outcome: Optional[dict] = None,
+    ) -> None:
+        await self.structured.update_outcome(
+            prediction_id,
+            actual_price,
+            accuracy_score,
+            outcome=outcome,
+        )
 
     def set_working_context(self, key: str, value: Any) -> None:
         self.working.set(key, value)

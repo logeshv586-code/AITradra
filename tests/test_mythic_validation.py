@@ -110,6 +110,48 @@ async def test_analysis_endpoint_logs_prediction_and_returns_mythic_shape(monkey
                 "technical": {"signal": "BULLISH", "summary": "Bullish momentum"},
                 "macro": {"macro_outlook": "NEUTRAL", "summary": "Mixed macro"},
                 "risk": {"risk_level": "HIGH", "summary": "High volatility"},
+                "quantic": {
+                    "success": True,
+                    "ticker": "AAPL",
+                    "timeframe": "1h",
+                    "smart_money_score": 76.0,
+                    "smc": {
+                        "signal": "BULLISH",
+                        "confidence": 0.74,
+                        "institutional_order_blocks": [
+                            {"price": 186.4, "type": "demand_zone"}
+                        ],
+                        "fair_value_gaps": [],
+                        "liquidity_pools": [],
+                        "order_flow_imbalance": 0.32,
+                    },
+                    "monte_carlo": {
+                        "sharpe": 1.48,
+                        "max_dd": 4.2,
+                        "var_95": 2.4,
+                        "cvar_95": 3.1,
+                        "distribution": [0.1, 0.2, 0.15],
+                    },
+                    "bootstrap": {
+                        "mean_estimate": 0.018,
+                        "std_error": 0.004,
+                        "confidence_interval": [0.01, 0.03],
+                        "p_value": 0.02,
+                        "is_significant": True,
+                    },
+                    "synthesis": "Institutional flow remains constructive.",
+                    "execution_time_ms": 912.0,
+                },
+                "vibe_swarm": {
+                    "success": True,
+                    "preset": "investment-committee",
+                    "query": "Provide a full mythic-tier analysis for AAPL",
+                    "synthesis": "Committee consensus is balanced but constructive.",
+                    "agents": ["portfolio_manager", "risk_analyst"],
+                    "agent_count": 2,
+                    "confidence": 0.81,
+                    "execution_time_ms": 1440.0,
+                },
             },
             "critique": {"agreement_score": 0.62, "flags": ["RISK_CONTRADICTS_TECHNICAL"]},
             "sources_used": ["rag_results", "news"],
@@ -135,6 +177,11 @@ async def test_analysis_endpoint_logs_prediction_and_returns_mythic_shape(monkey
     assert result["RiskSpecialist"]["risk_level"] == "HIGH"
     assert result["FinalDecision"] == "HOLD"
     assert result["logged_to"] == "data/prediction_log.json"
+    assert result["quantic"]["smart_money_score"] == 76.0
+    assert result["quantic"]["smc"]["signal"] == "BULLISH"
+    assert result["quantic"]["monte_carlo"]["var_95"] == 2.4
+    assert result["swarm"]["agent_count"] == 2
+    assert result["swarm"]["preset"] == "investment-committee"
 
     with open(app.state.memory.structured.log_path, "r", encoding="utf-8") as fh:
         records = json.load(fh)

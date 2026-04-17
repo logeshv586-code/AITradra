@@ -109,11 +109,23 @@ class LLMClient:
         self.timeout = settings.LLM_TIMEOUT
         self.last_provider_used: Optional[str] = None
 
+        requested_provider = str(settings.LLM_PROVIDER or "").lower()
+
         # Determine provider
         if settings.USE_LM_STUDIO:
             self.provider = "lm_studio"
-        elif settings.LLM_PROVIDER == "nvidia_nim":
+        elif requested_provider in {"nvidia_nim", "nvidia", "nim"}:
             self.provider = "nvidia_nim"
+        elif requested_provider in {
+            "openai",
+            "openai_compatible",
+            "openrouter",
+            "groq",
+            "together",
+            "compatible",
+            "api",
+        }:
+            self.provider = "openai_compatible"
         elif (
             LLMClient._local_reasoning_llm is not None
             or LLMClient._local_general_llm is not None
@@ -135,8 +147,10 @@ class LLMClient:
     ) -> str:
         """Core completion method with NVIDIA NIM as primary, LM Studio as fallback."""
 
+        requested_provider = str(settings.LLM_PROVIDER or "").lower()
+
         # 1. Try NVIDIA NIM (Primary if configured)
-        if self.provider == "nvidia_nim" or settings.LLM_PROVIDER == "nvidia_nim":
+        if self.provider == "nvidia_nim" or requested_provider in {"nvidia_nim", "nvidia", "nim"}:
             content = await self._try_nvidia_nim(
                 prompt, system, temperature, max_tokens, role
             )
@@ -147,7 +161,25 @@ class LLMClient:
                 f"NIM failed for role '{role}', falling back to other providers."
             )
 
-        # 2. Try LM Studio (Fast fallback with reduced timeout)
+        # 2. Try any OpenAI-compatible API.
+        has_compatible_provider = bool(settings.OPENAI_COMPATIBLE_MODEL) and (
+            self.provider == "openai_compatible"
+            or requested_provider
+            in {"openai", "openai_compatible", "openrouter", "groq", "together", "compatible", "api"}
+            or bool(settings.OPENAI_COMPATIBLE_API_KEY)
+        )
+        if has_compatible_provider:
+            content = await self._try_openai_compatible(
+                prompt, system, temperature, max_tokens, role
+            )
+            if content and str(content).strip() != "":
+                self.last_provider_used = "openai_compatible"
+                return self._post_process(content, expect_json)
+            logger.warning(
+                f"OpenAI-compatible provider failed for role '{role}', falling back."
+            )
+
+        # 3. Try LM Studio (Fast fallback with reduced timeout)
         if (
             self.provider == "lm_studio" or settings.USE_LM_STUDIO
         ) and asyncio.get_running_loop().time() >= LLMClient._lm_studio_retry_after:
@@ -160,7 +192,7 @@ class LLMClient:
                 return self._post_process(content, expect_json)
             logger.warning("LM Studio failed, falling back to other providers.")
 
-        # 2. Try Local GGUF (Safe Fallback)
+        # 4. Try Local GGUF (Safe Fallback)
         if (
             LLMClient._local_reasoning_llm is not None
             or LLMClient._local_general_llm is not None
@@ -173,7 +205,7 @@ class LLMClient:
                 self.last_provider_used = "local_gguf"
                 return self._post_process(res, expect_json)
 
-        # 3. Try Ollama (Secondary Fallback)
+        # 5. Try Ollama (Secondary Fallback)
         res = None
         if asyncio.get_running_loop().time() >= LLMClient._ollama_retry_after:
             async with LLMClient._semaphore:
@@ -217,6 +249,54 @@ class LLMClient:
                 "temp": 0.3,
                 "key": settings.MINIMAX_API_KEY,
             }
+
+    def runtime_profile(self) -> Dict[str, Any]:
+        """Return model routing metadata without exposing secrets."""
+        requested_provider = str(settings.LLM_PROVIDER or "").lower()
+        return {
+            "configured_provider": requested_provider or "auto",
+            "active_provider": self.provider,
+            "last_provider_used": self.last_provider_used,
+            "models": {
+                "sentiment": settings.SENTIMENT_MODEL,
+                "reasoning": settings.REASONING_MODEL,
+                "analysis": settings.ANALYSIS_MODEL,
+                "general": settings.GENERAL_MODEL,
+                "openai_compatible": settings.OPENAI_COMPATIBLE_MODEL,
+                "ollama": self.model,
+                "lm_studio": settings.LM_STUDIO_MODEL,
+            },
+            "available_routes": {
+                "nvidia_nim": requested_provider in {"nvidia_nim", "nvidia", "nim"},
+                "openai_compatible": bool(settings.OPENAI_COMPATIBLE_MODEL)
+                and (
+                    requested_provider
+                    in {
+                        "openai",
+                        "openai_compatible",
+                        "openrouter",
+                        "groq",
+                        "together",
+                        "compatible",
+                        "api",
+                    }
+                    or bool(settings.OPENAI_COMPATIBLE_API_KEY)
+                ),
+                "lm_studio": bool(settings.USE_LM_STUDIO),
+                "local_gguf": bool(
+                    LLMClient._local_reasoning_llm is not None
+                    or LLMClient._local_general_llm is not None
+                ),
+                "ollama": True,
+                "structured_fallback": True,
+            },
+            "capabilities": [
+                "role_routed_completion",
+                "json_post_processing",
+                "financial_structured_fallback",
+                "agent_synthesis",
+            ],
+        }
 
     async def _try_lm_studio(
         self,
@@ -270,6 +350,65 @@ class LLMClient:
         except Exception as e:
             LLMClient._lm_studio_retry_after = asyncio.get_running_loop().time() + 10
             logger.error(f"LM Studio connection failed: {type(e).__name__}: {repr(e)}")
+            return None
+
+    async def _try_openai_compatible(
+        self,
+        prompt: str,
+        system: str,
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        role: str,
+    ) -> Optional[str]:
+        """Inference using any OpenAI-compatible /chat/completions API."""
+        try:
+            headers = {"Content-Type": "application/json"}
+            if settings.OPENAI_COMPATIBLE_API_KEY:
+                headers["Authorization"] = f"Bearer {settings.OPENAI_COMPATIBLE_API_KEY}"
+
+            payload = {
+                "model": settings.OPENAI_COMPATIBLE_MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": system or "You are an expert financial assistant.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": temperature
+                if temperature is not None
+                else settings.LLM_TEMPERATURE,
+                "max_tokens": max_tokens
+                if max_tokens is not None
+                else settings.LLM_MAX_TOKENS,
+                "stream": False,
+            }
+
+            timeout = httpx.Timeout(min(float(self.timeout), 30.0), connect=5.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{settings.OPENAI_COMPATIBLE_BASE_URL.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=payload,
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+                logger.error(
+                    "OpenAI-compatible API error for role '%s' model '%s': status=%s body=%s",
+                    role,
+                    settings.OPENAI_COMPATIBLE_MODEL,
+                    response.status_code,
+                    response.text[:500],
+                )
+                return None
+        except Exception as e:
+            logger.warning(
+                "OpenAI-compatible API failed for role '%s': %s: %r",
+                role,
+                type(e).__name__,
+                e,
+            )
             return None
 
     async def _try_nvidia_nim(

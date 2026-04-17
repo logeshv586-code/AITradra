@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import Globe from "react-globe.gl";
-import { Activity, TrendingUp, TrendingDown, Zap, Search, X, Globe as GlobeIcon, ShieldCheck } from "lucide-react";
+import { TrendingUp, TrendingDown, Zap, Search, X } from "lucide-react";
+import countriesGeo from "../world.json";
 
 // Restoration of the "Neon Claymorphism" Palette
 const NEON_PALETTE = [
@@ -23,16 +24,9 @@ function getCountryColor(isoCode) {
 export default function Globe3D({ onStockSelect, stocks = [] }) {
   const globeRef = useRef();
   const containerRef = useRef();
-  const [countries, setCountries] = useState({ features: [] });
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllStocks, setShowAllStocks] = useState(false);
-
-  useEffect(() => {
-    fetch('https://raw.githubusercontent.com/vasturiano/react-globe.gl/master/example/datasets/ne_110m_admin_0_countries.geojson')
-      .then(res => res.json())
-      .then(data => setCountries(data));
-  }, []);
 
   useEffect(() => {
     const updateSize = () => {
@@ -88,14 +82,18 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
 
   const RINGS_DATA = useMemo(() => {
     if (!Array.isArray(stocks)) return [];
-    return stocks.filter(s => s.lat && s.lon && s.px > 0).map(s => ({
-      lat: s.lat,
-      lng: s.lon,
-      maxR: (s.chg || s.pct_chg || 0) >= 0 ? 3 : 2,
-      propagationSpeed: 2,
-      repeatPeriod: 1200 + Math.random() * 800,
-      color: (s.chg || s.pct_chg || 0) >= 0 ? 'rgba(0, 240, 255, 0.5)' : 'rgba(255, 42, 95, 0.4)',
-    }));
+    return stocks.filter(s => s.lat && s.lon && s.px > 0).map((s, index) => {
+      const key = String(s.id || s.ticker || s.name || index);
+      const pulseOffset = [...key].reduce((sum, char) => sum + char.charCodeAt(0), index * 97) % 800;
+      return {
+        lat: s.lat,
+        lng: s.lon,
+        maxR: (s.chg || s.pct_chg || 0) >= 0 ? 3 : 2,
+        propagationSpeed: 2,
+        repeatPeriod: 1200 + pulseOffset,
+        color: (s.chg || s.pct_chg || 0) >= 0 ? 'rgba(0, 240, 255, 0.5)' : 'rgba(255, 42, 95, 0.4)',
+      };
+    });
   }, [stocks]);
 
   const sidebarStocks = showAllStocks ? filteredStocks : filteredStocks.slice(0, 10);
@@ -124,7 +122,7 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         atmosphereColor="#6366f1"
         atmosphereAltitude={0.25}
 
-        hexPolygonsData={countries.features}
+        hexPolygonsData={countriesGeo.features}
         hexPolygonResolution={3}
         hexPolygonMargin={0.4}
         hexPolygonUseDots={true}
@@ -136,7 +134,7 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         pointRadius="size"
         pointColor="color"
         pointLabel="label"
-        onPointClick={(p) => onStockSelect(p.ticker)}
+        onPointClick={(p) => onStockSelect?.(p.ticker)}
 
         arcsData={ARCS_DATA}
         arcColor="color"
@@ -191,7 +189,7 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
             const chg = s.chg || s.pct_chg || 0;
             const signal = getSignalStyle(chg);
             return (
-              <button key={s.id || s.ticker} onClick={() => onStockSelect(s.id || s.ticker)}
+              <button key={s.id || s.ticker} onClick={() => onStockSelect?.(s.id || s.ticker)}
                 className="flex items-center gap-4 px-3 py-2.5 rounded-2xl w-full transition-all hover:scale-[1.02] bg-[#0a0f1e]/60 backdrop-blur-xl border border-white/5 hover:border-indigo-500/20 shadow-lg group relative overflow-hidden">
                 <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-120 group-hover:scale-110"
                    style={{ background: `${signal.text}15`, borderColor: `${signal.text}30`, color: signal.text }}>

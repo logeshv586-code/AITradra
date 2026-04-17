@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Coins, Loader2, Shield, Plus, Minus, Search, Target, Zap, ArrowUpRight } from "lucide-react";
+import { Coins, Loader2, Plus, Minus, Search, Target, Zap, ArrowUpRight } from "lucide-react";
 import { API_BASE } from "../api_config";
 
 export default function VirtualPortfolioView({ onSelect }) {
@@ -9,13 +9,29 @@ export default function VirtualPortfolioView({ onSelect }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [inputs, setInputs] = useState({});
 
+  const getTradeQuantity = (ticker, explicitQuantity = null) => {
+    if (explicitQuantity !== null && explicitQuantity !== undefined) {
+      return parseInt(explicitQuantity, 10) || 1;
+    }
+    const value = inputs[ticker];
+    if (value && typeof value === "object") {
+      return parseInt(value.shares, 10) || 1;
+    }
+    return parseInt(value, 10) || 1;
+  };
+
   const loadData = async () => {
     try {
       const [res1, res2] = await Promise.all([
         fetch(`${API_BASE}/api/simulation/status`),
         fetch(`${API_BASE}/api/intel/overview`)
       ]);
-      if (res1.ok) setData((await res1.json()).status || {});
+      let simStatus = {};
+      if (res1.ok) {
+        const json = await res1.json();
+        simStatus = json.status || json;
+      }
+      setData(simStatus);
       if (res2.ok) setIntel(await res2.json());
     } catch (err) {
       console.error(err);
@@ -43,14 +59,18 @@ export default function VirtualPortfolioView({ onSelect }) {
     }
   };
 
-  const handleTrade = async (type, ticker) => {
-    const qty = parseInt(inputs[ticker]) || 1;
+  const handleTrade = async (type, ticker, explicitQuantity = null) => {
+    const qty = getTradeQuantity(ticker, explicitQuantity);
     setActionLoading(true);
     try {
-      await fetch(`${API_BASE}/api/simulation/${type}`, {
+      const response = await fetch(`${API_BASE}/api/simulation/${type}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ticker: ticker.toUpperCase(), shares: qty })
       });
+      const result = await response.json();
+      if (result?.error) {
+        throw new Error(result.error);
+      }
       setInputs({ ...inputs, [ticker]: "" });
       await loadData();
     } catch (e) {
@@ -60,7 +80,7 @@ export default function VirtualPortfolioView({ onSelect }) {
     }
   };
 
-  if (loading && !data) return (
+  if (loading && (!data || Object.keys(data).length === 0)) return (
      <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--app-bg)] w-full">
         <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
         <span className="text-[12px] font-medium text-[var(--text-muted)]">Booting Virtual Engine...</span>
@@ -84,11 +104,15 @@ export default function VirtualPortfolioView({ onSelect }) {
      </div>
   );
 
-  const bal = data.balance || 0;
-  const eq = data.total_equity || 0;
+  const bal = data.available_cash || 0;
+  const eq = data.total_balance || 0;
   const ret = ((eq - 100000) / 100000) * 100;
-  const positions = data.positions || {};
+  const positions = Array.isArray(data.positions) ? data.positions : Object.values(data.positions || {});
   const isUp = ret >= 0;
+  const topPicks = (intel?.top_opportunities || []).slice(0, 6).map((item) => item.ticker);
+  const intelSummary = intel?.universe
+    ? `${intel.universe.buy_setups || 0} buy setups across ${intel.universe.tracked_assets || 0} tracked assets, with ${intel.universe.low_risk || 0} low-risk ideas currently in focus.`
+    : "";
 
   return (
     <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6 lg:gap-8">
@@ -154,7 +178,7 @@ export default function VirtualPortfolioView({ onSelect }) {
                   <div className="flex w-full sm:w-auto gap-3">
                      <button onClick={() => {
                         if (inputs["_NEW"]?.ticker && inputs["_NEW"]?.shares) {
-                           handleTrade("buy", inputs["_NEW"].ticker);
+                           handleTrade("buy", inputs["_NEW"].ticker, inputs["_NEW"].shares);
                            setInputs(prev => ({...prev, _NEW: {ticker: "", shares: ""}}));
                         }
                      }} disabled={actionLoading} className="btn-standard border-[var(--positive)] text-[var(--positive)] hover:bg-[#10b98115]">
@@ -162,7 +186,7 @@ export default function VirtualPortfolioView({ onSelect }) {
                      </button>
                      <button onClick={() => {
                         if (inputs["_NEW"]?.ticker && inputs["_NEW"]?.shares) {
-                           handleTrade("sell", inputs["_NEW"].ticker);
+                           handleTrade("sell", inputs["_NEW"].ticker, inputs["_NEW"].shares);
                            setInputs(prev => ({...prev, _NEW: {ticker: "", shares: ""}}));
                         }
                      }} disabled={actionLoading} className="btn-standard border-[var(--negative)] text-[var(--negative)] hover:bg-[#ef444415]">
@@ -176,10 +200,10 @@ export default function VirtualPortfolioView({ onSelect }) {
             <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] shadow-sm overflow-hidden">
                <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between bg-[#1b1f27]">
                   <h2 className="heading-3">Active Holdings</h2>
-                  <span className="surface-badge">{Object.keys(positions).length} Trades</span>
+                  <span className="surface-badge">{positions.length} Trades</span>
                </div>
                
-               {Object.keys(positions).length > 0 ? (
+               {positions.length > 0 ? (
                   <div className="overflow-x-auto">
                      <table className="table-standard min-w-[700px]">
                         <thead>
@@ -192,21 +216,25 @@ export default function VirtualPortfolioView({ onSelect }) {
                            </tr>
                         </thead>
                         <tbody>
-                           {Object.entries(positions).map(([ticker, p]) => {
-                              const ret = ((p.current_price - p.avg_price) / p.avg_price) * 100;
+                           {positions.map((p) => {
+                              const ticker = p.ticker;
+                              const avgPrice = p.buy_price || p.avg_price || 0;
+                              const currentPrice = p.current_price || avgPrice;
+                              const shares = p.quantity || p.shares || 0;
+                              const ret = avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
                               const isPos = ret >= 0;
                               return (
                               <tr key={ticker}>
                                  <td className="font-semibold text-white">{ticker}</td>
-                                 <td className="text-right font-mono text-[var(--text-muted)]">{p.shares}</td>
-                                 <td className="text-right font-mono text-[var(--text-muted)] hidden sm:table-cell">${p.avg_price?.toFixed(2)}</td>
+                                 <td className="text-right font-mono text-[var(--text-muted)]">{shares}</td>
+                                 <td className="text-right font-mono text-[var(--text-muted)] hidden sm:table-cell">${avgPrice?.toFixed(2)}</td>
                                  <td className="text-right font-mono font-bold" style={{ color: isPos ? "var(--positive)" : "var(--negative)" }}>
                                     {isPos ? "+" : ""}{ret.toFixed(2)}%
                                  </td>
                                  <td className="px-4 py-2">
                                     <div className="flex items-center justify-center gap-2">
                                        <input 
-                                          type="number" min="1" max={p.shares} placeholder="Qty"
+                                          type="number" min="1" max={shares} placeholder="Qty"
                                           value={inputs[ticker] || ""}
                                           onChange={(e) => setInputs({...inputs, [ticker]: e.target.value})}
                                           className="input-standard !w-16 !p-1.5 text-center"
@@ -243,16 +271,23 @@ export default function VirtualPortfolioView({ onSelect }) {
                      <div className="p-4 bg-[#1e232b] border border-[var(--border-color)] rounded-[var(--radius-md)]">
                         <p className="text-[13px] leading-relaxed text-[var(--text-main)]">{intel.summary}</p>
                      </div>
+                  ) : intelSummary ? (
+                     <div className="p-4 bg-[#1e232b] border border-[var(--border-color)] rounded-[var(--radius-md)]">
+                        <p className="text-[13px] leading-relaxed text-[var(--text-main)]">{intelSummary}</p>
+                     </div>
                   ) : (
                      <p className="text-[12px] text-[var(--text-muted)] italic">Awaiting macro analysis from Mythic network...</p>
                   )}
 
-                  {intel?.top_picks?.length > 0 && (
+                  {topPicks.length > 0 && (
                      <div>
                         <p className="text-small-caps mb-3">High Conviction Ideas</p>
                         <div className="flex flex-wrap gap-2">
-                           {intel.top_picks.map(p => (
-                              <button key={p} onClick={() => setInputs(prev => ({...prev, _NEW: {ticker: p, shares: ""}}))}
+                           {topPicks.map(p => (
+                              <button key={p} onClick={() => {
+                                 setInputs(prev => ({...prev, _NEW: {ticker: p, shares: ""}}));
+                                 onSelect?.(p);
+                              }}
                                  className="btn-standard !px-3 !py-1.5">
                                  {p} <ArrowUpRight size={12} className="ml-1 text-[var(--text-muted)]"/>
                               </button>

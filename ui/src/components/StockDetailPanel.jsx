@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import MoveExplainer from './MoveExplainer';
 import AnalysisCard from './AnalysisCard';
+import QuanticInsightView from './QuanticInsightView';
 import StockChat from './StockChat';
 import FreshnessBadge from './FreshnessBadge';
 import DummyInvestment from "./DummyInvestment";
-import { PieChart, X, Zap, Activity, ShieldAlert, Cpu, Globe, Search, MessageSquare } from 'lucide-react';
+import { PieChart, X, Zap, Activity, ShieldAlert, Cpu, Globe, Search, MessageSquare, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
 
 import { API_BASE } from "../api_config";
 
@@ -15,7 +16,6 @@ export default function StockDetailPanel({ ticker, onClose }) {
   const [analysis, setAnalysis] = useState(null);
   const [moveReason, setMoveReason] = useState(null);
   const [prediction, setPrediction] = useState(null);
-  const [risk, setRisk] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [knowledgeStatus, setKnowledgeStatus] = useState(null);
@@ -47,12 +47,11 @@ export default function StockDetailPanel({ ticker, onClose }) {
       safeFetch(`${API_BASE}/api/stock/${tickerId}/risk`),
       safeFetch(`${API_BASE}/api/knowledge/status`),
       safeFetch(`${API_BASE}/api/simulation/status`),
-    ]).then(([stock, analysis, reason, preds, riskData, kStatus, sData]) => {
+    ]).then(([stock, analysis, reason, preds, , kStatus, sData]) => {
       clearTimeout(timeoutId);
       setData(stock);
       setAnalysis(analysis);
       setMoveReason(reason);
-      setRisk(riskData);
       setKnowledgeStatus(kStatus);
       setSimData(sData);
       
@@ -202,13 +201,16 @@ export default function StockDetailPanel({ ticker, onClose }) {
                     onClick={async () => {
                       setIsBuying(true);
                       try {
+                        const shares = parseFloat(buyAmount) / (price_data.px || 0);
                         const res = await fetch(`${API_BASE}/api/simulation/buy`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ 
                             ticker: tickerId, 
-                            amount: parseFloat(buyAmount),
-                            prediction: prediction?.prediction_direction
+                            shares: shares,
+                            prediction: prediction?.prediction_direction,
+                            confidence_score: prediction?.confidence_score,
+                            monte_carlo_volatility: prediction?.monte_carlo_volatility
                           })
                         });
                         const result = await res.json();
@@ -247,6 +249,8 @@ export default function StockDetailPanel({ ticker, onClose }) {
             </div>
           </div>
         )}
+
+        <QuanticInsightView ticker={tickerId} quantic={analysis?.quantic} />
 
         {/* Crowd Sentiment Vector */}
         <div className="glass-panel p-6 space-y-6">
@@ -339,9 +343,3 @@ export default function StockDetailPanel({ ticker, onClose }) {
     </div>
   );
 }
-
-const Loader2 = ({ size, className }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);

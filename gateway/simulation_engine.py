@@ -86,58 +86,108 @@ class SimulationEngine:
             return self.calculate_live_portfolio()
         return self.state
 
-    def buy_stock(self, ticker: str, quantity: float, prediction: Optional[str] = None):
+    def buy_stock(
+        self,
+        ticker: str,
+        quantity: float,
+        prediction: Optional[str] = None,
+        monte_carlo_volatility: Optional[float] = None,
+        confidence_score: Optional[float] = None,
+    ):
         if not self.state["initialized"]:
             raise ValueError("Simulation not initialized")
-        
+
         price = self._get_live_price(ticker)
         if price <= 0:
             raise ValueError(f"Could not fetch live price for {ticker}")
 
-        amount = quantity * price
-        
-        if amount > self.state["available_cash"]:
-            raise ValueError(f"Insufficient virtual funds for ${amount:.2f} purchase")
-
         signal_context = self._get_signal_context(ticker)
 
-        # Update position
-        existing_pos = next((p for p in self.state["positions"] if p["ticker"] == ticker), None)
+        base_quantity = quantity
+        scaling_factor = 1.0
+
+        if confidence_score is not None and confidence_score > 0:
+            if confidence_score >= 80:
+                scaling_factor = 1.5
+            elif confidence_score >= 60:
+                scaling_factor = 1.0
+            elif confidence_score >= 40:
+                scaling_factor = 0.75
+            else:
+                scaling_factor = 0.5
+
+        if monte_carlo_volatility is not None and monte_carlo_volatility > 0:
+            max_position_pct = max(0.02, min(0.15, 1.0 / (monte_carlo_volatility + 1)))
+            max_position_value = self.state["available_cash"] * max_position_pct
+            scaled_quantity = base_quantity * scaling_factor
+            scaled_amount = scaled_quantity * price
+
+            if scaled_amount > max_position_value:
+                quantity = max_position_value / price
+                logger.info(
+                    f"Position sized down due to high volatility {monte_carlo_volatility:.2f}: {quantity:.4f} shares"
+                )
+            else:
+                quantity = scaled_quantity
+        else:
+            quantity = base_quantity * scaling_factor
+
+        amount = quantity * price
+
+        if amount > self.state["available_cash"]:
+            quantity = (self.state["available_cash"] * 0.95) / price
+            amount = quantity * price
+            logger.warning(
+                f"Position reduced to fit available cash: {quantity:.4f} shares"
+            )
+
+        existing_pos = next(
+            (p for p in self.state["positions"] if p["ticker"] == ticker), None
+        )
         if existing_pos:
-            # Weighted average price
             total_qty = existing_pos["quantity"] + quantity
-            new_avg_price = ((existing_pos["buy_price"] * existing_pos["quantity"]) + (price * quantity)) / total_qty
+            new_avg_price = (
+                (existing_pos["buy_price"] * existing_pos["quantity"])
+                + (price * quantity)
+            ) / total_qty
             existing_pos["quantity"] = total_qty
             existing_pos["buy_price"] = new_avg_price
             existing_pos["invested_value"] = total_qty * new_avg_price
-            # Keep original prediction or update to most recent? Let's update.
-            existing_pos["prediction"] = prediction or signal_context["prediction_direction"] or existing_pos.get("prediction")
+            existing_pos["prediction"] = (
+                prediction
+                or signal_context["prediction_direction"]
+                or existing_pos.get("prediction")
+            )
             existing_pos["signal_context"] = signal_context
         else:
-            self.state["positions"].append({
-                "ticker": ticker,
-                "buy_price": price,
-                "quantity": quantity,
-                "invested_value": amount,
-                "prediction": prediction or signal_context["prediction_direction"],
-                "signal_context": signal_context,
-                "timestamp": datetime.now().isoformat()
-            })
+            self.state["positions"].append(
+                {
+                    "ticker": ticker,
+                    "buy_price": price,
+                    "quantity": quantity,
+                    "invested_value": amount,
+                    "prediction": prediction or signal_context["prediction_direction"],
+                    "signal_context": signal_context,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
-        # Update wallet
         self.state["available_cash"] -= amount
         self.state["invested_amount"] += amount
-        
-        self.state["history"].append({
-            "type": "BUY",
-            "ticker": ticker,
-            "price": price,
-            "amount": amount,
-            "quantity": quantity,
-            "prediction_at_buy": prediction or signal_context["prediction_direction"],
-            "signal_context": signal_context,
-            "timestamp": datetime.now().isoformat()
-        })
+
+        self.state["history"].append(
+            {
+                "type": "BUY",
+                "ticker": ticker,
+                "price": price,
+                "amount": amount,
+                "quantity": quantity,
+                "prediction_at_buy": prediction
+                or signal_context["prediction_direction"],
+                "signal_context": signal_context,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         self._save_state()
         return self.calculate_live_portfolio()
@@ -146,7 +196,10 @@ class SimulationEngine:
         if not self.state["initialized"]:
             raise ValueError("Simulation not initialized")
 
-        pos_index = next((i for i, p in enumerate(self.state["positions"]) if p["ticker"] == ticker), None)
+        pos_index = next(
+            (i for i, p in enumerate(self.state["positions"]) if p["ticker"] == ticker),
+            None,
+        )
         if pos_index is None:
             raise ValueError(f"No position found for {ticker}")
 
@@ -159,29 +212,24 @@ class SimulationEngine:
         else:
             fully_closed = False
 
-        current_price = self._get_live_price(ticker) or pos.get("current_price", pos["buy_price"])
-        
+        current_price = self._get_live_price(ticker) or pos.get(
+            "current_price", pos["buy_price"]
+        )
+
         sale_value = quantity_to_sell * current_price
         profit_loss = sale_value - (quantity_to_sell * pos["buy_price"])
 
-        # Update accuracy metrics based on original AI prediction
         self.state["accuracy_metrics"]["total_trades"] += 1
-        
-        # Accuracy logic: 
-        # If prediction was UP, and profit_loss > 0, correct.
-        # If prediction was DOWN, and we're selling with profit (meaning we bought at a 'dip' suggested or something?), 
-        # actually, since we only track BUYS for now, we only track if the UP prediction was right.
+
         is_correct = False
         if orig_prediction == "UP" and profit_loss > 0:
             is_correct = True
-        elif orig_prediction == "DOWN" and profit_loss < 0: # Profit loss < 0 means price dropped as predicted
-            # Wait, if we BOUGHT because it said DOWN, we are stupid unless it's a short. 
-            # In this dummy system, we only BUY.
-            is_correct = False 
-        
+        elif orig_prediction == "DOWN" and profit_loss < 0:
+            is_correct = False
+
         if is_correct:
             self.state["accuracy_metrics"]["correct_predictions"] += 1
-        
+
         total_trades = self.state["accuracy_metrics"]["total_trades"]
         self.state["accuracy_metrics"]["accuracy_score"] = (
             (self.state["accuracy_metrics"]["correct_predictions"] / total_trades) * 100
@@ -189,28 +237,30 @@ class SimulationEngine:
             else 0.0
         )
 
-        # Update wallet
         self.state["available_cash"] += sale_value
-        
+
         if fully_closed:
             self.state["positions"].pop(pos_index)
         else:
             pos["quantity"] -= quantity_to_sell
             pos["invested_value"] = pos["quantity"] * pos["buy_price"]
 
-        # Recalculate total invested
-        self.state["invested_amount"] = sum(p["invested_value"] for p in self.state["positions"])
+        self.state["invested_amount"] = sum(
+            p["invested_value"] for p in self.state["positions"]
+        )
 
-        self.state["history"].append({
-            "type": "SELL",
-            "ticker": ticker,
-            "price": current_price,
-            "amount": sale_value,
-            "quantity": quantity_to_sell,
-            "profit_loss": profit_loss,
-            "signal_context": self._get_signal_context(ticker),
-            "timestamp": datetime.now().isoformat()
-        })
+        self.state["history"].append(
+            {
+                "type": "SELL",
+                "ticker": ticker,
+                "price": current_price,
+                "amount": sale_value,
+                "quantity": quantity_to_sell,
+                "profit_loss": profit_loss,
+                "signal_context": self._get_signal_context(ticker),
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         self._save_state()
         return self.calculate_live_portfolio()
@@ -225,21 +275,31 @@ class SimulationEngine:
         for pos in self.state["positions"]:
             curr_px = self._get_live_price(pos["ticker"]) or pos["buy_price"]
             signal_context = self._get_signal_context(pos["ticker"])
-            
+
             pos["current_price"] = curr_px
             pos["current_value"] = curr_px * pos["quantity"]
             pos["profit_loss"] = pos["current_value"] - pos["invested_value"]
-            pos["profit_loss_pct"] = (pos["profit_loss"] / pos["invested_value"] * 100) if pos["invested_value"] else 0
+            pos["profit_loss_pct"] = (
+                (pos["profit_loss"] / pos["invested_value"] * 100)
+                if pos["invested_value"]
+                else 0
+            )
             pos["signal_context"] = signal_context
-            
+
             total_invested_current += pos["current_value"]
             total_p_l += pos["profit_loss"]
 
         self.state["invested_amount"] = total_invested_current
-        self.state["total_balance"] = self.state["available_cash"] + total_invested_current
+        self.state["total_balance"] = (
+            self.state["available_cash"] + total_invested_current
+        )
         self.state["total_profit_loss"] = total_p_l
-        self.state["profit_loss_percentage"] = (total_p_l / (self.state["total_balance"] - total_p_l) * 100) if (self.state["total_balance"] - total_p_l) > 0 else 0
+        self.state["profit_loss_percentage"] = (
+            (total_p_l / (self.state["total_balance"] - total_p_l) * 100)
+            if (self.state["total_balance"] - total_p_l) > 0
+            else 0
+        )
         if self.state["accuracy_metrics"].get("total_trades", 0) == 0:
             self.state["accuracy_metrics"]["accuracy_score"] = 0.0
-        
+
         return self.state

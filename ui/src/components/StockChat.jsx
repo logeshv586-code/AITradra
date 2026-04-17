@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../api_config';
-import { Send, X, MessageSquare, Sparkles, Terminal, Globe, ChevronRight } from 'lucide-react';
+import { Send, X, MessageSquare, Sparkles, Terminal, Globe, ChevronRight, Loader2 } from 'lucide-react';
 
 const SUGGESTED_QUESTIONS = {
   stock: [
@@ -17,7 +17,7 @@ const SUGGESTED_QUESTIONS = {
   ]
 };
 
-export default function StockChat({ ticker, context, onClose }) {
+export default function StockChat({ ticker, onClose }) {
   const [sessionId, setSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -84,7 +84,7 @@ export default function StockChat({ ticker, context, onClose }) {
         timestamp: new Date().toISOString(),
         sources: data.sources_used || [],
       }]);
-    } catch (err) {
+    } catch {
       setMessages(prev => [...prev, {
         role: "assistant",
         content: "⚠️ Node connection failed. Retransmitting packet...",
@@ -221,9 +221,3 @@ export default function StockChat({ ticker, context, onClose }) {
     </div>
   );
 }
-
-const Loader2 = ({ size, className }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-);

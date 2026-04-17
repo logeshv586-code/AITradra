@@ -2,7 +2,21 @@ import React, { useState, useEffect } from "react";
 import { ArrowUp, ArrowDown, Search, Loader2, Activity, LayoutDashboard, Target } from "lucide-react";
 import { API_BASE } from "../api_config";
 
-export default function PredictionTableView() {
+function normalizePrediction(row) {
+  const rawDirection = row.direction || row.prediction_direction || "SIDEWAYS";
+  const direction =
+    rawDirection === "UP" ? "BULLISH" :
+    rawDirection === "DOWN" ? "BEARISH" :
+    rawDirection;
+  return {
+    ...row,
+    direction,
+    confidence: Number(row.confidence ?? row.confidence_score ?? 0),
+    target_price: Number(row.target_price ?? row.predicted_price ?? row.current_price ?? 0),
+  };
+}
+
+export default function PredictionTableView({ onSelect }) {
   const [predictions, setPredictions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,7 +42,9 @@ export default function PredictionTableView() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  let filtered = predictions.filter(p => p.ticker.toLowerCase().includes(search.toLowerCase()));
+  let filtered = predictions
+    .map(normalizePrediction)
+    .filter(p => p.ticker.toLowerCase().includes(search.toLowerCase()));
   if (sortConf === "asc") filtered.sort((a, b) => a.confidence - b.confidence);
   if (sortConf === "desc") filtered.sort((a, b) => b.confidence - a.confidence);
 
@@ -79,7 +95,7 @@ export default function PredictionTableView() {
          </div>
        ) : (
          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] shadow-sm overflow-hidden overflow-x-auto">
-           <table className="table-standard min-w-[700px]">
+           <table className="table-standard min-w-[760px]">
              <thead>
                <tr>
                  <th className="w-1/6">Asset</th>
@@ -87,19 +103,21 @@ export default function PredictionTableView() {
                  <th className="w-1/6 text-center">Direction</th>
                  <th className="w-1/4">Confidence</th>
                  <th className="w-1/6 text-right">Target</th>
+                 <th className="w-1/6 text-center">Intel</th>
                </tr>
              </thead>
              <tbody>
                {filtered.map(row => {
                  const isBull = row.direction === "BULLISH";
-                 const color = isBull ? "var(--positive)" : "var(--negative)";
+                 const isBear = row.direction === "BEARISH";
+                 const color = isBull ? "var(--positive)" : isBear ? "var(--negative)" : "var(--warning)";
                  const Icon = isBull ? ArrowUp : ArrowDown;
                  return (
-                   <tr key={row.ticker}>
+                   <tr key={row.ticker} className="cursor-pointer" onClick={() => onSelect?.(row.ticker)}>
                      <td>
                         <div className="flex flex-col">
                            <span className="font-semibold text-white">{row.ticker}</span>
-                           <span className="text-[11px] text-[var(--text-muted)]">{row.name.length > 20 ? row.name.slice(0,20)+"..." : row.name}</span>
+                           <span className="text-[11px] text-[var(--text-muted)]">{row.name?.length > 20 ? row.name.slice(0,20)+"..." : row.name}</span>
                         </div>
                      </td>
                      <td className="text-right font-mono text-[13px]">
@@ -124,12 +142,15 @@ export default function PredictionTableView() {
                      <td className="text-right font-mono text-[13px] font-medium text-white">
                         ${row.target_price?.toFixed(2)}
                      </td>
+                     <td className="text-center">
+                        <span className="surface-badge">{row.intelligence_grade || "LOW"}</span>
+                     </td>
                    </tr>
                  );
                })}
                {filtered.length === 0 && (
                  <tr>
-                   <td colSpan={5} className="text-center py-8 text-[12px] text-[var(--text-muted)]">
+                   <td colSpan={6} className="text-center py-8 text-[12px] text-[var(--text-muted)]">
                      No predictions match current filters.
                    </td>
                  </tr>

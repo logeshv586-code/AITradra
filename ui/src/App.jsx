@@ -1,22 +1,35 @@
-import React, { useState, useEffect } from "react";
-import Globe3D from "./components/Globe3D";
-import PredictionTableView from "./components/PredictionTableView";
-import TrendingStocksView from "./components/TrendingStocksView";
-import StockDetailView from "./components/StockDetailView";
-import MissionControlDashboard from "./components/MissionControlDashboard";
-import ChatPanel from "./components/ChatPanel";
-import AgentMatrixView from "./components/AgentMatrixView";
-import RiskAnalysisView from "./components/RiskAnalysisView";
-import MarketStatusBadges from "./components/MarketStatusBadges";
-import LiveTickerBar from "./components/LiveTickerBar";
-import NewsEvidenceView from "./components/NewsEvidenceView";
-import PortfolioInsightsView from "./components/PortfolioInsightsView";
-import VirtualPortfolioView from "./components/VirtualPortfolioView";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 
-import { MessageSquareText, Search, Activity, Cpu, Globe2, Layout, X, Bell, LayoutDashboard, Shield, TrendingUp, Presentation, CheckCircle, Network, Clock, DollarSign } from "lucide-react";
+// Lazy-loaded view components — each gets its own async chunk
+const Globe3D = lazy(() => import("./components/Globe3D"));
+const PredictionTableView = lazy(() => import("./components/PredictionTableView"));
+const TrendingStocksView = lazy(() => import("./components/TrendingStocksView"));
+const StockDetailView = lazy(() => import("./components/StockDetailView"));
+const MissionControlDashboard = lazy(() => import("./components/MissionControlDashboard"));
+const ChatPanel = lazy(() => import("./components/ChatPanel"));
+const AgentMatrixView = lazy(() => import("./components/AgentMatrixView"));
+const RiskAnalysisView = lazy(() => import("./components/RiskAnalysisView"));
+const LiveTickerBar = lazy(() => import("./components/LiveTickerBar"));
+const NewsEvidenceView = lazy(() => import("./components/NewsEvidenceView"));
+const PortfolioInsightsView = lazy(() => import("./components/PortfolioInsightsView"));
+const VirtualPortfolioView = lazy(() => import("./components/VirtualPortfolioView"));
+const IntelligenceStatusView = lazy(() => import("./components/IntelligenceStatusView"));
+
+import { MessageSquareText, Search, Activity, Cpu, Globe2, Layout, X, Bell, LayoutDashboard, Shield, TrendingUp, Presentation, Network, Clock, DollarSign, Loader2 } from "lucide-react";
 import { API_BASE } from "./api_config";
 
-function SidebarItem({ icon: Icon, label, active, onClick, count }) {
+function LazyFallback() {
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--app-bg)] w-full animate-fade-in">
+      <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
+      <span className="text-[12px] font-medium text-[var(--text-muted)]">Loading module...</span>
+    </div>
+  );
+}
+
+
+function SidebarItem({ icon, label, active, onClick, count }) {
+  const ItemIcon = icon;
   return (
     <button
       onClick={onClick}
@@ -24,7 +37,7 @@ function SidebarItem({ icon: Icon, label, active, onClick, count }) {
         ${active ? 'bg-[var(--accent-bg)] text-[var(--accent)] font-medium' : 'text-[var(--text-muted)] hover:bg-[#1e232b] hover:text-white'}`}
     >
       <div className="flex items-center gap-3">
-        <Icon size={16} />
+        <ItemIcon size={16} />
         <span className="text-[13px]">{label}</span>
       </div>
       {count && (
@@ -66,6 +79,9 @@ function AppContent() {
   const [chatMessages, setChatMessages] = useState([]);
   const [agentsStatus, setAgentsStatus] = useState([]);
   const [liveStocks, setLiveStocks] = useState([]);
+  const [selectedTicker, setSelectedTicker] = useState("AAPL");
+  const [intelligenceStatus, setIntelligenceStatus] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [globalTime, setGlobalTime] = useState(new Date().toLocaleTimeString());
 
 
@@ -73,19 +89,33 @@ function AppContent() {
   useEffect(() => {
     const fetchSys = async () => {
       try {
-        const [a, s] = await Promise.all([
+        const [a, s, g, i] = await Promise.all([
           fetch(`${API_BASE}/api/agents/status`),
-          fetch(`${API_BASE}/api/market/trending?limit=4`)
+          fetch(`${API_BASE}/api/market/watchlist`),
+          fetch(`${API_BASE}/api/market/globe-data`),
+          fetch(`${API_BASE}/api/intelligence/status`)
         ]);
         if(a.ok) {
            const sysAgents = await a.json();
            const agentsArray = Array.isArray(sysAgents) ? sysAgents : (sysAgents.agents || sysAgents.data || []);
            setAgentsStatus(agentsArray);
         }
+        let hasWatchlistPayload = false;
         if(s.ok) {
            const sysData = await s.json();
-           const stocksArray = Array.isArray(sysData) ? sysData : (sysData.top_movers || sysData.data || []);
-           setLiveStocks(stocksArray);
+           const stocksArray = Array.isArray(sysData) ? sysData : (sysData.stocks || sysData.data || []);
+           if (stocksArray.length > 0) {
+             hasWatchlistPayload = true;
+             setLiveStocks(stocksArray);
+           }
+        }
+        if(!hasWatchlistPayload && g.ok) {
+           const globeData = await g.json();
+           const globeStocks = Array.isArray(globeData) ? globeData : (globeData.value || globeData.data || []);
+           setLiveStocks(globeStocks);
+        }
+        if(i.ok) {
+           setIntelligenceStatus(await i.json());
         }
       } catch (err) {
         console.error("Live data fetch failed:", err);
@@ -97,14 +127,33 @@ function AppContent() {
     return () => { clearInterval(sid); clearInterval(tid); };
   }, []);
 
+  const handleStockSelect = (ticker) => {
+    if (!ticker) return;
+    setSelectedTicker(String(ticker).toUpperCase());
+    setActiveView("Stock Terminal");
+  };
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    const query = searchQuery.trim().toUpperCase();
+    if (!query) return;
+    const matched = liveStocks.find((stock) => {
+      const ticker = String(stock.id || stock.ticker || "").toUpperCase();
+      const name = String(stock.name || "").toUpperCase();
+      return ticker === query || ticker.startsWith(query) || name.includes(query);
+    });
+    handleStockSelect(matched?.id || matched?.ticker || query);
+    setSearchQuery("");
+  };
+
   const handleChat = async (text, ticker = null) => {
     const newMsg = { role: "user", text };
     setChatMessages(prev => [...prev, newMsg]);
     setIsChatOpen(true);
     
     try {
-      const payload = { prompt: text, ticker: ticker };
-      const res = await fetch(`${API_BASE}/api/agents/chat`, {
+      const payload = { message: text, ticker: ticker || selectedTicker || "" };
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
@@ -112,7 +161,7 @@ function AppContent() {
         const data = await res.json();
         setChatMessages(prev => [...prev, { role: "ai", text: data.response || data.output }]);
       }
-    } catch (e) {
+    } catch {
       setChatMessages(prev => [...prev, { role: "ai", text: "Connection to Axiom.AI expert system failed." }]);
     }
   };
@@ -130,7 +179,9 @@ function AppContent() {
       group: "INTELLIGENCE",
       items: [
         { id: "Intelligence", icon: Presentation },
+        { id: "Intelligence Status", icon: Activity },
         { id: "Agent Network", icon: Network, count: agentsStatus.length || null },
+        { id: "News Evidence", icon: Layout },
         { id: "Risk Dynamics", icon: Shield },
         { id: "AI Expert Chat", icon: MessageSquareText },
       ]
@@ -144,6 +195,10 @@ function AppContent() {
        ]
     }
   ];
+  const providerLabel =
+    intelligenceStatus?.model_router?.last_provider_used ||
+    intelligenceStatus?.model_router?.active_provider ||
+    "adaptive";
 
   return (
     <div className="flex h-screen w-full bg-[var(--app-bg)] text-[var(--text-main)] overflow-hidden font-sans">
@@ -211,7 +266,7 @@ function AppContent() {
               <div className="h-4 w-px bg-[var(--border-color)]" />
               <div className="flex items-center gap-2">
                  <div className="h-2 w-2 rounded-full bg-[var(--positive)]" />
-                 <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">System Online</span>
+                 <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">{providerLabel} online</span>
               </div>
            </div>
 
@@ -223,17 +278,19 @@ function AppContent() {
            {/* Right: Actions (Responsive spaced) */}
            <div className="flex items-center gap-3 sm:gap-4 ml-auto">
               {/* Search Bar - Hide on very small screens, show on md+ */}
-              <div className="hidden md:flex relative w-48 lg:w-64">
+              <form onSubmit={handleSearchSubmit} className="hidden md:flex relative w-48 lg:w-64">
                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                  <input 
                     type="text" 
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Search tickers..." 
                     className="input-standard pl-9 py-1.5 h-8 placeholder-[var(--text-muted)]"
                  />
                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                     <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-[#252a33] text-[var(--text-muted)] rounded border border-[var(--border-color)]">⌘K</kbd>
                  </div>
-              </div>
+              </form>
 
               {/* Time - hidden on mobile */}
               <div className="hidden lg:flex items-center gap-2 text-[var(--text-muted)]">
@@ -261,26 +318,33 @@ function AppContent() {
 
         {/* Live Ticker Bar (Placed below header, span full width of main) */}
         <div className="flex-shrink-0 bg-[#0c0e12] border-b border-[var(--border-color)] w-full overflow-hidden">
-           <LiveTickerBar />
+           <Suspense fallback={null}>
+             <LiveTickerBar stocks={liveStocks} onSelect={handleStockSelect} />
+           </Suspense>
         </div>
 
         {/* Dynamic View Rendering Area */}
         <section className="flex-1 overflow-hidden relative">
           <div className="absolute inset-0 z-0">
-             {activeView === "World Map" && <Globe3D stocks={liveStocks} />}
+             <Suspense fallback={<LazyFallback />}>
+               {activeView === "World Map" && <Globe3D stocks={liveStocks} onStockSelect={handleStockSelect} />}
+             </Suspense>
           </div>
 
           <div className={`absolute inset-0 z-10 overflow-y-auto no-scrollbar pointer-events-auto transition-opacity duration-300 ${activeView === "World Map" ? "pointer-events-none opacity-0" : "opacity-100 bg-[var(--app-bg)]"}`}>
-            {activeView === "Predictions" && <PredictionTableView />}
-            {activeView === "Stock Terminal" && <StockDetailView stock={{ id: "AAPL", name: "Apple Inc.", px: 175.24, chg: 1.2 }} />}
+            <Suspense fallback={<LazyFallback />}>
+            {activeView === "Predictions" && <PredictionTableView onSelect={handleStockSelect} />}
+            {activeView === "Stock Terminal" && <StockDetailView ticker={selectedTicker} />}
             {activeView === "Agent Network" && <AgentMatrixView agents={agentsStatus} />}
-            {activeView === "Intelligence" && <TrendingStocksView stocks={liveStocks} />}
+            {activeView === "Intelligence" && <TrendingStocksView stocks={liveStocks} onSelect={handleStockSelect} />}
+            {activeView === "Intelligence Status" && <IntelligenceStatusView />}
             {activeView === "Risk Dynamics" && <RiskAnalysisView />}
-            {activeView === "Mission Control" && <MissionControlDashboard agentsStatus={agentsStatus} liveStocks={liveStocks} />}
+            {activeView === "Mission Control" && <MissionControlDashboard agentsStatus={agentsStatus} />}
             {activeView === "Portfolio" && <PortfolioInsightsView />}
             {activeView === "Paper Trading" && <VirtualPortfolioView />}
             {activeView === "News Evidence" && <NewsEvidenceView />}
-            {activeView === "AI Expert Chat" && <ChatPanel messages={chatMessages} onSend={handleChat} fullView={true} />}
+            {activeView === "AI Expert Chat" && <ChatPanel messages={chatMessages} onSend={(text) => handleChat(text, selectedTicker)} fullView={true} intelligenceStatus={intelligenceStatus} />}
+            </Suspense>
           </div>
         </section>
       </main>
@@ -300,7 +364,9 @@ function AppContent() {
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
-               <ChatPanel messages={chatMessages} onSend={(t) => handleChat(t)} />
+              <Suspense fallback={<LazyFallback />}>
+                <ChatPanel messages={chatMessages} onSend={(t) => handleChat(t, selectedTicker)} intelligenceStatus={intelligenceStatus} />
+              </Suspense>
             </div>
           </div>
         </>

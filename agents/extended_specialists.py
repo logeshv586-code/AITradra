@@ -31,6 +31,7 @@ class _SpecialistBase(BaseAgent):
     async def reflect(self, context: AgentContext) -> AgentContext:
         has_result = context.result is not None
         context.reflection = f"{self.name}: Analysis {'completed' if has_result else 'failed'}"
+        context.confidence = 0.6 if has_result and not context.errors else 0.3
         return context
 
 
@@ -41,7 +42,7 @@ class SentimentSpecialist(_SpecialistBase):
     async def act(self, context: AgentContext) -> AgentContext:
         llm = get_shared_llm()
         ticker = context.ticker
-        news = context.observations.get("news", [])
+        news = context.observations.get("news") or context.metadata.get("news_data", [])
         
         system = "You are a Sentiment Analysis Specialist. Evaluate market psychology and retail/institutional sentiment."
         prompt = f"Analyze sentiment for {ticker} based on these headlines:\n" + \
@@ -58,7 +59,7 @@ class FundamentalSpecialist(_SpecialistBase):
     async def act(self, context: AgentContext) -> AgentContext:
         llm = get_shared_llm()
         ticker = context.ticker
-        knowledge = context.observations.get("knowledge_results", {})
+        knowledge = context.observations.get("knowledge_results") or context.metadata.get("knowledge_results", {})
         
         system = "You are a Fundamental Analysis Specialist. Focus on valuation, earnings quality, and growth prospects."
         prompt = f"Perform a fundamental deep-dive for {ticker}. Use context:\n{json.dumps(knowledge, default=str)[:2000]}"
@@ -89,7 +90,7 @@ class CatalystSpecialist(_SpecialistBase):
     async def act(self, context: AgentContext) -> AgentContext:
         llm = get_shared_llm()
         ticker = context.ticker
-        news = context.observations.get("news", [])
+        news = context.observations.get("news") or context.metadata.get("news_data", [])
         
         system = "You are a Catalyst Identification Specialist. Find upcoming events (earnings, FDA, lawsuits, mergers)."
         prompt = f"Identify key upcoming catalysts for {ticker} from news:\n" + \

@@ -158,6 +158,7 @@ class QueryRouter(BaseAgent):
         }
 
         if ticker:
+            tasks["intelligence_snapshot"] = self._get_intelligence_snapshot(ticker)
             tasks["history"] = self._get_history(ticker)
             tasks["news"] = self._get_news(ticker)
 
@@ -172,6 +173,14 @@ class QueryRouter(BaseAgent):
                 gathered[key] = [] if key in ("rag_results", "history") else {}
             else:
                 gathered[key] = result
+
+        snapshot = gathered.get("intelligence_snapshot")
+        if isinstance(snapshot, dict) and snapshot:
+            gathered["price_data"] = snapshot.get("price_data", {})
+            gathered["analysis_context"] = snapshot.get("analysis", {})
+            gathered["intelligence_profile"] = snapshot.get("intelligence_profile", {})
+            if not gathered.get("news"):
+                gathered["news"] = snapshot.get("top_headlines", [])
 
         return gathered
 
@@ -203,6 +212,15 @@ class QueryRouter(BaseAgent):
         # Full-text search
         results["search"] = knowledge_store.search_all(query, limit=10)
         return results
+
+    async def _get_intelligence_snapshot(self, ticker: str) -> dict:
+        """Fetch the durable intelligence snapshot that powers the UI."""
+        from gateway.intelligence_service import intelligence_service
+
+        return await intelligence_service.get_ticker_intelligence(
+            ticker,
+            max_age_minutes=120,
+        )
 
     # Removed live _get_live_price and _get_news methods to enforce pure RAG DB usage.
 
