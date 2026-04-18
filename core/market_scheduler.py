@@ -16,6 +16,10 @@ import asyncio
 from datetime import datetime, timedelta
 from core.logger import get_logger
 from core.market_manager import MarketManager
+from core.graph_memory import graph_memory
+from scrapers.world_collector import world_collector
+from agents.simulation_engine import simulation_engine
+from agents.report_agent import report_agent
 
 logger = get_logger(__name__)
 
@@ -132,6 +136,32 @@ class MarketScheduler:
             self._last_price_update = datetime.now()
         except Exception as e:
             logger.error(f"Price collection failed: {e}")
+
+    async def run_mirofish_sync(self):
+        """MiroFish 4-hour background cycle: Collect, Simulate, Report."""
+        logger.info("🌊 MiroFish: Starting 4-hour World Intelligence cycle...")
+        try:
+            # 1. Discovery (Collector)
+            await world_collector.run_discovery_round()
+            
+            # 2. Simulation (Engine)
+            await simulation_engine.run_round("automatic social and world trend monitoring")
+            
+            # 3. Reporting (Agent)
+            report = await report_agent.generate_future_outcome_report()
+            logger.info("✅ MiroFish: 4-hour cycle complete. New report available.")
+            
+            # Optional: Store report in Agent Insights
+            from gateway.knowledge_store import knowledge_store
+            knowledge_store.store_insight(
+                ticker="WORLD", 
+                agent_name="MiroFish", 
+                insight_type="WorldReport", 
+                content=report, 
+                confidence=0.9
+            )
+        except Exception as e:
+            logger.error(f"MiroFish cycle failed: {e}")
 
     def get_status(self) -> dict:
         """Return scheduler status for the diagnostic endpoint."""

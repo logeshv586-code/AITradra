@@ -146,6 +146,16 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
+        scheduler.add_job(
+            market_scheduler.run_mirofish_sync,
+            "interval",
+            hours=4,
+            id="mirofish_sync",
+            next_run_time=datetime.now() + timedelta(seconds=120),
+            coalesce=True,
+            misfire_grace_time=600,
+            max_instances=1,
+        )
 
         deep_research_agent = DeepResearchAgent()
         scheduler.add_job(

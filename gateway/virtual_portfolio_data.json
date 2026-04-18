@@ -1,13 +1,124 @@
 {
   "initialized": true,
   "total_balance": 100000.0,
-  "available_cash": 100000.0,
-  "invested_amount": 0.0,
-  "positions": [],
-  "history": [],
+  "available_cash": 60389.100000000006,
+  "invested_amount": 39610.899999999994,
+  "positions": [
+    {
+      "ticker": "AMZN",
+      "buy_price": 245.71,
+      "quantity": 20.0,
+      "invested_value": 4914.2,
+      "prediction": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.0,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T12:29:27.380158"
+      },
+      "timestamp": "2026-04-18T12:53:31.181858",
+      "current_price": 245.71,
+      "current_value": 4914.2,
+      "profit_loss": 0.0,
+      "profit_loss_pct": 0.0
+    },
+    {
+      "ticker": "QQQ",
+      "buy_price": 637.27,
+      "quantity": 50.0,
+      "invested_value": 31863.5,
+      "prediction": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 84.5,
+        "risk_level": "LOW",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T12:43:55.058720"
+      },
+      "timestamp": "2026-04-18T12:54:08.277797",
+      "current_price": 637.27,
+      "current_value": 31863.5,
+      "profit_loss": 0.0,
+      "profit_loss_pct": 0.0
+    },
+    {
+      "ticker": "MS",
+      "buy_price": 188.88,
+      "quantity": 15.0,
+      "invested_value": 2833.2,
+      "prediction": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.3,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T12:34:30.973694"
+      },
+      "timestamp": "2026-04-18T12:54:15.876940"
+    }
+  ],
+  "history": [
+    {
+      "type": "BUY",
+      "ticker": "AMZN",
+      "price": 245.71,
+      "amount": 4914.2,
+      "quantity": 20.0,
+      "prediction_at_buy": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.0,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T12:29:27.380158"
+      },
+      "timestamp": "2026-04-18T12:53:31.181858"
+    },
+    {
+      "type": "BUY",
+      "ticker": "QQQ",
+      "price": 637.27,
+      "amount": 31863.5,
+      "quantity": 50.0,
+      "prediction_at_buy": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 84.5,
+        "risk_level": "LOW",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T12:43:55.058720"
+      },
+      "timestamp": "2026-04-18T12:54:08.277797"
+    },
+    {
+      "type": "BUY",
+      "ticker": "MS",
+      "price": 188.88,
+      "amount": 2833.2,
+      "quantity": 15.0,
+      "prediction_at_buy": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.3,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T12:34:30.973694"
+      },
+      "timestamp": "2026-04-18T12:54:15.876940"
+    }
+  ],
   "accuracy_metrics": {
     "total_trades": 0,
     "correct_predictions": 0,
     "accuracy_score": 0.0
-  }
+  },
+  "total_profit_loss": 0.0,
+  "profit_loss_percentage": 0.0
 }

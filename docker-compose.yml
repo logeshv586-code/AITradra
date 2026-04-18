@@ -85,8 +85,39 @@ services:
     ports: ["9222:9222"]
     restart: unless-stopped
 
+  # ─── Zep (Graph Memory) ──────────────────────────────────
+  zep-server:
+    image: getzep/zep:latest
+    ports: ["8001:8001"]
+    depends_on: [zep-postgres]
+    environment:
+      - ZEP_DB_URL=postgres://zep:zep@zep-postgres:5432/zep?sslmode=disable
+      - ZEP_AUTH_ENABLED=false
+    restart: unless-stopped
+
+  zep-postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=zep
+      - POSTGRES_USER=zep
+      - POSTGRES_PASSWORD=zep
+    volumes:
+      - zep_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # ─── SearXNG (Auto-Collector Search) ──────────────────────
+  searxng:
+    image: searxng/searxng:latest
+    ports: ["8082:8080"]
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8082
+    restart: unless-stopped
+
 volumes:
   pgdata:
   qdrant_data:
   minio_data:
   ollama_data:
+  zep_data:
