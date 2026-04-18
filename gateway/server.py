@@ -909,8 +909,8 @@ async def health():
         "status": "healthy",
         "version": "4.0.0",
         "app": "AXIOM V4 Mythic",
-        "agents": 14,
-        "mythic_agents": 5,
+        "agents": 27,
+        "mythic_agents": 12,
     }
 
 

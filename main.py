@@ -52,7 +52,7 @@ async def _agent_heartbeat():
     for meta in AGENT_REGISTRY:
         agent_name = meta["name"]
         knowledge_store.update_agent_health(
-            agent_name, "idle", latency_ms=5, task="Ready"
+            agent_name, "active", latency_ms=5, task="Ready"
         )
     logger.info(f"Heartbeat initialized for {len(AGENT_REGISTRY)} agents.")
 

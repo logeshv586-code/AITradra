@@ -17,6 +17,23 @@ export default function AgentMatrixView({ agents = [] }) {
   const activeCount = safeAgents.filter(a => (a.status || "").toLowerCase() === "active").length;
   const avgHealth = safeAgents.length ? Math.floor(safeAgents.reduce((acc, a) => acc + (a.health_score || 100), 0) / safeAgents.length) : 0;
 
+  // Grouping logic
+  const tiers = {
+    "v4_mythic": { label: "Mythic V4 Core", color: "#6366f1", icon: Zap },
+    "specialist": { label: "Specialist Nodes", color: "#3b82f6", icon: Cpu },
+    "research": { label: "Research Swarm", color: "#a855f7", icon: Network },
+    "v3_intelligence": { label: "Edge Intelligence", color: "#10b981", icon: Activity }
+  };
+
+  const groupedAgents = safeAgents.reduce((acc, agent) => {
+    const tier = agent.tier || agent.type || "v3_intelligence";
+    if (!acc[tier]) acc[tier] = [];
+    acc[tier].push(agent);
+    return acc;
+  }, {});
+
+  const sortedTierKeys = Object.keys(tiers);
+
   return (
     <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in relative">
        {/* Page Header */}
@@ -47,50 +64,94 @@ export default function AgentMatrixView({ agents = [] }) {
              <span className="text-[12px] font-medium text-[var(--text-muted)]">Synchronizing network telemetry...</span>
           </div>
        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {safeAgents.map((agent) => (
-                <article 
-                   key={agent.id} 
-                   onClick={() => setSelectedAgent(agent)}
-                   className="interactive-card p-5 flex flex-col group"
-                >
-                   <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                         <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[#1e232b] text-[var(--text-muted)] border border-[var(--border-color)] group-hover:text-[var(--accent)] transition-colors">
-                            <Cpu size={18} />
-                         </div>
-                         <div>
-                            <h3 className="heading-3">{agent.name || agent.id}</h3>
-                            <p className="text-[11px] text-[var(--text-muted)] mt-0.5">Role: {agent.role || "Specialist"}</p>
-                         </div>
-                      </div>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider ${getStatusColor(agent.status)}`}>
-                         {agent.status_label || agent.status || "UNKNOWN"}
-                      </span>
-                   </div>
+          <div className="flex flex-col gap-14">
+             {sortedTierKeys.map(tierKey => {
+                const cluster = groupedAgents[tierKey] || [];
+                if (cluster.length === 0) return null;
+                const tierInfo = tiers[tierKey];
+                const TierIcon = tierInfo.icon || Network;
 
-                   <p className="text-[12px] text-[var(--text-muted)] leading-relaxed line-clamp-2 h-9 mb-4">
-                      {agent.current_task || agent.role || "Node operating nominally within the Mythic framework."}
-                   </p>
-
-                   <div className="mt-auto pt-4 border-t border-[var(--border-color)] flex items-center justify-between">
-                      <div className="flex flex-col">
-                         <span className="text-[10px] uppercase text-[var(--text-muted)] mb-1">Health Score</span>
-                         <div className="flex items-center gap-2">
-                            <span className="font-mono text-[13px] font-semibold text-white">
-                               {agent.health_score || 100}%
-                            </span>
+                return (
+                   <section key={tierKey} className="flex flex-col gap-6">
+                      <div className="flex items-center gap-3 pb-2 border-b border-[var(--border-color)] bg-gradient-to-r from-[var(--app-bg)] to-transparent">
+                         <div className="flex h-8 w-8 items-center justify-center rounded bg-[#1e232b] border border-[var(--border-color)]">
+                            <TierIcon size={16} style={{ color: tierInfo.color }} />
+                         </div>
+                         <div className="flex flex-col">
+                            <h2 className="text-[12px] font-bold uppercase tracking-widest text-white">{tierInfo.label}</h2>
+                            <span className="text-[9px] text-[var(--text-muted)] font-mono">{cluster.length} Active Nodes</span>
                          </div>
                       </div>
-                      <div className="flex flex-col items-end">
-                         <span className="text-[10px] uppercase text-[var(--text-muted)] mb-1">Latency</span>
-                         <span className="font-mono text-[13px] text-white">
-                            {agent.latency_ms ? `${agent.latency_ms}ms` : "24ms"}
-                         </span>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                         {cluster.map((agent) => (
+                            <article 
+                               key={agent.id} 
+                               onClick={() => setSelectedAgent(agent)}
+                               className="interactive-card p-5 flex flex-col group relative overflow-hidden transition-all hover:scale-[1.01]"
+                            >
+                               {/* Decorative tier indicator */}
+                               <div className="absolute -top-4 -right-4 w-16 h-16 opacity-[0.03] pointer-events-none group-hover:opacity-10 transition-opacity">
+                                  <TierIcon size={64} style={{ color: tierInfo.color }} />
+                               </div>
+
+                               <div className="flex items-start justify-between mb-4">
+                                  <div className="flex items-center gap-3">
+                                     <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[#1e232b] text-[var(--text-muted)] border border-[var(--border-color)] group-hover:text-[var(--accent)] transition-colors">
+                                        <Cpu size={18} />
+                                     </div>
+                                     <div>
+                                        <h3 className="heading-3">{agent.name || agent.id}</h3>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                           <span className="text-[9px] px-1.5 py-0.25 rounded-full bg-[var(--app-bg)] border border-[var(--border-color)] text-[var(--text-muted)] group-hover:border-[var(--accent)] transition-colors">
+                                              {(agent.tier || agent.type || tierKey).replace('_', ' ').toUpperCase()}
+                                           </span>
+                                        </div>
+                                     </div>
+                                  </div>
+                                  <span className={`text-[10px] font-bold uppercase tracking-wider ${getStatusColor(agent.status)}`}>
+                                     {agent.status_label || agent.status || "UNKNOWN"}
+                                  </span>
+                               </div>
+
+                               <p className="text-[12px] text-[var(--text-muted)] leading-relaxed line-clamp-2 h-9 mb-4">
+                                  {agent.current_task || agent.role || "Node operating nominally within the Mythic framework."}
+                                </p>
+
+                               <div className="mt-auto pt-4 border-t border-[var(--border-color)]">
+                                  <div className="flex items-center justify-between mb-2">
+                                     <span className="text-[10px] uppercase text-[var(--text-muted)]">Health Score</span>
+                                     <span className="font-mono text-[11px] font-semibold text-white">{agent.health_score || 100}%</span>
+                                  </div>
+                                  <div className="h-1 w-full bg-[#1e232b] rounded-full overflow-hidden">
+                                     <div 
+                                        className="h-full transition-all duration-500" 
+                                        style={{ 
+                                           width: `${agent.health_score || 100}%`,
+                                           backgroundColor: (agent.health_score || 100) > 80 ? 'var(--positive)' : ((agent.health_score || 100) > 50 ? 'var(--warning)' : 'var(--negative)')
+                                        }} 
+                                     />
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-between mt-3">
+                                     <div className="flex items-center gap-1.5 text-[var(--text-muted)] group-hover:text-white transition-colors">
+                                        <Clock size={10} />
+                                        <span className="font-mono text-[11px]">
+                                           {agent.latency_ms ? `${agent.latency_ms}ms` : "24ms"}
+                                        </span>
+                                     </div>
+                                     <div className="flex items-center gap-1.5">
+                                        <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${getStatusColor(agent.status).replace('text-', 'bg-')}`} />
+                                        <span className="text-[10px] text-[var(--text-muted)] uppercase">Heartbeat</span>
+                                     </div>
+                                  </div>
+                               </div>
+                            </article>
+                         ))}
                       </div>
-                   </div>
-                </article>
-             ))}
+                   </section>
+                );
+             })}
           </div>
        )}
 

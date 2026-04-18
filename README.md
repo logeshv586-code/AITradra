@@ -1,79 +1,73 @@
 # 🧠 AITradra — High-Conviction Market Intelligence Platform
 
-> An autonomous, multi-agent AI system designed for institutional-grade market analysis. AITradra observes global markets, filters noise through rigorous quantitative validation (Mythic Pipeline), and continuously improves its predictive logic.
+> An autonomous, multi-agent AI framework designed for institutional-grade market analysis. AITradra observes global markets, filters noise through rigorous quantitative validation (Mythic Pipeline), and continuously improves its predictive logic via a 27-agent swarm.
 
-## 🏗️ Architecture
+## 🏗️ Intelligence Architecture (The 27-Agent Swarm)
 
-AITradra operates on a highly concurrent, dynamic agent network orchestrated via a central logic loop, supported by a self-improving memory architecture:
+AITradra operates on a multi-tiered, highly concurrent agent network orchestrated via a central logic loop (AXIOM V4). The system distributes tasks across four distinct operational tiers:
 
-```
-User Interface (React/Vite) 
-        ↓ 
-FastAPI Gateway Endpoint
-        ↓
-Model Router (Dynamic Provider Switching: LM Studio ↔ NVIDIA NIM)
-        ↓
-Agent Orchestrator (14+ Specialist Agents)
-  ├── 📡 Data Sources: yFinance, RSS, News Agents
-  ├── 🧠 Intelligence: Sentiment Classifier, Macro Analyst, Trend Agent
-  ├── 🛡️ Validation: Mythic Pipeline (SMC, Monte Carlo, Bootstrap)
-  └── 🗣️ Interface: AI Expert Chat (Direct User Interaction)
-        ↓
-Prediction Memory & Self-Improvement Loop (AccuracyStore)
-```
+### 📡 Tier 1: v3 Edge Intelligence
+Lightweight agents focused on real-time data ingestion, preprocessing, and immediate directional bias.
+- **DataCollector**: Streams yFinance and crypto gateway data.
+- **BlobStorage**: Manages high-frequency local state persistence.
+- **UI API**: Internal interface for frontend state synchronization.
 
-## 🚀 Quick Start
+### 🧠 Tier 2: v4 Mythic Core
+The heavy reasoning layer. These agents handle complex cross-asset correlation and long-sequence reasoning.
+- **MythicOrchestrator**: The central "brain" that delegates to specialists.
+- **QueryRouter**: Intelligently routes user queries to the most relevant sub-agent cluster.
+- **Swarm Intelligence**: Aggregates output from all specialists into a unified verdict.
 
-### 1. Frontend (Vite + React)
-```bash
-cd ui
-npm install
-npm run dev
-# → http://localhost:5173
-```
+### 🛡️ Tier 3: High-Conviction Specialists
+Specialized quantitative and qualitative nodes that provide "veto" power or confirmation for signals.
+- **QuanticAnalysis (Vibe-AI)**: Computes **Smart Money Concepts (SMC)**, identifying Institutional Order Blocks and Fair Value Gaps (FVG).
+- **TechnicalSpecialist**: Analyzes OHLCV patterns and momentum (SMA20/50, RSI).
+- **RiskSpecialist**: Computes **VaR 95%**, Beta, Max Drawdown, and Stress Scenarios.
+- **MacroSpecialist**: News sentiment, earnings signals, and sector rotation analysis.
+- **Forecast / StrategyGen**: Predictive modeling and trade execution plan generation.
 
-### 2. Backend (FastAPI)
-```bash
-# Return to the root directory
-pip install -r requirements.txt
-cp .env.example .env
+### 🔍 Tier 4: Research & Discovery
+Deep scanning agents that look for outliers and alpha beyond the primary watchlist.
+- **MarketRAG**: Retrieval-augmented generation over market historical archives.
+- **NewsIntel / MCPNews**: Deep NLP analysis of global headlines and alternative data.
+- **DeepResearch**: Long-form synthesis of sector trends and macro-economic shifts.
 
-# Start the Gateway Server
-python -m uvicorn gateway.server:app --reload --port 8000
-# → http://localhost:8000/docs
-```
-
-### 3. Local Model Setup (LM Studio)
-AITradra is configured for unparalleled privacy via Local LLMs. You will need:
-- An instance of [LM Studio](https://lmstudio.ai/) running locally on port `1234`.
-- The primary reasoning model loaded (e.g., `Qwen2.5-3B-Instruct/Nemotron`).
-- *Note: You can place your `.gguf` weights in the `models/` directory.*
-
-## 🔌 Core API Endpoints
-
-AITradra exposes several critical REST and WebSocket endpoints defining the intelligence network:
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/analyze/{ticker}` | Runs the complete high-conviction analysis pipeline |
-| `GET` | `/api/market/overview` | Scans for trending tickers and general market state |
-| `POST` | `/api/chat` | Interacts dynamically with the Agent Network via the Chat UI |
-| `GET` | `/api/intelligence/status` | Real-time telemetry on active models, agent latency, and learning loops |
-| `GET` | `/api/admin/accuracy-leaderboard` | View aggregate prediction accuracies across models and tickers |
-| `POST` | `/api/admin/force-score-predictions` | Manually triggers the engine to score matured market predictions |
-| `WS` | `/ws/analyze/{ticker}` | Live, streaming WebSocket connection of agent thoughts |
+---
 
 ## ⚙️ Core Capabilities
 
-1. **Mythic Validation Pipeline**: Eliminates predictive noise. Before any signal is pushed to the UI, it passes through Monte Carlo simulations, Bootstrap tests, and Smart Money Concepts (SMC) filters to ensure institutional-grade conviction.
-2. **Dynamic LLM Routing**: Intelligently switches inference models mid-flight based on latency and failure states. Automatically falls back to secondary API providers if the local LM Studio instance is burdened.
-3. **Continuous Self-Improvement**: Stores rolling, aggregate prediction metadata (AccuracyStore). A background orchestrator continuously checks the actual market price against predictions >24h old, grading the pipeline components and models on real-world accuracy.
-4. **Vite Code Splitting**: The User Interface is extremely lightweight, deferring massive graphical libraries (like Three.js and React-Globe) into dynamic vendor chunks to maintain 60FPS UI interactions.
+### 1. Mythic Validation Pipeline (MVP)
+Eliminates predictive noise. Before any signal is pushed to the UI, it passes through the "Mythic Consensus" scoring engine:
+- **Technical (40%)**: SMA alignment, Volume ratios, and Momentum.
+- **News/Sent (40%)**: NLP sentiment scores from 20+ global sources.
+- **Social (20%)**: Sentiment trending across public financial forums.
+- **Volume Filter**: High-volume "confirmations" apply a 1.2x conviction multiplier.
 
-## 🛠️ Tech Stack
+### 2. Quantitative Diagnostic Engine
+Powered by **Vibe-Trading AI**, the platform executes institutional-grade simulations:
+- **Monte Carlo Simulations**: Runs 10,000 parallel market iterations to visualize the probability distribution of returns.
+- **Bootstrap Validation**: Executes 5,000 sampling tests to verify the statistical significance of identified trends.
+- **Institutional SMC**: Identifies liquidity pools and fair-price imbalances used by top-tier funds.
 
-- **Frontend**: React 19, Vite 8, Tailwind CSS v4, Recharts, Three.js / React-Globe, Lucide
-- **Backend**: FastAPI, Python 3.12, APScheduler
-- **AI Infrastructure**: LM Studio (Local Inference), LangGraph concepts, ReAct Query Routing
-- **Persistence**: SQLite (AccuracyStore / Memory), Local JSON States for high-IO persistence
-- **Quantitative**: Pandas-TA, Numpy, Scikit-learn (Simulations & Bootstrapping)
+### 3. Continuous Self-Improvement
+The **AccuracyStore** background orchestrator continuously evaluates prediction outcomes against real price action (>24h lag). It grades agents individually, adjusting their "Influence Weight" in the Mythic Pipeline based on their verified real-world accuracy.
+
+---
+
+## 🧪 Tech Stack
+
+- **Frontend**: React 19, Vite 8, Tailwind CSS v4, Lucide, Recharts.
+- **Backend**: FastAPI (Python 3.12), APScheduler, Uvicorn.
+- **AI Infrastructure**: LM Studio (Local Inference @ port 1234), NVIDIA NIM (Cloud Scaling).
+- **Data & Quant**: Pandas-TA, NumPy, Scikit-learn (Simulations).
+- **Memory**: Qdrant (Vector Store), SQLite (Accuracy Leaderboard), JSON Persistence.
+
+## 🚀 Quick Start
+
+1. **Backend**: `python main.py` (Starts 27-agent heartbeat and API Gateway).
+2. **Frontend**: `cd ui && npm run dev`.
+3. **Local LLM**: Load a reasoning model in LM Studio (1234) for private inference.
+
+---
+
+*AITradra: Institutional Intelligence, Democratized.*

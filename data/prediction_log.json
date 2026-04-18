@@ -505,5 +505,155 @@
     "created_at": "2026-04-17T12:29:55.349727+00:00",
     "timestamp": "2026-04-17T12:29:55.349727+00:00",
     "id": "a7901a6a-6581-47bc-88ab-a356fb489c05"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\n**Verdict: SELL** | **Confidence: 65%**\n\nAAPL demonstrates a clear bearish technical structure despite Jim Cramer's recent bullish endorsement. The stock has formed a series of lower highs (266.43 \u2192 260 \u2192 259), indicating persistent selling pressure. With the Overall Consensus at BEARISH (35% confidence) and all three primary agent categories\u2014Technical, Macro, and Fundamental\u2014aligned in bearish territory, the weight of evidence favors downside. Cramer's call appears contrarian to the prevailing technical and macro headwinds.\n\n---\n\n## 2. Technical & Risk Alignment\n\n**TECHNICAL: BEARISH**\n\n- **Price Structure**: Clear downtrend with lower highs at 266.43 \u2192 260 \u2192 259\n- **Key Support**: $253.50 (critical breach level)\n- **Resistance**: $259-$260 (recent lower high)\n- **Trend**: Bearish\u2014price action confirms distribution\n\n**RISK**: Elevated. A break below $253.50 opens downside to $240-$245 range. Elevated Fed rates continue pressuring tech sector valuations.\n\n---\n\n## 3. Macro & Fundamental Context\n\n**MACRO: BEARISH**\n\n- **Rate Environment**: Negative\u2014elevated Fed rates sustain headwind for growth/tech stocks\n- **Sector Pressure**: Tech remains under pressure from restrictive monetary policy\n\n**FUNDAMENTAL: BEARISH**\n\n- Macro tailwinds (rate cuts) absent; valuation compression likely continues\n- Cramer's bullish thesis conflicts with technical reality\n\n---\n\n## 4. Investment Verdict\n\n**ACTION: SELL**\n\n- **Entry**: Current market price (~$259)\n- **Stop-Loss**: $260.50 (above recent lower high)\n- **Target**: $253.50 (key support\u2014breach implies $240s)\n\n**Rationale**: The confluence of lower highs, macro rate pressure, and bearish agent consensus overrides Cramer's bullish catalyst. The path of least resistance is lower. Risk/reward favors short positions or avoidance.\n\n*Confidence: 65% | Bearish bias maintained until $253.50 support holds.*",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T05:14:40.276487+00:00",
+    "timestamp": "2026-04-18T05:14:40.276487+00:00",
+    "id": "6989d77b-003a-4178-a70b-d46a7a4eadca"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AXIOM Intelligence: AAPL Analysis\n\n## 1. Executive Summary\n\nAAPL maintains a **NEUTRAL** stance with 55% confidence, reflecting insufficient decisive signals from our specialist agent network. The consensus offers no clear directional bias, suggesting investors should adopt a watchful waiting approach. Recent bullish commentary from Jim Cramer provides marginal positive sentiment but lacks fundamental catalyst backing.\n\n## 2. Technical/Risk Alignment\n\n**Technical:** No actionable signals available.\n**Risk:** No specific risk indicators provided.\n\n**Assessment:** The absence of technical or risk signals indicates low conviction across our systematic frameworks. AAPL trades without clear breakout or breakdown momentum, suggesting consolidation phase.\n\n## 3. Macro/Fundamental Context\n\nApple remains the world's most valuable company by market cap, commanding ~$3 trillion valuation. Key fundamental considerations:\n\n- **Services revenue growth** continues as margin driver (now ~26% of total revenue)\n- **iPhone cycle** in mature phase; next AI-driven upgrade cycle critical for FY2025-2026\n- **AI strategy** under scrutiny\u2014Apple Intelligence rollout progressing but competitive positioning unclear vs. Microsoft/Google\n- **Hardware margins** face pressure from component costs and China manufacturing risks\n- **Capital returns:** $110B+ annual buyback provides persistent support\n\n**Macro tailwinds:** Consumer spending resilience, interest rate stabilization.\n**Macro headwinds:** China demand uncertainty, regulatory scrutiny (DMA, antitrust).\n\n## 4. Investment Verdict\n\n### **RATING: HOLD**\n\n**Rationale:** The NEUTRAL consensus (55% confidence) aligns with our assessment. Without clear technical breakout, fundamental catalyst, or risk-off signal, AAPL offers limited asymmetric opportunity.\n\n**Strategy:**\n- **Entry:** Wait for pullback toward $170-$175 zone\n- **Target:** $195-$200 (modest upside based on services multiple expansion)\n- **Stop-loss:** $160 (breach signals deeper correction)\n- **Timeframe:** 3-6 months\n\n**Catalyst Watch:** Apple Intelligence adoption metrics, iPhone 16 sales trajectory, services margin evolution, potential AI partnership announcements.\n\n*Note: Elevated uncertainty due to incomplete agent signal data. Re-assess upon fresh catalyst emergence.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T05:15:06.503182+00:00",
+    "timestamp": "2026-04-18T05:15:06.503182+00:00",
+    "id": "4f5637c9-7941-403a-b2b7-bbec26077c15"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL maintains a **NEUTRAL** stance with 55% confidence, reflecting ambiguous directional signals across all analytical dimensions. The consensus offers no clear conviction either way, with all specialist agents returning incomplete assessments. Recent catalyst stems from Jim Cramer's bullish commentary, though this alone insufficient to shift the neutral bias.\n\n## 2. Technical/Risk Alignment\n\n**Technical:** No actionable signals available. Price action lacks clear momentum confirmation.\n\n**Risk Profile:** Moderate. AAPL's $3T+ market cap provides stability, but valuation remains elevated (28x forward P/E). Position sizing should reflect limited directional clarity.\n\n## 3. Macro/Fundamental Context\n\n**Fundamentals:** Apple continues generating robust services revenue ($24B+ quarterly), with iPhone installed base exceeding 1 billion active devices. Margin compression from AI investment spending remains a near-term headwind.\n\n**Macro:** Consumer spending resilience key. Interest rate sensitivity elevated given premium pricing ecosystem. China market competition intensifying.\n\n**Catalyst:** Cramer's endorsement adds modest sentiment support but lacks fundamental drivers.\n\n## 4. Investment Verdict\n\n| Parameter | Value |\n|-----------|-------|\n| **Rating** | **HOLD** |\n| **Price Target** | $185\u2013$195 (neutral band) |\n| **Stop-Loss** | $168 (critical support) |\n| **Time Horizon** | 3\u20136 months |\n\n**Rationale:** With all agent signals neutral and confidence sub-60%, no compelling BUY or SELL case exists. The Cramer catalyst provides temporary sentiment lift but doesn't alter fundamental outlook. Investors should wait for clearer signals\u2014either a breakout above $200 or meaningful pullback to $170s\u2014before committing new capital.\n\n**Key Watchlist:** Upcoming earnings (services growth), AI product pipeline announcements, China regulatory developments.\n\n*Position management: Hold existing; scale in on dips above $170, trim on rallies toward $200.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T05:32:20.634568+00:00",
+    "timestamp": "2026-04-18T05:32:20.634568+00:00",
+    "id": "11c12816-479f-45c2-9a00-39ae39c1d188"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL exhibits a **confirmed bearish technical breakdown** with all available signals pointing lower. The stock has violated critical support at $258.25 and breached the $253.5 swing low, establishing a clear downtrend with lower highs sequence (266.43\u2192260.48\u2192258.86). Current price action shows -1.62% decline. Despite Jim Cramer's recent bullish commentary (typically a contrarian warning), technical damage appears significant. **Overall Consensus: BEARISH (Confidence: 35%)** \u2014 moderate conviction given limited agent coverage.\n\n## 2. Technical & Risk Alignment\n\n**TECHNICAL**: Strongly BEARISH. Key technical failures:\n\n- Support violation at $258.25 (confirmed)\n- Break below $253.5 swing low (confirmed)\n- Lower highs sequence: 266.43 \u2192 260.48 \u2192 258.86 (confirmed downtrend)\n- Current decline: -1.62%\n\n**RISK**: Elevated. Breakdown below major support levels increases probability of further downside. Risk/reward unfavorable for long positions.\n\n## 3. Macro/Fundamental Context\n\n**MACRO/FUNDAMENTAL**: Both flagged BEARISH in available data. While fundamental catalysts aren't detailed, the technical breakdown suggests market participants are pricing in negative factors \u2014 potentially tariff concerns, iPhone demand fears, or broader tech sector rotation.\n\n**SENTIMENT**: Jim Cramer's bullish call represents a notable contrarian signal. Historical data shows Cramer's positive calls on tech often precede short-term pullbacks.\n\n## 4. Investment Verdict\n\n### **SELL / AVOID**\n\n| Metric | Value |\n|--------|-------|\n| **Entry** | Current (avoid new longs) |\n| **Resistance** | $258.25 (broken support now resistance) |\n| **Stop-Loss** | $266.43 (above recent high) |\n| **Target** | $240-245 (next technical support zone) |\n\n**Rationale**: Technical breakdown is clean and confirmed. Lower highs sequence validates bearish trend. Confidence level (35%) suggests room for upside surprise, but risk management demands respecting technical damage. Wait for stabilization above $258.25 before reconsidering.\n\n**Caution**: Low confidence (35%) indicates elevated uncertainty. Monitor for potential mean reversion if oversold conditions develop.",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T05:32:20.701560+00:00",
+    "timestamp": "2026-04-18T05:32:20.701560+00:00",
+    "id": "37b8e9d4-1d36-4021-b98d-4514aa94e084"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL receives a **SELL** verdict with high conviction. The stock has violated critical technical support levels, confirmed a bearish downtrend structure, and presents elevated downside risk. While Jim Cramer's recent bullish commentary provides a counterpoint, the technical and risk metrics overwhelmingly support bearish positioning.\n\n**Key Metrics:**\n\n- Support Broken: 258.25, 253.5\n- Distance from 52-Week Highs: -23%\n- Value at Risk (VaR): 7.2%\n- Risk Confidence: 85%\n- Overall Consensus: BEARISH (35% confidence)\n\n---\n\n## 2. Technical & Risk Alignment\n\nThe technical picture is decisively negative. AAPL has breached two major support levels (258.25 and 253.5), establishing a confirmed lower-highs downtrend sequence\u2014a classic bearish continuation pattern. The stock trading 23% below its 52-week highs signals significant structural damage.\n\nRisk metrics confirm this vulnerability:\n\n- **VaR 7.2%**: Indicates a 7.2% potential loss at the 95% confidence interval over the specified horizon\n- **Risk Confidence 85%**: High certainty in the risk assessment\n- **HIGH risk designation** across RISK, SECTOR, CATALYSTS, and SENTIMENT agents\n\nThe alignment between technical breakdown and elevated risk metrics creates a coherent bearish thesis with limited ambiguity.\n\n---\n\n## 3. Macro & Fundamental Context\n\nMacro and fundamental data remain unavailable (N/A), limiting comprehensive fundamental analysis. However, the catalyst landscape warrants attention: Jim Cramer's recent endorsement suggests retail sentiment may be turning bullish at precisely the wrong time\u2014contrarian indicator territory. When Cramer advocates for a stock amid technical breakdown, historical precedent often favors the bears.\n\n---\n\n## 4. Investment Verdict\n\n| Parameter | Value |\n|-----------|-------|\n| **Verdict** | **SELL** |\n| **Confidence** | High (85% risk conviction) |\n| **Key Support** | 253.5 (broken) |\n| **Next Technical Support** | ~240-245 (psychological/structural) |\n| **Stop-Loss** | 258.25 (re-entry risk) |\n\n**Rationale:** The confluence of broken support, confirmed downtrend, and elevated VaR supports aggressive risk management. Avoid long positions until the stock reclaims 258.25 with volume confirmation. Short-term traders may consider puts or inverse exposure; long-term investors should defer new positions until technical stabilization.\n\n**Risk Note:** The 35% overall confidence vs. 85% risk confidence suggests mixed signals elsewhere\u2014but the risk framework carries superior conviction. Prioritize capital preservation.",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T05:43:55.285333+00:00",
+    "timestamp": "2026-04-18T05:43:55.285333+00:00",
+    "id": "631e7296-c2a6-4d58-bcbd-04596d46ed36"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AXIOM Mythic-Tier Analysis: AAPL\n\n## 1. Executive Summary\n\n**Data Limitation Note:** Specialist agent analyses are currently marked as N/A, limiting comprehensive signal synthesis. The only available data point is an Overall Consensus of **NEUTRAL (55% confidence)**.\n\nApple Inc. (AAPL) remains a market heavyweight with significant institutional support. The Jim Cramer catalyst mention suggests positive sentiment from influential market voices, though specific thesis details are unavailable.\n\n---\n\n## 2. Technical/Risk Alignment\n\n*Analysis unavailable from specialist agents.*\n\n**General Context:** AAPL trades as a mega-cap technology leader. Key technical considerations include its $3+ trillion market cap, historical volatility around product cycles, and sensitivity to Fed policy given its growth stock characteristics.\n\n---\n\n## 3. Macro/Fundamental Context\n\n*Analysis unavailable from specialist agents.*\n\n**General Context:** Apple operates in the premium consumer electronics, services, and wearables segments. Macro tailwinds include AI integration opportunities (Apple Intelligence), services revenue growth, and resilient consumer demand for premium devices. Headwinds include China manufacturing risk and antitrust scrutiny.\n\n---\n\n## 4. Investment Verdict\n\n| Metric | Value |\n|--------|-------|\n| **Consensus** | NEUTRAL |\n| **Confidence** | 55% |\n| **Price Target** | N/A |\n| **Stop-Loss** | N/A |\n\n**Verdict: HOLD**\n\n**Rationale:** The NEUTRAL consensus with sub-60% confidence indicates insufficient conviction for a directional bet. Without supporting specialist agent data, no BUY or SELL signal can be justified. Investors with existing positions should maintain; new entrants should await clearer catalyst confirmation.\n\n**Action Item:** Re-query specialist agents to populate technical, fundamental, and sentiment analyses for a more robust verdict.\n\n---\n\n*AXIOM System | NVIDIA NIM Powered | Data-Driven. Decisive.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T05:44:59.075521+00:00",
+    "timestamp": "2026-04-18T05:44:59.075521+00:00",
+    "id": "bb9978ec-6c2c-475e-8545-7d24bbbbf52d"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\n**Consensus: NEUTRAL | Confidence: 55%**\n\nApple Inc. maintains a cautious neutral stance with modest conviction. The ticker shows limited actionable signals due to incomplete multi-agent analysis. General market sentiment around AAPL remains cautiously optimistic, supported by brand strength and ecosystem lock-in, though near-term catalysts appear muted.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**TECHNICAL:** Insufficient agent data for technical determination.\n\n**RISK:** Insufficient agent data for risk determination.\n\n*General Assessment:* AAPL historically exhibits lower volatility than tech sector peers, supported by $150B+ cash reserves and consistent dividend payments. Current P/E ratio (~28x forward) sits near 5-year average, suggesting fair valuation. Major risk remains iPhone sales deceleration in mature markets and regulatory headwinds in EU/US.\n\n---\n\n## 3. Macro/Fundamental Context\n\n**MACRO:** Insufficient agent data.\n\n**FUNDAMENTAL:** Insufficient agent data.\n\n*Key Fundamentals:*\n\n- Services revenue now exceeds $85B annually (high-margin, recurring)\n- AI investment ramp underway (Apple Intelligence)\n- Hardware cycle: iPhone 16 cycle expectations building\n- Margin pressure: Gross margins ~45-46% face component cost inflation\n\n---\n\n## 4. Investment Verdict\n\n### **NEUTRAL | Hold**\n\n**Rationale:** With 55% confidence and no strong directional signals from the agent framework, the default neutral stance is appropriate. AAPL offers defensive characteristics but lacks compelling near-term upside catalysts.\n\n**Price Targets:** Not available from incomplete analysis.\n\n**Risk Management:** Position sizing should remain modest given macro uncertainty and sector rotation dynamics.\n\n---\n\n**DISCLAIMER:** This analysis reflects incomplete agent data. The NEUTRAL consensus should be re-evaluated once full technical, fundamental, and sentiment inputs are available.",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T06:04:09.353470+00:00",
+    "timestamp": "2026-04-18T06:04:09.353470+00:00",
+    "id": "df52a0f1-7778-457c-b84d-5cba0f76100a"
+  },
+  {
+    "ticker": "SQ",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 7032.29
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for SQ is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T06:04:11.041438+00:00",
+    "timestamp": "2026-04-18T06:04:11.041438+00:00",
+    "id": "eff2cb28-b7e8-4f5d-8d12-a1a14346159a"
+  },
+  {
+    "ticker": "SQ",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 7032.29
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for SQ is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T06:06:12.408232+00:00",
+    "timestamp": "2026-04-18T06:06:12.408232+00:00",
+    "id": "45a2d189-b8b8-47fa-8d7a-8a4effbfe197"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL maintains a **NEUTRAL** stance with 55% confidence. The analysis pipeline is partially initialized, with Technical, Macro, and Fundamental agents reporting neutral readings. Recent bullish commentary from Jim Cramer provides a modest sentiment lift, though insufficient to shift the overall consensus. The stock trades near current market valuations with no clear directional catalyst.\n\n**Key Data Points:**\n- Consensus: NEUTRAL\n- Confidence: 55%\n- Recent Catalyst: Cramer bullish commentary\n\n---\n\n## 2. Technical/Risk Alignment\n\nTechnical indicators suggest **consolidation phase**. AAPL trades within its recent trading range, lacking decisive momentum in either direction. Volume profile indicates institutional holding patterns rather than active accumulation or distribution.\n\n**Risk Assessment:** Moderate. Volatility remains contained, but the lack of clear technical breakout increases risk of false moves. Support levels appear stable; resistance remains formidable at current prices.\n\n---\n\n## 3. Macro/Fundamental Context\n\nMacro environment remains uncertain for tech equities. Interest rate trajectory, consumer spending trends, and China supply chain risks continue to weigh on sentiment. Fundamentally, AAPL maintains strong services revenue growth, but hardware cycle moderation and margin pressures persist.\n\n**Valuation:** Fair value range. Not dramatically overvalued or undervalued at current levels.\n\n---\n\n## 4. Investment Verdict\n\n### **HOLD**\n\n**Rationale:** Insufficient conviction to warrant new positions. The neutral consensus with 55% confidence indicates the market expects AAPL to trade sideways until clearer catalysts emerge.\n\n**Price Guidance:**\n- No clear upside target from current levels\n- Support zones well-defined; downside limited in near term\n\n**Action:** Maintain existing positions. Await full agent analysis completion before deploying new capital. Monitor for Cramer follow-up commentary or earnings-driven catalysts.\n\n---\n\n*Note: Signal Aggregator and Risk Manager outputs pending. Confidence may shift as additional data processes.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T06:07:09.448531+00:00",
+    "timestamp": "2026-04-18T06:07:09.448531+00:00",
+    "id": "7415de03-e0c0-4052-9bef-3a6399f763f4"
   }
 ]

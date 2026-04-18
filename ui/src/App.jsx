@@ -80,7 +80,7 @@ function AppContent() {
   const [chatMessages, setChatMessages] = useState([]);
   const [agentsStatus, setAgentsStatus] = useState([]);
   const [liveStocks, setLiveStocks] = useState([]);
-  const [selectedTicker, setSelectedTicker] = useState("AAPL");
+  const [selectedTicker, setSelectedTicker] = useState(null);
   const [intelligenceStatus, setIntelligenceStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [globalTime, setGlobalTime] = useState(new Date().toLocaleTimeString());
@@ -105,10 +105,14 @@ function AppContent() {
         if(s.ok) {
            const sysData = await s.json();
            const stocksArray = Array.isArray(sysData) ? sysData : (sysData.stocks || sysData.data || []);
-           if (stocksArray.length > 0) {
-             hasWatchlistPayload = true;
-             setLiveStocks(stocksArray);
-           }
+if (stocksArray.length > 0) {
+              hasWatchlistPayload = true;
+              setLiveStocks(stocksArray);
+              if (!selectedTicker && stocksArray[0]) {
+                const firstTicker = stocksArray[0].id || stocksArray[0].ticker;
+                if (firstTicker) setSelectedTicker(String(firstTicker).toUpperCase());
+              }
+            }
         }
         if(!hasWatchlistPayload && g.ok) {
            const globeData = await g.json();
@@ -129,7 +133,16 @@ function AppContent() {
   }, []);
 
   const handleStockSelect = (ticker) => {
-    if (!ticker) return;
+    if (!ticker) {
+      if (liveStocks[0]) {
+        const fallback = liveStocks[0].id || liveStocks[0].ticker;
+        if (fallback) {
+          setSelectedTicker(String(fallback).toUpperCase());
+          setActiveView("Stock Terminal");
+        }
+      }
+      return;
+    }
     setSelectedTicker(String(ticker).toUpperCase());
     setActiveView("Stock Terminal");
   };
@@ -193,7 +206,8 @@ function AppContent() {
           { id: "Portfolio", icon: DollarSign },
           { id: "Paper Trading", icon: TrendingUp },
           { id: "Mission Control", icon: Cpu },
-       ]
+        { id: "Network Pulse", icon: Activity, count: "LIVE" },
+      ]
     }
   ];
   const providerLabel =
@@ -243,15 +257,25 @@ function AppContent() {
            ))}
         </nav>
 
-        {/* Footer Settings/User Area */}
-        <div className="p-4 border-t border-[var(--border-color)]">
-           <div className="flex items-center gap-3 px-2 py-2 rounded-[var(--radius-md)] hover:bg-[#1e232b] cursor-pointer transition">
+        {/* Intelligence Pulse Footer */}
+        <div className="mt-auto p-4 border-t border-[var(--border-color)] space-y-3">
+           <div className="flex flex-col gap-1 px-1">
+              <div className="flex justify-between text-[9px] font-bold uppercase text-[var(--text-muted)] tracking-widest">
+                 <span>Inference Load</span>
+                 <span className="text-white">{(intelligenceStatus?.agents || 27) * 4}%</span>
+              </div>
+              <div className="h-1 w-full bg-[#0c0e12] rounded-full overflow-hidden">
+                 <div className="h-full bg-[var(--accent)] w-[65%] animate-pulse" />
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-3 px-2 py-2 rounded-[var(--radius-md)] hover:bg-[#1e232b] cursor-pointer transition border border-transparent hover:border-[var(--border-color)]">
               <div className="h-8 w-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-white bg-opacity-20 border border-[var(--accent)] font-semibold text-[11px]">
                  AIT
               </div>
-              <div>
-                 <p className="text-[13px] font-medium text-white">Operator</p>
-                 <p className="text-[10px] text-[var(--text-muted)] font-mono tracking-wider">AITRADRA PRO</p>
+              <div className="min-w-0">
+                 <p className="text-[13px] font-medium text-white truncate">Operator</p>
+                 <p className="text-[10px] text-[var(--text-muted)] font-mono tracking-wider">NETWORK V4.0</p>
               </div>
            </div>
         </div>

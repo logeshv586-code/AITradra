@@ -1,0 +1,362 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary)}
+.wrap{padding:1.5rem 0;max-width:680px}
+h1{font-size:20px;font-weight:500;margin-bottom:4px}
+.sub{font-size:13px;color:var(--color-text-secondary);margin-bottom:1.5rem}
+.tier{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);margin-bottom:1rem;overflow:hidden}
+.tier-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer;user-select:none}
+.tier-head:hover{background:var(--color-background-secondary)}
+.badge{font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px}
+.b-purple{background:var(--color-background-info);color:var(--color-text-info)}
+.b-green{color:#0F6E56;background:#E1F5EE}
+.b-amber{color:#854F0B;background:#FAEEDA}
+.b-red{color:#A32D2D;background:#FCEBEB}
+.b-teal{color:#0F6E56;background:#E1F5EE}
+.tier-title{font-size:14px;font-weight:500;flex:1}
+.tier-body{display:none}
+.tier-body.open{display:block}
+.file-block{padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary);display:grid;grid-template-columns:200px 1fr;gap:12px;align-items:start}
+.file-block:last-child{border-bottom:none}
+.file-name{font-size:12px;font-family:var(--font-mono);color:var(--color-text-info);background:var(--color-background-secondary);padding:2px 6px;border-radius:4px;display:inline-block;word-break:break-all}
+.file-desc{font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+.prompt-block{margin:12px 16px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px;border-left:3px solid #185FA5}
+.prompt-label{font-size:11px;color:var(--color-text-tertiary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.prompt-text{font-size:12px;color:var(--color-text-primary);font-family:var(--font-mono);line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.arrow{font-size:11px;color:var(--color-text-tertiary);margin-left:auto;transition:transform .2s}
+.arrow.open{transform:rotate(180deg)}
+.flow-row{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.chip{font-size:11px;padding:3px 8px;border-radius:99px;border:0.5px solid var(--color-border-secondary);color:var(--color-text-secondary)}
+.section-label{font-size:11px;font-weight:500;color:var(--color-text-tertiary);padding:6px 16px 2px;text-transform:uppercase;letter-spacing:.5px;background:var(--color-background-secondary)}
+.status-row{display:flex;gap:8px;margin-bottom:1.25rem;flex-wrap:wrap}
+.stat{flex:1;min-width:120px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+.stat-n{font-size:20px;font-weight:500;color:var(--color-text-primary)}
+.stat-l{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.cta{margin-top:1.5rem;padding:12px 16px;background:var(--color-background-secondary);border-radius:var(--border-radius-lg);border:0.5px solid var(--color-border-tertiary)}
+.cta-title{font-size:13px;font-weight:500;margin-bottom:8px}
+.cta-list{font-size:12px;color:var(--color-text-secondary);line-height:2}
+.cta-btn{margin-top:10px;display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:6px 12px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);cursor:pointer}
+.cta-btn:hover{background:var(--color-background-primary)}
+</style>
+<div class="wrap">
+<h2 class="sr-only">AITradra Real Agentic Trading Platform — Full Implementation Plan with file-level prompts and agent architecture</h2>
+<h1>AITradra → Real Agentic Platform</h1>
+<p class="sub">Click each layer to see exact files to create/update + copy-ready LLM prompts</p>
+
+<div class="status-row">
+  <div class="stat"><div class="stat-n">6</div><div class="stat-l">Layers to build</div></div>
+  <div class="stat"><div class="stat-n">18</div><div class="stat-l">Files to update</div></div>
+  <div class="stat"><div class="stat-n">27</div><div class="stat-l">Live agents</div></div>
+  <div class="stat"><div class="stat-n">4</div><div class="stat-l">MCP sources</div></div>
+</div>
+
+<!-- LAYER 1 -->
+<div class="tier">
+  <div class="tier-head" onclick="tog(this)">
+    <span class="badge b-purple">Layer 1</span>
+    <span class="tier-title">Dynamic Market Data Engine (yfinance + MCP)</span>
+    <span class="arrow">▾</span>
+  </div>
+  <div class="tier-body">
+    <div class="section-label">Data flow</div>
+    <div class="flow-row">
+      <span class="chip">yfinance live OHLCV</span>
+      <span class="chip">→</span>
+      <span class="chip">Crypto (CoinGecko MCP)</span>
+      <span class="chip">→</span>
+      <span class="chip">SQLite daily_ohlcv</span>
+      <span class="chip">→</span>
+      <span class="chip">Vector store (Qdrant)</span>
+    </div>
+    <div class="section-label">Files</div>
+    <div class="file-block">
+      <span class="file-name">agents/data_collector.py</span>
+      <div class="file-desc">Replace any hardcoded ticker. Use a dynamic WATCHLIST env var. Fetch OHLCV every 5min via APScheduler. Store raw bars to SQLite. Emit a market_update event on every fetch.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">mcp/crypto_gateway.py</span>
+      <div class="file-desc">New file. Wraps CoinGecko MCP open-source server. Fetches BTC, ETH, SOL price + 24h change + volume. Normalises to same schema as yfinance bars.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">gateway/server.py</span>
+      <div class="file-desc">Add GET /market/live?symbols=AAPL,BTC-USD endpoint. Returns latest bar from SQLite. Remove any AAPL hardcode — symbols come from request param only.</div>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-label">Prompt for Cursor / Claude Code</div>
+      <div class="prompt-text">Update agents/data_collector.py:
+1. Read WATCHLIST from env (comma-separated tickers + crypto slugs).
+2. Every 5 minutes fetch yfinance .history(period='1d', interval='5m') for each stock ticker.
+3. For each crypto slug call mcp/crypto_gateway.py get_price().
+4. Upsert all bars into SQLite table daily_ohlcv (symbol, ts, open, high, low, close, volume).
+5. After each upsert fire an internal market_update event with the symbol and latest close.
+6. Remove all hardcoded 'AAPL' references — ticker is always from WATCHLIST or request param.</div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 2 -->
+<div class="tier">
+  <div class="tier-head" onclick="tog(this)">
+    <span class="badge b-green">Layer 2</span>
+    <span class="tier-title">News Intelligence Agent (Why did it move?)</span>
+    <span class="arrow">▾</span>
+  </div>
+  <div class="tier-body">
+    <div class="section-label">Data flow</div>
+    <div class="flow-row">
+      <span class="chip">RSS / NewsAPI MCP</span>
+      <span class="chip">→</span>
+      <span class="chip">NLP sentiment (VADER + transformer)</span>
+      <span class="chip">→</span>
+      <span class="chip">news_articles table</span>
+      <span class="chip">→</span>
+      <span class="chip">LLM "why did it move" summary</span>
+    </div>
+    <div class="section-label">Files</div>
+    <div class="file-block">
+      <span class="file-name">agents/news_intel_agent.py</span>
+      <div class="file-desc">Polls RSS feeds (Yahoo Finance, Reuters, Bloomberg RSS) every 15min per symbol. Runs VADER + optional HuggingFace finbert. Stores headline, url, sentiment_score, symbol, published_at into news_articles table.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">agents/move_explainer.py</span>
+      <div class="file-desc">New agent. On each market_update event, reads the last 6h of news for that symbol. Calls local LLM with a prompt asking "Given these headlines and the price moved X%, what is the primary cause?" Returns a JSON: {reason, sentiment, confidence}. Persists to agent_insights.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">gateway/server.py</span>
+      <div class="file-desc">Add GET /news/{symbol}?hours=24 — returns articles + move explanation from agent_insights. Used by frontend to show "why did AAPL drop 3%?" card.</div>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-label">LLM system prompt inside move_explainer.py</div>
+      <div class="prompt-text">You are a financial analyst AI. You will receive:
+- SYMBOL: the ticker/coin slug
+- PRICE_CHANGE: percentage change in last {window}h
+- HEADLINES: list of recent news headlines with timestamps
+
+Your task:
+1. Identify the PRIMARY reason for the price movement.
+2. Classify sentiment: BULLISH | BEARISH | NEUTRAL
+3. Rate your confidence 0–100.
+4. Cite the 1–2 most relevant headlines.
+
+Respond ONLY in JSON:
+{"reason": "...", "sentiment": "BULLISH|BEARISH|NEUTRAL",
+ "confidence": 85, "key_headlines": ["...", "..."]}</div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 3 -->
+<div class="tier">
+  <div class="tier-head" onclick="tog(this)">
+    <span class="badge b-amber">Layer 3</span>
+    <span class="tier-title">LLM Memory & DB Reader (Ask anything about history)</span>
+    <span class="arrow">▾</span>
+  </div>
+  <div class="tier-body">
+    <div class="section-label">Data flow</div>
+    <div class="flow-row">
+      <span class="chip">User query</span>
+      <span class="chip">→</span>
+      <span class="chip">Qdrant vector search on agent_insights</span>
+      <span class="chip">→</span>
+      <span class="chip">SQLite raw context</span>
+      <span class="chip">→</span>
+      <span class="chip">LLM synthesizes answer</span>
+    </div>
+    <div class="section-label">Files</div>
+    <div class="file-block">
+      <span class="file-name">agents/market_rag.py</span>
+      <div class="file-desc">On every agent_insight write, embed the insight text with a sentence-transformer and upsert into Qdrant collection "market_memory". On query, embed the question, retrieve top-5 chunks, fetch matching OHLCV rows from SQLite, pass both to LLM.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">gateway/server.py</span>
+      <div class="file-desc">Add POST /ask endpoint: {symbol?, question}. Routes to market_rag.py which does vector retrieval + LLM answer. Returns streaming SSE response so UI can show tokens arriving live.</div>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-label">LLM system prompt inside market_rag.py</div>
+      <div class="prompt-text">You are AITradra, an institutional market intelligence AI with access to:
+- Historical OHLCV data stored in your database
+- Past agent analysis and insights
+- Recent news and sentiment records
+
+Answer the user's question using ONLY the provided context below.
+If the answer is not in the context, say "I don't have enough data on that."
+Always cite the date/source of data you reference.
+Be concise. Structure: [Direct answer] → [Supporting data] → [Caveat if any].
+
+CONTEXT:
+{retrieved_chunks}
+
+RAW DATA:
+{ohlcv_rows}
+
+USER QUESTION: {question}</div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 4 -->
+<div class="tier">
+  <div class="tier-head" onclick="tog(this)">
+    <span class="badge b-red">Layer 4</span>
+    <span class="tier-title">Mythic Consensus Pipeline (Real signal scoring)</span>
+    <span class="arrow">▾</span>
+  </div>
+  <div class="tier-body">
+    <div class="section-label">Data flow</div>
+    <div class="flow-row">
+      <span class="chip">Technical score (40%)</span>
+      <span class="chip">News sentiment (40%)</span>
+      <span class="chip">Social/macro (20%)</span>
+      <span class="chip">→</span>
+      <span class="chip">Mythic consensus JSON</span>
+      <span class="chip">→</span>
+      <span class="chip">research_suggestions table</span>
+    </div>
+    <div class="section-label">Files</div>
+    <div class="file-block">
+      <span class="file-name">agents/mythic_orchestrator.py</span>
+      <div class="file-desc">Reads latest technical score from TechnicalSpecialist, sentiment score from NewsIntelAgent, and macro score from MacroSentryAgent. Applies 40/40/20 weighted average. If volume > 1.5x avg applies 1.2× multiplier. Writes final conviction score + direction to research_suggestions.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">agents/technical_specialist.py</span>
+      <div class="file-desc">Reads OHLCV from SQLite. Computes SMA20/50 crossover, RSI(14), MACD signal, volume ratio. Returns a score -1.0 to +1.0. Uses pandas-ta. Writes to agent_insights.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">agents/accuracy_store.py</span>
+      <div class="file-desc">Background job runs every 24h. For each research_suggestion older than 24h, fetches actual close vs predicted direction. Computes binary accuracy. Writes to agent_health table. Feeds influence weight back to orchestrator.</div>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-label">Mythic orchestrator final LLM call prompt</div>
+      <div class="prompt-text">You are the Mythic Orchestrator for AITradra.
+
+SYMBOL: {symbol}
+TECHNICAL_SCORE: {tech_score} (range -1 to +1)
+NEWS_SENTIMENT_SCORE: {news_score} (range -1 to +1)
+MACRO_SCORE: {macro_score} (range -1 to +1)
+WEIGHTED_CONSENSUS: {final_score}
+PRICE_CHANGE_24H: {pct_change}%
+MOVE_REASON: {move_reason}
+
+Produce the final institutional signal. Respond ONLY in JSON:
+{
+  "direction": "LONG | SHORT | NEUTRAL",
+  "conviction": 0-100,
+  "entry_zone": "price range string",
+  "stop_loss": "price",
+  "target": "price",
+  "rationale": "2-3 sentence summary",
+  "risk_level": "LOW | MEDIUM | HIGH"
+}</div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 5 -->
+<div class="tier">
+  <div class="tier-head" onclick="tog(this)">
+    <span class="badge b-teal">Layer 5</span>
+    <span class="tier-title">MCP Open Source Integrations</span>
+    <span class="arrow">▾</span>
+  </div>
+  <div class="tier-body">
+    <div class="section-label">MCP servers to wire up</div>
+    <div class="file-block">
+      <span class="file-name">mcp/crypto_gateway.py</span>
+      <div class="file-desc">Wraps coingecko-mcp (open source). Fetches price, market cap, 24h volume, 7d change for BTC/ETH/SOL/any slug. Run: npx @llmindset/mcp-coingecko</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">mcp/news_mcp.py</span>
+      <div class="file-desc">Wraps newsapi-mcp or fetch-mcp for RSS. Fetches top 10 headlines per symbol query. Run: npx @modelcontextprotocol/server-fetch</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">mcp/memory_mcp.py</span>
+      <div class="file-desc">Wraps @modelcontextprotocol/server-memory (KV memory MCP). Each agent writes its last output as a named entity. Orchestrator reads all entities to build context without hitting SQLite every call.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">mcp/brave_search.py</span>
+      <div class="file-desc">Optional: wraps @modelcontextprotocol/server-brave-search. Used by DeepResearch agent for real-time macro news not in RSS (Fed statements, earnings releases).</div>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-label">mcp_config.json — add to project root</div>
+      <div class="prompt-text">{
+  "mcpServers": {
+    "coingecko": {
+      "command": "npx",
+      "args": ["-y", "@llmindset/mcp-coingecko"]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}</div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYER 6 -->
+<div class="tier">
+  <div class="tier-head" onclick="tog(this)">
+    <span class="badge b-purple">Layer 6</span>
+    <span class="tier-title">Frontend: Dynamic + Live UI</span>
+    <span class="arrow">▾</span>
+  </div>
+  <div class="tier-body">
+    <div class="section-label">Files</div>
+    <div class="file-block">
+      <span class="file-name">ui/src/App.jsx</span>
+      <div class="file-desc">On mount, fetch /market/live to get watchlist. Auto-select first asset with highest conviction score (not hardcoded AAPL). Poll /market/live every 30s. When symbol changes, fetch /news/{symbol} and show "why it moved" card.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">ui/src/components/WhyCard.jsx</span>
+      <div class="file-desc">New component. Shows move_reason, sentiment badge (BULLISH/BEARISH/NEUTRAL), confidence bar, and key_headlines list. Rendered below price chart for each selected asset.</div>
+    </div>
+    <div class="file-block">
+      <span class="file-name">ui/src/components/AskBar.jsx</span>
+      <div class="file-desc">New component. Input bar at bottom of dashboard. On submit calls POST /ask with {symbol, question}. Streams SSE response tokens into a chat bubble. User can ask: "Why did BTC drop yesterday?" or "What is the 7-day trend for NVDA?"</div>
+    </div>
+    <div class="prompt-block">
+      <div class="prompt-label">Prompt for building WhyCard.jsx</div>
+      <div class="prompt-text">Create ui/src/components/WhyCard.jsx in React + Tailwind.
+Props: { symbol, priceChange, reason, sentiment, confidence, keyHeadlines[] }
+Layout:
+- Header row: ticker badge + price change % (green/red)
+- Sentiment pill: BULLISH=green, BEARISH=red, NEUTRAL=gray
+- Confidence bar: 0-100 filled progress bar
+- reason text block (max 3 lines, ellipsis)
+- keyHeadlines: max 2 items, each with clickable link
+- Refresh button that calls onRefresh() prop
+Style: glassmorphism card matching existing dashboard theme.</div>
+    </div>
+  </div>
+</div>
+
+<div class="cta">
+  <div class="cta-title">Recommended build order</div>
+  <div class="cta-list">
+    1 · Layer 1 — get live data flowing into SQLite first<br>
+    2 · Layer 2 — wire news + move explainer (LLM call per symbol)<br>
+    3 · Layer 4 — Mythic pipeline reads both sources<br>
+    4 · Layer 3 — RAG memory so LLM can answer history questions<br>
+    5 · Layer 5 — swap hardcoded fetches for MCP servers<br>
+    6 · Layer 6 — frontend consumes all new endpoints
+  </div>
+  <button class="cta-btn" onclick="sendPrompt('Give me the complete code for agents/move_explainer.py with the LLM prompt and SQLite persistence')">Get move_explainer.py code ↗</button>
+  <button class="cta-btn" style="margin-left:8px" onclick="sendPrompt('Give me the complete code for agents/market_rag.py with Qdrant vector search and streaming SSE answer')">Get market_rag.py code ↗</button>
+</div>
+</div>
+
+<script>
+function tog(head){
+  const body=head.nextElementSibling;
+  const arr=head.querySelector('.arrow');
+  const open=body.classList.toggle('open');
+  arr.classList.toggle('open',open);
+}
+</script>
