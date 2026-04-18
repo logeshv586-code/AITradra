@@ -1,14 +1,14 @@
 {
   "initialized": true,
   "total_balance": 100000.0,
-  "available_cash": 60389.100000000006,
-  "invested_amount": 39610.899999999994,
+  "available_cash": 59841.420000000006,
+  "invested_amount": 40158.58,
   "positions": [
     {
       "ticker": "AMZN",
       "buy_price": 245.71,
-      "quantity": 20.0,
-      "invested_value": 4914.2,
+      "quantity": 18.0,
+      "invested_value": 4422.78,
       "prediction": "UP",
       "signal_context": {
         "recommendation": "BUY",
@@ -16,7 +16,7 @@
         "confidence_score": 88.0,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T12:29:27.380158"
+        "updated_at": "2026-04-18T23:04:16.378692"
       },
       "timestamp": "2026-04-18T12:53:31.181858",
       "current_price": 245.71,
@@ -31,12 +31,12 @@
       "invested_value": 31863.5,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "BUY",
-        "prediction_direction": "UP",
-        "confidence_score": 84.5,
+        "recommendation": "HOLD",
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 83.8,
         "risk_level": "LOW",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T12:43:55.058720"
+        "updated_at": "2026-04-18T23:14:27.954664"
       },
       "timestamp": "2026-04-18T12:54:08.277797",
       "current_price": 637.27,
@@ -53,12 +53,36 @@
       "signal_context": {
         "recommendation": "BUY",
         "prediction_direction": "UP",
-        "confidence_score": 88.3,
+        "confidence_score": 88.7,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T12:34:30.973694"
+        "updated_at": "2026-04-18T23:07:09.162503"
       },
-      "timestamp": "2026-04-18T12:54:15.876940"
+      "timestamp": "2026-04-18T12:54:15.876940",
+      "current_price": 188.88,
+      "current_value": 2833.2,
+      "profit_loss": 0.0,
+      "profit_loss_pct": 0.0
+    },
+    {
+      "ticker": "TD",
+      "buy_price": 103.91,
+      "quantity": 10.0,
+      "invested_value": 1039.1,
+      "prediction": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.3,
+        "risk_level": "LOW",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T23:13:34.384876"
+      },
+      "timestamp": "2026-04-18T23:25:34.519567",
+      "current_price": 103.91,
+      "current_value": 1039.1,
+      "profit_loss": 0.0,
+      "profit_loss_pct": 0.0
     }
   ],
   "history": [
@@ -112,10 +136,44 @@
         "updated_at": "2026-04-18T12:34:30.973694"
       },
       "timestamp": "2026-04-18T12:54:15.876940"
+    },
+    {
+      "type": "BUY",
+      "ticker": "TD",
+      "price": 103.91,
+      "amount": 1039.1,
+      "quantity": 10.0,
+      "prediction_at_buy": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.3,
+        "risk_level": "LOW",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T23:13:34.384876"
+      },
+      "timestamp": "2026-04-18T23:25:34.519567"
+    },
+    {
+      "type": "SELL",
+      "ticker": "AMZN",
+      "price": 245.71,
+      "amount": 491.42,
+      "quantity": 2.0,
+      "profit_loss": 0.0,
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 88.0,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-18T23:04:16.378692"
+      },
+      "timestamp": "2026-04-18T23:25:45.404905"
     }
   ],
   "accuracy_metrics": {
-    "total_trades": 0,
+    "total_trades": 1,
     "correct_predictions": 0,
     "accuracy_score": 0.0
   },

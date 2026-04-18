@@ -219,6 +219,23 @@ class LLMClient:
         self.last_provider_used = "intelligent_fallback"
         return self._intelligent_fallback(prompt, system, expect_json)
 
+    async def complete_small(
+        self,
+        prompt: str,
+        system: str = "You are a specialized entity extraction tool. Be brief.",
+        expect_json: bool = False,
+        temperature: float = 0.0,
+    ) -> str:
+        """Lightweight completion for utility tasks (NER, classification, etc)."""
+        return await self.complete(
+            prompt=prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=64,
+            expect_json=expect_json,
+            role="sentiment",  # Uses the fastest model
+        )
+
     def _get_role_config(self, role: str) -> Dict[str, Any]:
         """Maps a role to specific model, tokens, temperature, and API KEY."""
         if role == "sentiment":

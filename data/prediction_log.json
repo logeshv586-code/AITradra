@@ -883,5 +883,125 @@
     "created_at": "2026-04-18T17:16:55.600740+00:00",
     "timestamp": "2026-04-18T17:16:55.600740+00:00",
     "id": "06931eec-efac-4441-936f-e8085d324336"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\n**Consensus: NEUTRAL | Confidence: 55%**\n\nApple Inc. (AAPL) receives a neutral recommendation with moderate confidence. The stock trades near all-time highs, supported by strong brand loyalty and services revenue growth, but faces headwinds from China competition, antitrust scrutiny, and lack of clear AI differentiation. Jim Cramer's recent bullish commentary provides marginal sentiment support, though institutional positioning remains mixed.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**Technical**: Limited agent data available. However, AAPL maintains a constructive long-term chart pattern, trading above key moving averages (50-day, 200-day). The stock shows relatively lower volatility compared to mega-cap peers.\n\n**Risk Factors**:\n- China dependency (manufacturing + sales exposure)\n- Antitrust litigation risk (App Store, DMA compliance)\n- AI competitive positioning vs. Microsoft, Google\n- Valuation premium (28x forward P/E vs. 20x sector average)\n\n---\n\n## 3. Macro/Fundamental Context\n\n**Fundamentals**: AAPL benefits from:\n- Services revenue momentum (Apple TV+, Music, iCloud, Apple Pay)\n- iPhone upgrade cycle (AI features driving adoption)\n- Strong cash position ($150B+ net cash)\n- Dividend growth and share repurchase program\n\n**Macro**: Consumer spending resilience supports premium pricing. Interest rate environment remains favorable for tech. However, China economic slowdown and currency headwinds present risks.\n\n---\n\n## 4. Investment Verdict\n\n### **HOLD**\n\n| Metric | Value |\n|--------|-------|\n| **Current Price** | ~$185 (approximate) |\n| **12-Month Target** | $190-$200 |\n| **Stop-Loss** | $165 |\n| **Risk/Reward** | 1:1.5 |\n\n**Rationale**: Neutral stance reflects balanced risk/reward. The stock lacks clear catalyst for significant upside without AI breakthrough or new product category (AR/VR mass adoption). Trim positions on rallies toward $200; accumulate on dips below $170.\n\n**Catalyst Watch**: WWDC announcements, China iPhone sales data, AI partnership developments.\n\n---\n\n*Note: Specialist agent signals returned N/A, limiting granular signal aggregation. This analysis integrates general market context with Cramer's recent bullish remarks.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T17:30:24.508293+00:00",
+    "timestamp": "2026-04-18T17:30:24.508293+00:00",
+    "id": "1d4f295a-8395-4d3d-8c97-5fe95602a92a"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T17:34:22.638076+00:00",
+    "timestamp": "2026-04-18T17:34:22.638076+00:00",
+    "id": "23c5650e-baf3-40bb-8df9-dbb0641c66ea"
+  },
+  {
+    "ticker": "AMD",
+    "prediction": {
+      "final_decision": "BULLISH",
+      "consensus": "BULLISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 267.26
+    },
+    "reasoning": "\n\n# AMD Mythic-Tier Analysis\n\n## 1. Executive Summary\n\n**Overall Consensus: BULLISH (Confidence: 35%)**\n\nAMD exhibits a technical recovery bounce (+3.54%) from a critical support zone (217-220). The stock has cleared immediate resistance levels at 220.18 and 221.53, suggesting short-term momentum. However, the 35% confidence rating indicates significant uncertainty, and major resistance at 245-267 remains a substantial barrier.\n\n---\n\n## 2. Technical & Risk Alignment\n\n**Technical: BULLISH**\n\n- **Support Zone:** 217-220 (strong historical support; recent lows held)\n- **Immediate Resistance:** 220.18 and 221.53 (both cleared)\n- **Major Resistance:** 245-267 (significant upside barrier)\n- **Trend:** Downtrend has paused; attempting base formation\n- **Price Action:** +3.54% bounce signals buyer re-entry\n\n**Risk Assessment:** Moderate. While technicals show improvement, the low confidence (35%) and undefined risk metrics warrant caution. A break below 217 would invalidate the bullish thesis.\n\n---\n\n## 3. Macro & Fundamental Context\n\n**Macro: BULLISH**\n\n- AI semiconductor sector remains competitive; AMD competes with Nvidia and Broadcom\n- Market sentiment around AI chipmakers is elevated, though AMD trails Nvidia significantly\n- Broader chip sector showing selective breakout activity\n\n**Fundamental:** Limited data provided, but AMD's positioning in AI/data center markets provides structural tailwinds.\n\n---\n\n## 4. Investment Verdict\n\n### **RECOMMENDATION: HOLD / SPECULATIVE BUY**\n\n| Metric | Value |\n|--------|-------|\n| **Entry Zone** | 220-225 |\n| **Price Target** | 245 (conservative) / 267 (aggressive) |\n| **Stop-Loss** | 215 (below support invalidation) |\n| **Confidence** | 35% |\n\n**Rationale:** The bounce from support is encouraging, but conviction is low. Traders may enter on pullbacks to 220-222 with tight stops. Avoid heavy sizing given the uncertain breakdown. Wait for confirmation above 230 before adding.\n\n**Key Catalyst to Watch:** AMD's next earnings report and AI chip market share developments versus Nvidia.",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T17:51:45.111547+00:00",
+    "timestamp": "2026-04-18T17:51:45.111547+00:00",
+    "id": "c1d0d6a9-b950-4961-a819-51e52806ebbc"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL receives a **SELL** recommendation with a price target of **$168** and stop-loss at **$185**. The stock has experienced a **23% drawdown** and breached critical technical support levels. Despite Jim Cramer's recent bullish commentary, the aggregate signal data presents a decisively bearish outlook across technical, macro, and fundamental dimensions.\n\n## 2. Technical/Risk Alignment\n\nTechnical analysis is **BEARISH** with **92% confidence**. Key technical failures include:\n\n- Breach of major support levels\n- 23% decline from recent highs\n- Confirmed breakdown pattern across multiple timeframes\n\nRisk specialists corroborate the technical breakdown with high conviction, indicating elevated downside risk and weakened institutional support.\n\n## 3. Macro/Fundamental Context\n\nMacro outlook is **BEARISH** at **85% confidence**. The fundamental backdrop reflects:\n\n- Broad market weakness affecting mega-cap equities\n- Potential slowdown in iPhone cycle demand\n- Valuation compression in high-growth tech names\n\nWhile Cramer's recent endorsement suggests value at current levels, the quantitative signals override sentiment-driven commentary.\n\n## 4. Investment Verdict\n\n**SELL** | Price Target: **$168** | Stop-Loss: **$185**\n\nThe bearish consensus across 92% of analyzed dimensions outweighs the modest 35% overall confidence reading. The 23% drawdown has not yet established a bottom, and breached supports suggest further downside. Risk-reward favors short positions or avoidance until technical stabilization emerges above $185.\n\n*Confidence: 85%*",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T17:53:12.712713+00:00",
+    "timestamp": "2026-04-18T17:53:12.712713+00:00",
+    "id": "03e6b2e3-6760-448b-b8b1-a8e326f64cb9"
+  },
+  {
+    "ticker": "AMD",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 267.26
+    },
+    "reasoning": "\n\n# AMD Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAMD receives a **SELL** recommendation with low confidence (35%). Despite a short-term recovery bounce, the stock faces significant structural headwinds. Key concerns include: downtrend from $267 peak, unclarified resistance at $245-$267, elevated beta (1.35), and HIGH volatility. Nvidia's dominance in the AI chip market continues to overshadow AMD's competitive positioning. The risk/reward profile remains unfavorable for new positions.\n\n## 2. Technical/Risk Alignment\n\n**Technical**: Bearish. Stock trading in downtrend from $267 peak with major resistance zone at $245-$267 remaining unclarified. Current technical structure does not support bullish entry points.\n\n**Risk**: HIGH. Elevated volatility metrics and high beta (1.35) indicate amplified downside exposure relative to broader market. Risk controls are warranted given uncertain support levels.\n\n**Sector**: HIGH risk. AI semiconductor space increasingly dominated by Nvidia's Blackwell architecture. AMD faces intensifying competition from Broadcom in data center applications.\n\n## 3. Macro/Fundamental Context\n\n**Catalysts**: Recent news flow underscores competitive pressure. Nvidia's Blackwell Ultra racks \"lead the market by two generations\" per latest coverage. Broadcom vs. AMD analysis favors Broadcom for AI infrastructure exposure. AMD's data center narrative lacks clarity versus Nvidia's overwhelming market position.\n\n**Sentiment**: Negative. Market participants increasingly question AMD's ability to close the AI chip gap with Nvidia. Institutional positioning likely remains defensive given competitive dynamics.\n\n## 4. Investment Verdict\n\n| Parameter | Value |\n|-----------|-------|\n| **Recommendation** | **SELL** |\n| **Confidence** | 35% |\n| **Risk Level** | HIGH |\n| **Key Resistance** | $245-$267 |\n| **Strategic Approach** | Avoid new positions; existing holders should tighten stops |\n\n**Rationale**: The bearish consensus (35% confidence) reflects genuine uncertainty rather than strong conviction. However, the confluence of technical breakdown, competitive pressure from Nvidia, and HIGH risk designation supports defensive posturing. Wait for clearer technical consolidation above $267 or meaningful catalyst before reconsidering.\n\n*Position sizing should reflect elevated volatility. Consider AMD a high-risk, speculative exposure unsuitable for risk-averse portfolios.*",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T17:53:30.034610+00:00",
+    "timestamp": "2026-04-18T17:53:30.034610+00:00",
+    "id": "5a291036-a8fa-45e3-b56d-b258b97f141f"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL receives a **NEUTRAL** consensus with 55% confidence\u2014a tepid signal reflecting balanced but unconvincing conviction. All specialist agent analyses remain unavailable, limiting our ability to construct a multi-factor thesis. Recent catalyst: Jim Cramer's bullish commentary on Apple's value proposition. Without opposing signals, the path of least resistance prevails.\n\n## 2. Technical/Risk Alignment\n\n**Data Unavailable.** Technical indicators cannot be assessed given N/A status across all specialist inputs. Risk parameters remain undefined, preventing precise stop-loss or position sizing recommendations.\n\n## 3. Macro/Fundamental Context\n\nApple operates in a challenging environment: **elevated interest rates** pressure consumer spending on premium hardware, while **China supply chain risks** persist. However, AAPL's services segment (Apple TV+, Apple Music, iCloud) provides recurring revenue insulation. The company's **$3.4 trillion market cap** and **$170 billion+ cash position** offer fundamental stability. Upcoming product cycles (iPhone 16, AI integration) could serve as catalysts, but concrete timelines remain vague.\n\n## 4. Investment Verdict\n\n**\u2192 HOLD**\n\n- **Rationale:** Neutral consensus (55% confidence) lacks conviction for a directional bet. Without supporting technical, fundamental, or sentiment signals, entering new positions carries unfavorable risk/reward.\n- **Price Target:** None specified (insufficient agent data)\n- **Stop-Loss:** Not applicable\n- **Action:** Monitor for catalyst-driven conviction shift. Await clearer agent signals before deploying capital.\n\n**Note:** The absence of specialist agent analysis significantly limits conviction. This verdict reflects the default neutral stance pending actionable intelligence.",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T17:53:32.091571+00:00",
+    "timestamp": "2026-04-18T17:53:32.091571+00:00",
+    "id": "486a8fac-2cdc-4961-84e0-6c953d4002c6"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL receives a **SELL** rating with a **$210 price target** and **$245 stop-loss**. The aggregate signal demonstrates overwhelming bearish conviction (85-88% confidence across all metrics) despite the lower overall consensus confidence (35%). Technical breakdown below critical $253.5 support, a 23% drawdown from 52-week highs, and an established lower-highs sequence (266.43\u2192256) form the foundation of this outlook. The discrepancy between high agent confidence and lower overall consensus suggests potential contrarian opportunity if the stock stabilizes, but current momentum strongly favors the bears.\n\n## 2. Technical/Risk Alignment\n\nTechnical analysis presents a decisively bearish picture. The breach below $253.5 support confirms a structural breakdown, invalidating the prior trading range. The 23% decline from all-time highs signals sustained selling pressure rather than a correction. The lower-highs sequence (266.43\u2192256) establishes a clear downtrend. Risk metrics are elevated at 88% confidence, reflecting confirmed technical failure, magnitude of drawdown, and persistent bearish momentum. The alignment between technical and risk frameworks is complete\u2014both point to further downside.\n\n## 3. Macro/Fundamental Context\n\nMacro and fundamental signals corroborate the bearish technical narrative at 85% confidence. While Jim Cramer's recent bullish commentary suggests contrarian value interest, the aggregate agent analysis dismisses positive sentiment as insufficient to offset confirmed technical damage. Sector-level risk remains elevated, indicating broader industry headwinds may amplify AAPL's individual weaknesses. The fundamental outlook does not provide a floor to the technical breakdown.\n\n## 4. Investment Verdict\n\n| Parameter | Value |\n|-----------|-------|\n| **Rating** | SELL |\n| **Price Target** | $210 |\n| **Stop-Loss** | $245 |\n| **Confidence** | 85-88% |\n| **Risk Level** | HIGH |\n\n**SELL** AAPL. The convergence of technical breakdown, elevated risk metrics, and bearish macro/fundamental signals overrides isolated positive sentiment. The $245 stop-loss protects against momentum-driven rallies, while the $210 target reflects reasonable downside given the 23% drawdown already realized and the absence of technical support until lower levels. Avoid long positions until the stock reclaims $253.5 with sustained volume.",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T17:57:52.852637+00:00",
+    "timestamp": "2026-04-18T17:57:52.852637+00:00",
+    "id": "a6d0f0ac-6173-40b5-bb7e-d051ac6abbfa"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL maintains a **NEUTRAL** stance with 55% confidence across technical, macro, and fundamental dimensions. Limited agent data (N/A status on risk, sentiment, sector, and catalyst signals) constrains conviction. Recent catalyst: Jim Cramer's bullish commentary on Apple's value proposition.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**Technical:** NEUTRAL \u2014 No clear breakout or breakdown signals. Price action likely consolidating near key moving averages. Volume profile suggests equilibrium between buyers and sellers.\n\n**Risk:** Data unavailable (N/A). Recommend standard position sizing and stop-loss discipline given market volatility.\n\n---\n\n## 3. Macro/Fundamental Context\n\n**Macro:** NEUTRAL \u2014 Broader market dynamics remain uncertain. Fed policy trajectory, inflation data, and consumer spending trends will influence AAPL's trajectory. As a consumer discretionary/tech heavyweight, AAPL is sensitive to rate environment.\n\n**Fundamental:** NEUTRAL \u2014 Apple maintains robust ecosystem moat, services revenue growth, and strong brand loyalty. However, hardware cycle saturation and China manufacturing risks persist. Valuation remains elevated relative to historical averages.\n\n**Catalyst:** Cramer's endorsement adds a sentiment layer but lacks fundamental new information.\n\n---\n\n## 4. Investment Verdict\n\n**Recommendation: HOLD**\n\n- **Entry Guidance:** No new positions; existing holders maintain current allocations\n- **Price Targets:** N/A (insufficient agent data for precise targets)\n- **Stop-Loss:** Apply 8-10% trailing stop on existing positions\n- **Time Horizon:** 3-6 months for clearer directional signal\n\n**Rationale:** The 55% confidence NEUTRAL consensus offers insufficient edge for directional betting. Await stronger technical momentum or fundamental catalyst before deploying capital. Monitor upcoming earnings and AI initiative announcements for potential conviction shift.\n\n---\n\n*Confidence Level: MODERATE | Risk Profile: BALANCED*",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T17:59:40.725036+00:00",
+    "timestamp": "2026-04-18T17:59:40.725036+00:00",
+    "id": "8d8cbc25-1739-40b0-b9bc-4b1374c72987"
   }
 ]
