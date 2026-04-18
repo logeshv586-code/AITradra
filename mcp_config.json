@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "coingecko": {
+      "command": "npx",
+      "args": ["-y", "@llmindset/mcp-coingecko"]
+    },
+    "fetch": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-fetch"]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    }
+  }
+}

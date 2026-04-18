@@ -69,6 +69,18 @@ async def main():
     # Analysis will load models on-demand if local inference is requested.
     # asyncio.create_task(_warm_local_llm())
     asyncio.create_task(_warm_mem0())
+    
+    # Initialize Agentic Knowledge Base (MarketRAG)
+    async def _warm_market_rag():
+        try:
+            from agents.market_rag import get_agent
+            rag = get_agent()
+            counts = rag.index_all_unindexed()
+            logger.info(f"MarketRAG boot indexing complete: {counts}")
+        except Exception as e:
+            logger.warning(f"MarketRAG boot indexing failed: {e}")
+            
+    asyncio.create_task(_warm_market_rag())
 
     if not scheduler.running:
         from agents.base_agent import AgentContext

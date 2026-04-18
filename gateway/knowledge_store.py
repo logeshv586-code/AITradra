@@ -13,6 +13,30 @@ from core.config import settings
 
 DB_PATH = settings.KNOWLEDGE_DB_PATH
 
+# Agentic platform hooks (lazy imports to avoid circular deps)
+_move_explainer = None
+_market_rag = None
+
+def _get_move_explainer():
+    global _move_explainer
+    if _move_explainer is None:
+        try:
+            from agents.move_explainer import get_agent as _me
+            _move_explainer = _me()
+        except Exception as e:
+            logger.debug(f"MoveExplainer not available: {e}")
+    return _move_explainer
+
+def _get_market_rag():
+    global _market_rag
+    if _market_rag is None:
+        try:
+            from agents.market_rag import get_agent as _mr
+            _market_rag = _mr()
+        except Exception as e:
+            logger.debug(f"MarketRAG not available: {e}")
+    return _market_rag
+
 
 class KnowledgeStore:
     """
@@ -184,6 +208,19 @@ class KnowledgeStore:
                 logger.warning(f"OHLCV insert error for {ticker}/{r.get('date')}: {e}")
         conn.commit()
         self._update_collection_status(ticker, "ohlcv", inserted)
+
+        # Trigger MoveExplainer if significant price movement (only if we have recent data)
+        if inserted > 0 and records:
+            latest = records[-1]
+            latest_close = latest.get("close")
+            if latest_close:
+                me = _get_move_explainer()
+                if me:
+                    try:
+                        me.on_market_update(ticker, float(latest_close))
+                    except Exception as e:
+                        logger.debug(f"MoveExplainer trigger skipped: {e}")
+
         return inserted
 
     def get_ohlcv_history(self, ticker: str, days: int = 365 * 5) -> list[dict]:
@@ -218,6 +255,16 @@ class KnowledgeStore:
                 """, (a.get("ticker"), a.get("headline"), a.get("summary"), a.get("body"),
                       a.get("url"), a.get("source"), a.get("published_at"), a.get("sentiment_score", 0.0)))
                 inserted += 1
+
+                # Index in MarketRAG for semantic search
+                if inserted > 0:
+                    mr = _get_market_rag()
+                    if mr:
+                        try:
+                            news_id = conn.lastrowid
+                            mr.index_news(news_id, a.get("ticker"), a.get("headline"), {"source": a.get("source")})
+                        except Exception as e:
+                            logger.debug(f"MarketRAG news indexing skipped: {e}")
             except Exception as e:
                 logger.warning(f"News insert error: {e}")
         conn.commit()
@@ -289,6 +336,15 @@ class KnowledgeStore:
         """, (ticker, agent_name, insight_type, content, confidence,
               json.dumps(source_urls) if source_urls else None))
         conn.commit()
+
+        # Index in MarketRAG for semantic search
+        mr = _get_market_rag()
+        if mr:
+            try:
+                insight_id = conn.lastrowid
+                mr.index_insight(insight_id, ticker, content, {"agent": agent_name, "type": insight_type})
+            except Exception as e:
+                logger.debug(f"MarketRAG insight indexing skipped: {e}")
 
     def get_insights(self, ticker: str, limit: int = 20) -> list[dict]:
         conn = self._get_conn()
@@ -449,9 +505,6 @@ class KnowledgeStore:
         results.extend([dict(r) for r in insights])
 
         return results[:limit]
-
-
-# Global singleton
 
     # ─── AGENT HEALTH ─────────────────────────────────────────────────────────
 

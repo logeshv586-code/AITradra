@@ -204,6 +204,16 @@ async def lifespan(app: FastAPI):
     # Startup catch-up: if KnowledgeStore has no data, do a one-time RSS fetch NOW
     await market_scheduler.startup_catchup()
 
+    # ─── Agentic Platform: Initialize MarketRAG ───────────────────────────────
+    try:
+        from agents.market_rag import get_agent as get_mr
+        app.state.market_rag = get_mr()
+        counts = app.state.market_rag.index_all_unindexed()
+        logger.info(f"MarketRAG warmed: indexed {counts}")
+    except Exception as e:
+        logger.warning(f"MarketRAG initialization skipped: {e}")
+        app.state.market_rag = None
+
     # The background scheduler and jobs are now managed globally in main.py
     # to avoid ConflictingIdErrors and ensure single-source-of-truth orchestration.
 
@@ -723,6 +733,97 @@ async def explain_price_move(ticker: str):
     prompt = build_price_move_explainer_prompt(ticker, {**data, "news": news})
     result = await llm_client.complete(prompt, expect_json=True)
     return result
+
+
+# ─── Agentic Platform Endpoints ───────────────────────────────────────────────
+
+from fastapi.responses import StreamingResponse
+from typing import Optional
+
+try:
+    from agents.move_explainer import explain_on_demand, get_latest_explanation
+    from agents.market_rag import ask_stream as rag_ask_stream
+    _AGENTIC_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Agentic modules not available: {e}")
+    _AGENTIC_AVAILABLE = False
+
+class AskRequest(BaseModel):
+    question: str
+    symbol: Optional[str] = None
+
+@app.get("/api/stock/{ticker}/explanation")
+async def get_latest_ticker_explanation(ticker: str):
+    """Retrieve the last stored brain explanation for a stock move."""
+    if not _AGENTIC_AVAILABLE:
+        return {"error": "Agentic Platform not loaded"}
+    return get_latest_explanation(ticker.upper())
+
+@app.post("/api/stock/{ticker}/explain-now")
+async def trigger_explanation_on_demand(ticker: str):
+    """Trigger a fresh LLM explanation for a stock move immediately."""
+    if not _AGENTIC_AVAILABLE:
+        return {"error": "Agentic Platform not loaded"}
+    return await explain_on_demand(ticker.upper())
+
+@app.post("/api/ask")
+async def ask_market_rag(body: AskRequest):
+    """Semantic RAG chat over the entire intelligence database (SSE stream)."""
+    if not _AGENTIC_AVAILABLE:
+        # Fallback if MarketRAG is not available
+        async def fallback_stream():
+            yield "data: [ERROR] Knowledge Base (MarketRAG) is not available in the current environment.\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(fallback_stream(), media_type="text/event-stream")
+        
+    return StreamingResponse(
+        rag_ask_stream(body.question, body.symbol),
+        media_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/api/stock/{ticker}/explanation")
+async def get_explanation(ticker: str):
+    """Fast retrieval of last cached move explanation (no LLM call)."""
+    if not _AGENTIC_AVAILABLE:
+        return {"error": "Agentic platform not initialized"}
+    ticker = ticker.upper()
+    result = get_latest_explanation(ticker)
+    if result:
+        return result
+    return {"error": "No explanation available", "ticker": ticker}
+
+
+@app.post("/api/stock/{ticker}/explain-now")
+async def explain_now(ticker: str):
+    """Trigger fresh on-demand move explanation (LLM call)."""
+    if not _AGENTIC_AVAILABLE:
+        return {"error": "Agentic platform not initialized"}
+    ticker = ticker.upper()
+    result = explain_on_demand(ticker)
+    return result
+
+
+class AskRequest(BaseModel):
+    question: str
+    symbol: Optional[str] = None
+
+
+@app.post("/api/ask")
+async def ask_endpoint(body: AskRequest):
+    """RAG-powered Q&A endpoint with SSE streaming."""
+    if not _AGENTIC_AVAILABLE:
+        return {"error": "Agentic platform not initialized"}
+    return StreamingResponse(
+        rag_ask_stream(body.question, body.symbol),
+        media_type="text/event-stream",
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.post("/api/chat/stock/{ticker}")
