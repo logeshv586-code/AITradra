@@ -12,6 +12,7 @@ from core.logger import get_logger
 from gateway.data_engine import data_engine
 from gateway.knowledge_store import knowledge_store
 from gateway.stock_geo import get_coords_for_ticker, format_market_cap, format_volume
+from agents.collector_agent import get_watchlist
 from core.scoring import calculate_technical_score, calculate_consensus_verdict, calibrate_confidence
 from llm.client import get_shared_llm
 
@@ -754,7 +755,7 @@ class IntelligenceService:
         force_refresh: bool = False,
         max_age_minutes: int = 180,
     ) -> list[dict]:
-        tickers = [ticker.upper() for ticker in (tickers or settings.DEFAULT_WATCHLIST)]
+        tickers = [ticker.upper() for ticker in (tickers or get_watchlist())]
         stored = {
             item["ticker"]: self._ensure_intelligence_profile(item)
             for item in self.store.get_all_ticker_intelligence(
@@ -786,7 +787,7 @@ class IntelligenceService:
 
     async def warm_watchlist_intelligence(self, tickers: list[str] | None = None):
         """Background task to fully update intelligence with staggered processing."""
-        tickers = [ticker.upper() for ticker in (tickers or settings.DEFAULT_WATCHLIST)]
+        tickers = [ticker.upper() for ticker in (tickers or get_watchlist())]
         logger.info(f"🦾 Staggered Intelligence Warming for {len(tickers)} tickers...")
         
         # Process in small batches to avoid CPU/RAM spikes

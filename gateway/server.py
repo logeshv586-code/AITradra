@@ -357,7 +357,7 @@ async def _fetch_yf_ticker(ticker: str) -> dict:
 
     # Fetch real data via DataEngine (knowledge store -> collector -> scrape)
     try:
-        price_data = await data_engine.get_price_data(ticker)
+        price_data = await data_engine.get_price_data(ticker, allow_scrape=True)
         px = price_data.get("px", 0)
         chg = price_data.get("chg", 0)
         lat, lon = get_coords_for_ticker(ticker)
@@ -413,7 +413,7 @@ async def _fetch_yf_ticker(ticker: str) -> dict:
 async def _fetch_yf_index(symbol: str, name: str) -> dict:
     """Fetch index value from knowledge store or collector."""
     try:
-        price_data = await data_engine.get_price_data(symbol)
+        price_data = await data_engine.get_price_data(symbol, allow_scrape=True)
         return {
             "name": name,
             "value": round(price_data.get("px", 0), 2),

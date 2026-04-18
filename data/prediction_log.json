@@ -1003,5 +1003,65 @@
     "created_at": "2026-04-18T17:59:40.725036+00:00",
     "timestamp": "2026-04-18T17:59:40.725036+00:00",
     "id": "8d8cbc25-1739-40b0-b9bc-4b1374c72987"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-04-18T18:22:40.687905+00:00",
+    "timestamp": "2026-04-18T18:22:40.687905+00:00",
+    "id": "5761ac14-6652-42bc-aef0-528e9f9c7b36"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T18:22:41.285222+00:00",
+    "timestamp": "2026-04-18T18:22:41.285222+00:00",
+    "id": "ebe86e34-deba-4755-af92-512be32323d6"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T18:23:18.568362+00:00",
+    "timestamp": "2026-04-18T18:23:18.568362+00:00",
+    "id": "88db7f78-cdb9-4df1-84c5-6ab2b107e38b"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-18T18:23:33.722581+00:00",
+    "timestamp": "2026-04-18T18:23:33.722581+00:00",
+    "id": "024f13bb-771e-4c5b-b5ae-52230669bafd"
   }
 ]

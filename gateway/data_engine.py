@@ -36,7 +36,7 @@ class DataEngine:
         # 2. Check knowledge store for recent OHLCV
         try:
             from gateway.knowledge_store import knowledge_store
-            ohlcv = knowledge_store.get_ohlcv_history(ticker, days=7)
+            ohlcv = knowledge_store.get_ohlcv_history(ticker, days=100)
             if ohlcv and len(ohlcv) > 0:
                 latest = ohlcv[0]
                 px = float(latest.get("close", 0))
@@ -68,11 +68,12 @@ class DataEngine:
         except Exception as e:
             logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
 
-        # 3. If we allow scraping and nothing was found in DB/Cache
-        if allow_scrape:
+        # 3. If we allow scraping (or data is completely missing and this is a priority request)
+        if allow_scrape or (not ohlcv and ticker in settings.DEFAULT_WATCHLIST):
             try:
                 from agents.collector_agent import fetch_ticker
-                df, source = await fetch_ticker(ticker, period="1y", scrape_ok=True)
+                # Use 1mo period to ensure charts are populated on first hit
+                df, source = await fetch_ticker(ticker, period="1mo", scrape_ok=True)
                 if not df.empty:
                     latest_row = df.iloc[-1]
                     px = float(latest_row.get("Close", 0))

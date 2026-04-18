@@ -192,10 +192,13 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
     try:
         import yfinance as yf
 
+        interval = '5m' if period == '1d' else '1d'
+        fetch_period = '1mo' if (period == '1d' or period == '') else period
+
         df = yf.download(
             tickers=ticker,
-            period='1d',
-            interval='5m',
+            period=fetch_period,
+            interval=interval,
             auto_adjust=False,
             progress=False,
             threads=False,
@@ -672,7 +675,8 @@ async def collect_news_data():
     from agents.mcp_news_agent import McpNewsAgent
 
     agent = McpNewsAgent()
-    for ticker in settings.DEFAULT_WATCHLIST:
+    watchlist = get_watchlist()
+    for ticker in watchlist:
         try:
             await agent.run(AgentContext(task=f"News sync for {ticker}", ticker=ticker))
         except Exception as e:
@@ -684,7 +688,8 @@ async def index_knowledge_to_rag():
     from agents.rag_agent import RagAgent
 
     agent = RagAgent()
-    for ticker in settings.DEFAULT_WATCHLIST:
+    watchlist = get_watchlist()
+    for ticker in watchlist:
         try:
             # We index "what is stock" or similar generic task to force a summary refresh
             await agent.run(
