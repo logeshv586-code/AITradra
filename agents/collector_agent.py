@@ -48,13 +48,20 @@ TICKER_ALIASES: dict[str, str] = {
     # Indian markets — dollar sign is invalid
     "$TATOMOTORS.NS": "TATAMOTORS.NS",
     "TATOMOTORS.NS": "TATAMOTORS.NS",
+    "TATAMOTORS": "TATAMOTORS.NS",
+    "RELIANCE": "RELIANCE.NS",
+    "HDFCBANK": "HDFCBANK.NS",
+    "INFY": "INFY.NS",
+    "TCS": "TCS.NS",
+    "SBIN": "SBIN.NS",
+    "ICICIBANK": "ICICIBANK.NS",
     # Rebranded tickers - keep original if API doesn't support the new ticker
     "SQ": "SQ",  # Block Inc
-    "MATIC-USD": "POL-USD",  # Polygon rebranded to POL (try POL first, fallback works)
+    "MATIC-USD": "POL-USD",  # Polygon rebranded to POL
     "FB": "META",
-    "TWTR": "X",  # note: X is no longer publicly traded
+    "TWTR": "X",
     # OTC / ADR alternatives (fallback to these if primary fails)
-    "BABA": "BABA",  # keep, but scrape if yf fails
+    "BABA": "BABA",
     "TCEHY": "TCEHY",
 }
 
@@ -78,6 +85,15 @@ CACHE_DIR = Path(os.environ.get("DATA_CACHE_DIR", "./data/cache"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "demo")
+
+# ── Layer 1: Dynamic Watchlist loading ───────────────────────────────────────
+def get_watchlist() -> list[str]:
+    """Load watchlist from environment variable or fallback to settings."""
+    env_watchlist = os.environ.get("WATCHLIST")
+    if env_watchlist:
+        # Split bypasses whitespace and comma/semicolon delimiters
+        return [t.strip().upper() for t in re.split(r'[,\s;]+', env_watchlist) if t.strip()]
+    return settings.DEFAULT_WATCHLIST
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -178,8 +194,8 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
 
         df = yf.download(
             tickers=ticker,
-            period=period,
-            interval="1d",
+            period='1d',
+            interval='5m',
             auto_adjust=False,
             progress=False,
             threads=False,
@@ -233,10 +249,14 @@ def _to_stooq_symbol(ticker: str) -> str:
     t = ticker.upper()
     if t.endswith("-USD"):  # crypto: BTC-USD → BTC.V
         return t.replace("-USD", ".V")
-    if t.endswith(".NS") or t.endswith(".BO"):  # Indian markets
-        return t.lower()
-    if t.endswith(".DE") or t.endswith(".L"):  # European
-        return t.lower()
+    if t.endswith(".NS"): # NSE
+        return t.replace(".NS", ".IN")
+    if t.endswith(".BO"): # BSE
+        return t.replace(".BO", ".IN")
+    if t.endswith(".L"): # London
+        return t.replace(".L", ".UK")
+    if t.endswith(".DE"): # Germany
+        return t.replace(".DE", ".DE")
     if t.startswith("^"):  # index — pass through
         return t
     return f"{t}.US"  # default: US stock
@@ -493,8 +513,14 @@ async def fetch_ticker(
     df = _fetch_yfinance(ticker, period)
     if df is not None and not df.empty:
         source = "yfinance"
-        logger.info(f"[Collector] {ticker}: {len(df)} OHLCV records from yfinance")
+        logger.info(f"[Collector] {ticker}: {len(df)} OHLCV records (5m) from yfinance")
         _save_cache(ticker, period, df)
+        
+        # Fire internal market_update event for MoveExplainer
+        from agents.move_explainer import on_market_update
+        latest_close = float(df.iloc[-1]["Close"])
+        on_market_update(symbol=ticker, latest_close=latest_close)
+        
         return df, source
 
     # ── Layer 2: Stooq ───────────────────────────────────────────────────────
@@ -618,7 +644,8 @@ class CollectorAgent:
 async def collect_historical_data():
     """Triggered on startup and weekly. Pulls 5y history for all tickers."""
     logger.info("📡 Starting exhaustive historical data collection (5y)...")
-    collector = CollectorAgent(settings.DEFAULT_WATCHLIST, period="5y")
+    watchlist = get_watchlist()
+    collector = CollectorAgent(watchlist, period="5y")
     results = await collector.run()
     # Save to blobs
     from agents.blob_agent import BlobAgent
@@ -634,7 +661,8 @@ async def collect_historical_data():
 async def collect_daily_data():
     """Triggered daily. Pulls 1y (compact) update for all tickers."""
     logger.info("📡 Starting daily refresh for all tickers...")
-    collector = CollectorAgent(settings.DEFAULT_WATCHLIST, period="1y")
+    watchlist = get_watchlist()
+    collector = CollectorAgent(watchlist, period="1y")
     await collector.run()
     logger.info("✅ Daily refresh complete.")
 

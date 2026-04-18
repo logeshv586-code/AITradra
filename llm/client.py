@@ -48,8 +48,8 @@ class LLMClient:
     _lm_studio_retry_after = 0.0
     _ollama_retry_after = 0.0
     _semaphore = asyncio.Semaphore(
-        1
-    )  # Prevent parallel bursting that crashes LM Studio
+        2
+    )  # Increased from 1 to 2 to allow parallel reasoning without crashing LM Studio
 
     @classmethod
     def preload_local_gguf(cls) -> bool:

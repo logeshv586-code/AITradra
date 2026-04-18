@@ -6,7 +6,8 @@ Provides entity linking, relationship management, and GraphRAG.
 import os
 import asyncio
 from typing import List, Dict, Any, Optional
-from zep_python import ZepClient, Document, DocumentCollection
+from zep_python import ZepClient
+from zep_python.document import Document, DocumentCollection
 from core.logger import get_logger
 from core.config import settings
 
@@ -20,12 +21,21 @@ class GraphMemory:
 
     def __init__(self, api_url: str = None):
         self.api_url = api_url or os.getenv("ZEP_API_URL", "http://localhost:8001")
-        self.client = ZepClient(self.api_url)
+        self.client = None
         self.collection_name = "mirofish_world"
-        self._ensure_collection()
+        
+        try:
+            # The ZepClient constructor performs a health check. 
+            # We catch errors here to allow the system to boot without Docker.
+            self.client = ZepClient(self.api_url)
+            self._ensure_collection()
+        except Exception as e:
+            logger.warning(f"Zep initialization failed (offline mode): {e}. GraphMemory features will be disabled.")
 
     def _ensure_collection(self):
-        """Lazy initialization of Zep collection."""
+        """Internal initialization of Zep collection."""
+        if not self.client:
+            return
         try:
             # Check if exists or create
             collections = self.client.document.list_collections()
@@ -46,6 +56,10 @@ class GraphMemory:
             Document(content=text, metadata=meta)
             for text, meta in zip(texts, metadata)
         ]
+        if not self.client:
+            logger.warning("Zep client offline. Skipping document storage.")
+            return
+
         try:
             await asyncio.to_thread(
                 self.client.document.add_documents,
@@ -58,6 +72,9 @@ class GraphMemory:
 
     async def search(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Semantic and graph-based search for world state retrieval."""
+        if not self.client:
+            return []
+
         try:
             results = await asyncio.to_thread(
                 self.client.document.search,

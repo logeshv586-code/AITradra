@@ -13,6 +13,11 @@ import {
 import { API_BASE } from "../api_config";
 import CandlestickChart from "./CandlestickChart";
 import QuanticInsightView from "./QuanticInsightView";
+import WhyCard from "./WhyCard";
+import { MoveRight } from "lucide-react";
+
+// Global cache to persist across re-mounts
+const terminalCache = {};
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -44,6 +49,7 @@ export default function StockDetailView({ ticker }) {
   const tickerId = String(ticker || "").toUpperCase();
   const [stockData, setStockData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
+  const [explanation, setExplanation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -52,10 +58,20 @@ export default function StockDetailView({ ticker }) {
 
     let cancelled = false;
     const load = async () => {
-      setLoading(true);
+      // SWR: Check if we have cached data for this ticker
+      const cached = terminalCache[tickerId];
+      if (cached) {
+        setStockData(cached.stock);
+        setAnalysis(cached.analysis);
+        setExplanation(cached.explanation);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
+      
       setError("");
       try {
-        // Step 1: Load stock data FIRST (fast endpoint, no LLM required)
+        // Step 1: Load stock data FIRST (fast endpoint)
         const stockRes = await fetch(`${API_BASE}/api/stock/${tickerId}`);
         if (!stockRes.ok) {
           throw new Error(`Failed to load ${tickerId} terminal data`);
@@ -63,7 +79,9 @@ export default function StockDetailView({ ticker }) {
         const stockPayload = await stockRes.json();
         if (!cancelled) {
           setStockData(stockPayload);
-          setLoading(false); // Render terminal immediately with stock data
+          setLoading(false);
+          // Update cache
+          terminalCache[tickerId] = { ...terminalCache[tickerId], stock: stockPayload };
         }
 
         // Step 2: Load analysis in background (slow LLM pipeline — don't block UI)
@@ -77,10 +95,25 @@ export default function StockDetailView({ ticker }) {
           if (analysisRes.ok && !cancelled) {
             const analysisPayload = await analysisRes.json();
             setAnalysis(analysisPayload);
+            terminalCache[tickerId] = { ...terminalCache[tickerId], analysis: analysisPayload };
           }
         } catch (analysisErr) {
           // Analysis is non-critical — terminal still works without it
           console.warn(`Analysis lazy-load for ${tickerId}:`, analysisErr.name === 'AbortError' ? 'timed out' : analysisErr.message);
+        }
+
+        // Step 3: Load intelligence explanation
+        try {
+          const expRes = await fetch(`${API_BASE}/api/stock/${tickerId}/explanation`);
+          if (expRes.ok && !cancelled) {
+             const expData = await expRes.json();
+              if (!expData.error) {
+                 setExplanation(expData);
+                 terminalCache[tickerId] = { ...terminalCache[tickerId], explanation: expData };
+              }
+          }
+        } catch (e) {
+             console.warn("Explanation fetch failed", e);
         }
       } catch (err) {
         if (!cancelled) {
@@ -235,9 +268,12 @@ export default function StockDetailView({ ticker }) {
           <section className="surface-card flex flex-col">
             <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
               <Zap size={16} className="text-[var(--accent)]" />
-              <h2 className="heading-3">Mythic Synthesis</h2>
+              <h2 className="heading-3">Mythic Neural Intelligence</h2>
             </div>
-            <div className="p-6 flex flex-col gap-4">
+            <div className="p-4">
+              <WhyCard ticker={tickerId} explanation={explanation} />
+            </div>
+            <div className="p-6 pt-0 flex flex-col gap-4">
               <p className="text-[13px] leading-relaxed text-[var(--text-main)]">{reasoningSummary}</p>
               {Object.entries(sections).length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

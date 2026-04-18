@@ -59,6 +59,23 @@ async def _agent_heartbeat():
 
 async def main():
     logger.info("Starting AXIOM V4 open-source intelligence stack")
+    
+    # Windows-specific: Clear port 8000 if already in use to prevent WinError 10048
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            port = settings.PORT
+            cmd = f'netstat -ano | findstr :{port}'
+            output = subprocess.check_output(cmd, shell=True).decode()
+            if output:
+                for line in output.strip().split('\n'):
+                    if 'LISTENING' in line:
+                        pid = line.strip().split()[-1]
+                        logger.info(f"Clearing zombie process on port {port} (PID: {pid})...")
+                        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+        except Exception:
+            pass # Port might be free, which is fine
+
     logger.info("MythicOrchestrator initialized")
     logger.info("Scheduler boot sequence started")
 
