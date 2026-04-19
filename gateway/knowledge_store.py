@@ -264,7 +264,7 @@ class KnowledgeStore:
                 ).fetchone()
                 if existing:
                     continue
-                conn.execute("""
+                cur = conn.execute("""
                     INSERT INTO news_articles (ticker, headline, summary, body, url, source, published_at, sentiment_score)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (a.get("ticker"), a.get("headline"), a.get("summary"), a.get("body"),
@@ -276,7 +276,7 @@ class KnowledgeStore:
                     mr = _get_market_rag()
                     if mr:
                         try:
-                            news_id = conn.lastrowid
+                            news_id = cur.lastrowid
                             mr.index_news(news_id, a.get("ticker"), a.get("headline"), {"source": a.get("source")})
                         except Exception as e:
                             logger.debug(f"MarketRAG news indexing skipped: {e}")

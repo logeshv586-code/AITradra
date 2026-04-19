@@ -171,6 +171,14 @@ class DataEngine:
                     web_news = web_scraper.scrape_ticker_news(ticker)
                     for n in web_news:
                         articles.append(n)
+                
+                # Persist discovered news to Knowledge Store
+                if articles:
+                    try:
+                        from gateway.knowledge_store import knowledge_store
+                        knowledge_store.store_news(articles)
+                    except Exception as store_err:
+                        logger.warning(f"Failed to persist news for {ticker}: {store_err}")
             except Exception:
                 pass
 

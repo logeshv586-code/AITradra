@@ -42,6 +42,8 @@ class WebScraper:
                 content = self._scrape_with_retry(url)
                 if content:
                     articles = self._parse_html(content, config, site)
+                    for a in articles:
+                        a["ticker"] = ticker
                     combined.extend(articles)
             except Exception as e:
                 logger.warning(f"Scrape failed for {site} ticker {ticker}: {e}")
