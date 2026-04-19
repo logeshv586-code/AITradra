@@ -11,7 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { API_BASE } from "../api_config";
-import CandlestickChart from "./CandlestickChart";
+import TradingViewChart from "./TradingViewChart";
 import QuanticInsightView from "./QuanticInsightView";
 import WhyCard from "./WhyCard";
 import { MoveRight } from "lucide-react";
@@ -124,8 +124,13 @@ export default function StockDetailView({ ticker }) {
     };
 
     load();
+    
+    // Live polling for "live graph" feel
+    const interval = setInterval(load, 30000); // Refresh data every 30s
+    
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [tickerId]);
 
@@ -236,8 +241,8 @@ export default function StockDetailView({ ticker }) {
               <BarChart3 size={16} className="text-[var(--accent)]" />
               <h2 className="heading-3">Price Action</h2>
             </div>
-            <div className="p-5 h-[340px] md:h-[400px]">
-              <CandlestickChart data={chartData} />
+            <div className="p-5 min-h-[400px]">
+              <TradingViewChart data={chartData} ticker={tickerId} />
             </div>
           </section>
 

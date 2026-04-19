@@ -210,6 +210,48 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
                 col[0] if isinstance(col, tuple) else col for col in df.columns
             ]
         df = _normalize_df(df, "yfinance")
+        
+        # Capture metadata (Market Cap, PE) if available
+        try:
+            info = yf.Ticker(ticker).info
+            df.attrs["mktcap"] = info.get("marketCap", 0)
+            df.attrs["pe"] = info.get("forwardPE", info.get("trailingPE", 0))
+        except Exception:
+            try:
+                # Fallback: Scrape from Yahoo Finance summary page if info fails
+                import httpx
+                import re
+                url = f"https://finance.yahoo.com/quote/{ticker}"
+                headers = {"User-Agent": "Mozilla/5.0"}
+                with httpx.Client(timeout=10, follow_redirects=True) as client:
+                    resp = client.get(url, headers=headers)
+                    if resp.status_code == 200:
+                        # Find "Market Cap" and "PE Ratio (TTM)"
+                        import re
+                        # Using a more flexible regex that survives layout changes
+                        mcap_match = re.search(r'(?:Market Cap|Market cap).*?(?:<span[^>]*>)([\d\.]+[TBM])', resp.text, re.IGNORECASE | re.DOTALL)
+                        pe_match = re.search(r'(?:PE Ratio \(TTM\)|PE ratio).*?(?:<span[^>]*>)([\d\.]+)', resp.text, re.IGNORECASE | re.DOTALL)
+                        
+                        def parse_mcap(s):
+                            # Remove tags and whitespace
+                            s = re.sub(r'<.*?>', '', s).strip().upper().replace(',', '')
+                            if 'T' in s: return float(s.replace('T', '')) * 1e12
+                            if 'B' in s: return float(s.replace('B', '')) * 1e9
+                            if 'M' in s: return float(s.replace('M', '')) * 1e6
+                            try: return float(s)
+                            except: return 0
+
+                        if mcap_match:
+                            df.attrs["mktcap"] = parse_mcap(mcap_match.group(1))
+                        if pe_match:
+                            pe_str = re.sub(r'<.*?>', '', pe_match.group(1)).strip().replace(',', '')
+                            try: df.attrs["pe"] = float(pe_str)
+                            except: df.attrs["pe"] = 0
+            except Exception as e:
+                logger.debug(f"[Collector] Fallback scrape failed for {ticker}: {e}")
+                df.attrs["mktcap"] = df.attrs.get("mktcap", 0)
+                df.attrs["pe"] = df.attrs.get("pe", 0)
+            
         return df if not df.empty else None
     except Exception as e:
         logger.debug(f"[Collector] yfinance failed for {ticker}: {e}")
@@ -349,12 +391,14 @@ async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
                         r'"regularMarketVolume":\{"raw":([\d.]+)', script.string
                     )
                     name_match = re.search(r'"longName":"([^"]+)"', script.string)
+                    mcap_match = re.search(r'"marketCap":\{"raw":([\d.]+)', script.string)
+                    pe_match = re.search(r'"trailingPE":\{"raw":([\d.]+)', script.string)
                     return {
                         "price": price,
-                        "prev_close": float(prev_match.group(1))
-                        if prev_match
-                        else None,
+                        "prev_close": float(prev_match.group(1)) if prev_match else None,
                         "volume": float(vol_match.group(1)) if vol_match else None,
+                        "mktcap": float(mcap_match.group(1)) if mcap_match else 0,
+                        "pe": float(pe_match.group(1)) if pe_match else 0,
                         "name": name_match.group(1) if name_match else ticker,
                         "source": "yahoo_scrape",
                         "scraped_at": datetime.now(timezone.utc).isoformat(),
@@ -425,6 +469,8 @@ def _snapshot_to_df(snapshot: dict, ticker: str) -> pd.DataFrame:
         index=[today],
     )
     df.index.name = "Date"
+    df.attrs["mktcap"] = snapshot.get("mktcap", 0)
+    df.attrs["pe"] = snapshot.get("pe", 0)
     return df
 
 

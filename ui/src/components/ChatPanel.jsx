@@ -33,18 +33,30 @@ export default function ChatPanel({ messages = [], onSend, fullView = false, int
       {/* Messages Area */}
       <div className={`flex-1 overflow-y-auto no-scrollbar p-5 flex flex-col gap-6 ${fullView ? 'bg-[var(--card-bg)] border border-[var(--border-color)] rounded-t-[var(--radius-lg)] shadow-sm' : ''}`}>
         
-        {/* Welcome Message */}
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center text-center mt-12 opacity-80 animate-fade-in">
-             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#1e232b] border border-[var(--border-color)] mb-6 shadow-sm">
-                <Sparkles size={28} className="text-[var(--accent)]" />
-             </div>
-             <h3 className="heading-2 text-white">Ask Mythic AI</h3>
-             <p className="mt-3 text-[13px] text-[var(--text-muted)] max-w-[280px] leading-relaxed">
-                Interrogate the underlying intelligence network directly. Queries can range from asset specifics to broader macro views.
-             </p>
-          </div>
-        )}
+         {/* Welcome Message */}
+         {messages.length === 0 && (
+           <div className="flex flex-col items-center justify-center text-center mt-12 opacity-80 animate-fade-in px-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#1e232b] border border-[var(--border-color)] mb-6 shadow-sm">
+                 <Sparkles size={28} className="text-[var(--accent)]" />
+              </div>
+              <h3 className="heading-2 text-white">Ask Mythic AI</h3>
+              <p className="mt-3 text-[13px] text-[var(--text-muted)] max-w-[280px] leading-relaxed">
+                 Interrogate the underlying intelligence network directly. Queries can range from asset specifics to broader macro views.
+              </p>
+              
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-8 max-w-lg">
+                 {["Market pulse for today?", "Analyze NVDA sentiment", "Explain $AAPL recent move", "Top breakout candidates?"].map(p => (
+                   <button 
+                     key={p} 
+                     onClick={() => { setInput(p); }}
+                     className="px-3 py-1.5 rounded-full bg-[#1e232b] border border-[var(--border-color)] text-[11px] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-white transition-all"
+                   >
+                     {p}
+                   </button>
+                 ))}
+              </div>
+           </div>
+         )}
 
         {/* Message Bubbles */}
         {messages.map((m, i) => {

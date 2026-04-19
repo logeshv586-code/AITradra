@@ -572,7 +572,14 @@ class MoveExplainerAgent:
         articles = fetch_recent_news(self._conn, symbol, NEWS_LOOKBACK_HOURS)
         log.debug("Fetched %d articles for %s", len(articles), symbol)
 
+        # Enrichment: Knowledge Graph Context
+        from gateway.knowledge_graph_service import knowledge_graph
+        graph_context = knowledge_graph.get_code_context(symbol)
+        log.debug("Knowledge Graph context added for %s", symbol)
+
         user_prompt = _build_user_prompt(symbol, price_change, bars, articles)
+        if graph_context:
+            user_prompt += f"\n\n[Codebase Intelligence Context]\n{graph_context}"
 
         explanation: MoveExplanation | None = None
         last_error  = ""

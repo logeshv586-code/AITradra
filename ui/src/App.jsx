@@ -106,13 +106,17 @@ function AppContent() {
         if(s.ok) {
            const sysData = await s.json();
            const stocksArray = Array.isArray(sysData) ? sysData : (sysData.stocks || sysData.data || []);
-if (stocksArray.length > 0) {
+           if (stocksArray.length > 0) {
               hasWatchlistPayload = true;
               setLiveStocks(stocksArray);
-              if (!selectedTicker && stocksArray[0]) {
-                const firstTicker = stocksArray[0].id || stocksArray[0].ticker;
-                if (firstTicker) setSelectedTicker(String(firstTicker).toUpperCase());
-              }
+              
+              // Only set a default ticker if none is currently selected 
+              // (avoids overwriting a manual click from the globe during startup)
+              setSelectedTicker(prev => {
+                if (prev) return prev;
+                const first = stocksArray[0].id || stocksArray[0].ticker;
+                return first ? String(first).toUpperCase() : null;
+              });
             }
         }
         if(!hasWatchlistPayload && g.ok) {
@@ -361,6 +365,7 @@ if (stocksArray.length > 0) {
             {activeView === "Portfolio" && <PortfolioInsightsView />}
             {activeView === "Paper Trading" && <VirtualPortfolioView />}
             {activeView === "News Evidence" && <NewsEvidenceView />}
+            {activeView === "Network Pulse" && <IntelligenceStatusView />}
             {activeView === "AI Expert Chat" && <ChatPanel messages={chatMessages} onSend={(text) => handleChat(text, selectedTicker)} fullView={true} intelligenceStatus={intelligenceStatus} />}
             </Suspense>
           </div>

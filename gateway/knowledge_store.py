@@ -72,10 +72,15 @@ class KnowledgeStore:
                 open REAL, high REAL, low REAL, close REAL,
                 volume INTEGER,
                 adj_close REAL,
+                market_cap REAL DEFAULT 0,
+                pe_ratio REAL DEFAULT 0,
                 source TEXT DEFAULT 'yfinance',
                 created_at TEXT DEFAULT (datetime('now')),
                 UNIQUE(ticker, date)
             );
+
+            -- Ensure columns exist in older databases
+            PRAGMA table_info(daily_ohlcv);
             
             CREATE TABLE IF NOT EXISTS news_articles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,6 +188,15 @@ class KnowledgeStore:
             CREATE INDEX IF NOT EXISTS idx_episodes_session ON agent_episodes(session_id);
             CREATE INDEX IF NOT EXISTS idx_ticker_intelligence_updated ON ticker_intelligence(updated_at);
         """)
+        
+        # Add columns dynamically if missing (defensive upgrade)
+        cursor = conn.execute("PRAGMA table_info(daily_ohlcv)")
+        cols = [row[1] for row in cursor.fetchall()]
+        if "market_cap" not in cols:
+            conn.execute("ALTER TABLE daily_ohlcv ADD COLUMN market_cap REAL DEFAULT 0")
+        if "pe_ratio" not in cols:
+            conn.execute("ALTER TABLE daily_ohlcv ADD COLUMN pe_ratio REAL DEFAULT 0")
+            
         conn.commit()
         logger.info(f"Knowledge store initialized at {self.db_path}")
 
@@ -199,10 +213,11 @@ class KnowledgeStore:
         for r in records:
             try:
                 conn.execute("""
-                    INSERT OR IGNORE INTO daily_ohlcv (ticker, date, open, high, low, close, volume, adj_close)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR IGNORE INTO daily_ohlcv (ticker, date, open, high, low, close, volume, adj_close, market_cap, pe_ratio)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (ticker, r["date"], r.get("open"), r.get("high"), r.get("low"),
-                      r.get("close"), r.get("volume"), r.get("adj_close", r.get("close"))))
+                      r.get("close"), r.get("volume"), r.get("adj_close", r.get("close")),
+                      r.get("mktcap", 0), r.get("pe", 0)))
                 inserted += conn.total_changes
             except Exception as e:
                 logger.warning(f"OHLCV insert error for {ticker}/{r.get('date')}: {e}")
@@ -228,7 +243,7 @@ class KnowledgeStore:
         conn = self._get_conn()
         cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         rows = conn.execute("""
-            SELECT date, open, high, low, close, volume FROM daily_ohlcv
+            SELECT date, open, high, low, close, volume, market_cap, pe_ratio FROM daily_ohlcv
             WHERE ticker = ? AND date >= ?
             ORDER BY date DESC
         """, (ticker, cutoff)).fetchall()
@@ -527,10 +542,16 @@ class KnowledgeStore:
         conn.commit()
 
     def get_all_agent_health(self) -> list[dict]:
-        """Fetch health metrics for all agents."""
+        """Get heartbeat and status for all registered agents."""
         conn = self._get_conn()
         cursor = conn.execute("SELECT * FROM agent_health ORDER BY agent_name ASC")
         return [dict(row) for row in cursor.fetchall()]
+
+    def reset_agent_health(self, name: str):
+        """Reset agent health status to force re-initialization."""
+        conn = self._get_conn()
+        conn.execute("DELETE FROM agent_health WHERE agent_name = ?", (name,))
+        conn.commit()
 
     # ─── RESEARCH SUGGESTIONS ──────────────────────────────────────────────────
 

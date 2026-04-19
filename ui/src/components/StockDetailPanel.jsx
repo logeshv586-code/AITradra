@@ -96,6 +96,12 @@ export default function StockDetailPanel({ ticker, onClose }) {
             </div>
             <div className="flex items-center gap-3">
               <FreshnessBadge label={data.freshness_label} />
+              {data.mcap && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.1]">
+                   <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">MCAP</span>
+                   <span className="text-[9px] font-mono font-bold text-indigo-400 uppercase">{data.mcap}</span>
+                </div>
+              )}
               {knowledgeStatus && (
                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.1]">
                    <Globe size={10} className="text-slate-500" />

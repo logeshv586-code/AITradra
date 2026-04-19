@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { computeMA } from "../data";
 
 export default function AdvancedCandlestickChart({ data }) {
@@ -6,8 +7,16 @@ export default function AdvancedCandlestickChart({ data }) {
   const ref = useRef(null);
 
   if (!data || data.length === 0) return (
-    <div className="h-60 flex items-center justify-center text-[10px] font-bold font-mono text-slate-700 uppercase tracking-[0.3em] bg-white/[0.01] rounded-xl border border-white/[0.05]">
-      Synchronizing Price Stream...
+    <div className="h-60 flex flex-col items-center justify-center gap-4 bg-black/20 rounded-xl border border-white/[0.05]">
+      <div className="flex items-center gap-3">
+        <Loader2 size={16} className="text-[var(--accent)] animate-spin" />
+        <span className="text-[10px] font-bold font-mono text-slate-400 uppercase tracking-[0.3em]">
+          Synchronizing Price Stream...
+        </span>
+      </div>
+      <p className="text-[9px] text-slate-600 font-mono text-center max-w-[200px]">
+        Waiting for high-fidelity market data from the knowledge store.
+      </p>
     </div>
   );
 

@@ -832,7 +832,7 @@ class IntelligenceService:
             "pe": str(price.get("pe", 0)),
             "sector": sector,
             "lat": lat,
-            "lon": lon,
+            "lng": lon,
             "ohlcv": price.get("ohlcv", []),
             "risk": {
                 "var": f"{risk.get('var_95', 0)}%",
