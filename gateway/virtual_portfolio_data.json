@@ -1,8 +1,8 @@
 {
   "initialized": true,
   "total_balance": 100000.0,
-  "available_cash": 59841.420000000006,
-  "invested_amount": 40158.58,
+  "available_cash": 55493.780000000006,
+  "invested_amount": 44506.219999999994,
   "positions": [
     {
       "ticker": "AMZN",
@@ -16,11 +16,11 @@
         "confidence_score": 88.0,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T23:04:16.378692"
+        "updated_at": "2026-04-19T00:04:29.136292"
       },
       "timestamp": "2026-04-18T12:53:31.181858",
       "current_price": 245.71,
-      "current_value": 4914.2,
+      "current_value": 4422.78,
       "profit_loss": 0.0,
       "profit_loss_pct": 0.0
     },
@@ -31,12 +31,12 @@
       "invested_value": 31863.5,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "HOLD",
-        "prediction_direction": "SIDEWAYS",
-        "confidence_score": 83.8,
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 84.5,
         "risk_level": "LOW",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T23:14:27.954664"
+        "updated_at": "2026-04-19T00:16:38.564859"
       },
       "timestamp": "2026-04-18T12:54:08.277797",
       "current_price": 637.27,
@@ -53,10 +53,10 @@
       "signal_context": {
         "recommendation": "BUY",
         "prediction_direction": "UP",
-        "confidence_score": 88.7,
+        "confidence_score": 89.1,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T23:07:09.162503"
+        "updated_at": "2026-04-19T00:09:05.731753"
       },
       "timestamp": "2026-04-18T12:54:15.876940",
       "current_price": 188.88,
@@ -76,13 +76,29 @@
         "confidence_score": 88.3,
         "risk_level": "LOW",
         "primary_driver": "technical",
-        "updated_at": "2026-04-18T23:13:34.384876"
+        "updated_at": "2026-04-19T00:15:47.527308"
       },
       "timestamp": "2026-04-18T23:25:34.519567",
       "current_price": 103.91,
       "current_value": 1039.1,
       "profit_loss": 0.0,
       "profit_loss_pct": 0.0
+    },
+    {
+      "ticker": "NVDA",
+      "buy_price": 197.62,
+      "quantity": 22.0,
+      "invested_value": 4347.64,
+      "prediction": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 84.8,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-19T18:04:37.203723"
+      },
+      "timestamp": "2026-04-19T18:11:55.482382"
     }
   ],
   "history": [
@@ -170,6 +186,23 @@
         "updated_at": "2026-04-18T23:04:16.378692"
       },
       "timestamp": "2026-04-18T23:25:45.404905"
+    },
+    {
+      "type": "BUY",
+      "ticker": "NVDA",
+      "price": 197.62,
+      "amount": 4347.64,
+      "quantity": 22.0,
+      "prediction_at_buy": "UP",
+      "signal_context": {
+        "recommendation": "BUY",
+        "prediction_direction": "UP",
+        "confidence_score": 84.8,
+        "risk_level": "MEDIUM",
+        "primary_driver": "technical",
+        "updated_at": "2026-04-19T18:04:37.203723"
+      },
+      "timestamp": "2026-04-19T18:11:55.482382"
     }
   ],
   "accuracy_metrics": {

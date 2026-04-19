@@ -39,30 +39,22 @@ export default function StockDetailPanel({ ticker, onClose }) {
         })
         .catch(() => null);
     
-    Promise.all([
-      safeFetch(`${API_BASE}/api/stock/${tickerId}`),
-      safeFetch(`${API_BASE}/api/stock/${tickerId}/analysis`),
-      safeFetch(`${API_BASE}/api/stock/${tickerId}/explain-move`),
-      safeFetch(`${API_BASE}/api/market/predictions`),
-      safeFetch(`${API_BASE}/api/stock/${tickerId}/risk`),
-      safeFetch(`${API_BASE}/api/knowledge/status`),
-      safeFetch(`${API_BASE}/api/simulation/status`),
-    ]).then(([stock, analysis, reason, preds, , kStatus, sData]) => {
-      clearTimeout(timeoutId);
+    // Separate fetches to prevent peripheral intelligence from blocking core price UI
+    safeFetch(`${API_BASE}/api/stock/${tickerId}`).then(stock => {
       setData(stock);
-      setAnalysis(analysis);
-      setMoveReason(reason);
-      setKnowledgeStatus(kStatus);
-      setSimData(sData);
-      
+      setLoading(false);
+    });
+
+    safeFetch(`${API_BASE}/api/stock/${tickerId}/analysis`).then(setAnalysis);
+    safeFetch(`${API_BASE}/api/stock/${tickerId}/explain-move`).then(setMoveReason);
+    safeFetch(`${API_BASE}/api/market/predictions`).then(preds => {
       const p = preds?.predictions?.find(x => x.ticker === tickerId);
       setPrediction(p);
-      
-      setLoading(false);
-    }).catch(err => {
+    });
+    safeFetch(`${API_BASE}/api/knowledge/status`).then(setKnowledgeStatus);
+    safeFetch(`${API_BASE}/api/simulation/status`).then(sData => {
+      setSimData(sData);
       clearTimeout(timeoutId);
-      console.error("Failed to load stock data", err);
-      setLoading(false);
     });
 
     return () => {

@@ -13,6 +13,7 @@ class MarketManager:
         "INDIA": {"name": "India (NSE/BSE)", "start": (9, 15), "end": (15, 30), "emoji": "🇮🇳"},
         "EUROPE": {"name": "Europe (London/Euronext)", "start": (13, 30), "end": (22, 0), "emoji": "🇪🇺"},
         "US": {"name": "US (NYSE/NASDAQ)", "start": (19, 0), "end": (1, 30), "emoji": "🇺🇸"},
+        "CRYPTO": {"name": "Cryptocurrency", "start": (0, 0), "end": (23, 59), "emoji": "🪙"},
     }
 
     @staticmethod
@@ -70,6 +71,9 @@ class MarketManager:
             return "CHINA"
         if ticker.endswith(".L") or ticker.endswith(".DE") or ticker.endswith(".PA"):
             return "EUROPE"
+            
+        if ticker.endswith("-USD"):
+            return "CRYPTO"
             
         # Default to US for major tech/growth stocks or no suffix
         return "US"

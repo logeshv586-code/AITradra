@@ -687,7 +687,19 @@
     "confidence": 0.35,
     "created_at": "2026-04-18T05:14:40.276487+00:00",
     "timestamp": "2026-04-18T05:14:40.276487+00:00",
-    "id": "6989d77b-003a-4178-a70b-d46a7a4eadca"
+    "id": "6989d77b-003a-4178-a70b-d46a7a4eadca",
+    "actual_price": 262.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 262.11,
+      "target_price": 254.2467,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:13.954991+00:00"
   },
   {
     "ticker": "AAPL",
@@ -702,7 +714,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T05:15:06.503182+00:00",
     "timestamp": "2026-04-18T05:15:06.503182+00:00",
-    "id": "4f5637c9-7941-403a-b2b7-bbec26077c15"
+    "id": "4f5637c9-7941-403a-b2b7-bbec26077c15",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:13.965805+00:00"
   },
   {
     "ticker": "AAPL",
@@ -717,7 +741,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T05:32:20.634568+00:00",
     "timestamp": "2026-04-18T05:32:20.634568+00:00",
-    "id": "11c12816-479f-45c2-9a00-39ae39c1d188"
+    "id": "11c12816-479f-45c2-9a00-39ae39c1d188",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:13.974410+00:00"
   },
   {
     "ticker": "AAPL",
@@ -732,7 +768,19 @@
     "confidence": 0.35,
     "created_at": "2026-04-18T05:32:20.701560+00:00",
     "timestamp": "2026-04-18T05:32:20.701560+00:00",
-    "id": "37b8e9d4-1d36-4021-b98d-4514aa94e084"
+    "id": "37b8e9d4-1d36-4021-b98d-4514aa94e084",
+    "actual_price": 262.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 262.11,
+      "target_price": 254.2467,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:13.984102+00:00"
   },
   {
     "ticker": "AAPL",
@@ -747,7 +795,19 @@
     "confidence": 0.35,
     "created_at": "2026-04-18T05:43:55.285333+00:00",
     "timestamp": "2026-04-18T05:43:55.285333+00:00",
-    "id": "631e7296-c2a6-4d58-bcbd-04596d46ed36"
+    "id": "631e7296-c2a6-4d58-bcbd-04596d46ed36",
+    "actual_price": 262.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 262.11,
+      "target_price": 254.2467,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:13.992966+00:00"
   },
   {
     "ticker": "AAPL",
@@ -762,7 +822,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T05:44:59.075521+00:00",
     "timestamp": "2026-04-18T05:44:59.075521+00:00",
-    "id": "bb9978ec-6c2c-475e-8545-7d24bbbbf52d"
+    "id": "bb9978ec-6c2c-475e-8545-7d24bbbbf52d",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.001421+00:00"
   },
   {
     "ticker": "AAPL",
@@ -777,7 +849,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:04:09.353470+00:00",
     "timestamp": "2026-04-18T06:04:09.353470+00:00",
-    "id": "df52a0f1-7778-457c-b84d-5cba0f76100a"
+    "id": "df52a0f1-7778-457c-b84d-5cba0f76100a",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.011182+00:00"
   },
   {
     "ticker": "SQ",
@@ -792,7 +876,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:04:11.041438+00:00",
     "timestamp": "2026-04-18T06:04:11.041438+00:00",
-    "id": "eff2cb28-b7e8-4f5d-8d12-a1a14346159a"
+    "id": "eff2cb28-b7e8-4f5d-8d12-a1a14346159a",
+    "actual_price": 7032.29,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 7032.29,
+      "target_price": 7032.29,
+      "actual_price": 7032.29,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.021328+00:00"
   },
   {
     "ticker": "SQ",
@@ -807,7 +903,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:06:12.408232+00:00",
     "timestamp": "2026-04-18T06:06:12.408232+00:00",
-    "id": "45a2d189-b8b8-47fa-8d7a-8a4effbfe197"
+    "id": "45a2d189-b8b8-47fa-8d7a-8a4effbfe197",
+    "actual_price": 7032.29,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 7032.29,
+      "target_price": 7032.29,
+      "actual_price": 7032.29,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.030791+00:00"
   },
   {
     "ticker": "AAPL",
@@ -822,7 +930,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:07:09.448531+00:00",
     "timestamp": "2026-04-18T06:07:09.448531+00:00",
-    "id": "7415de03-e0c0-4052-9bef-3a6399f763f4"
+    "id": "7415de03-e0c0-4052-9bef-3a6399f763f4",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.041167+00:00"
   },
   {
     "ticker": "AAPL",
@@ -837,7 +957,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T07:10:11.434353+00:00",
     "timestamp": "2026-04-18T07:10:11.434353+00:00",
-    "id": "66e173d6-566b-4ba7-b95c-df9cf6d52223"
+    "id": "66e173d6-566b-4ba7-b95c-df9cf6d52223",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.052905+00:00"
   },
   {
     "ticker": "AAPL",
@@ -852,7 +984,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T07:11:23.868620+00:00",
     "timestamp": "2026-04-18T07:11:23.868620+00:00",
-    "id": "f5552d9b-ef67-4eac-9134-d39084269c9b"
+    "id": "f5552d9b-ef67-4eac-9134-d39084269c9b",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T12:18:13.937034+00:00"
+    },
+    "resolved_at": "2026-04-19T12:18:14.063051+00:00"
   },
   {
     "ticker": "AAPL",
@@ -1063,5 +1207,125 @@
     "created_at": "2026-04-18T18:23:33.722581+00:00",
     "timestamp": "2026-04-18T18:23:33.722581+00:00",
     "id": "024f13bb-771e-4c5b-b5ae-52230669bafd"
+  },
+  {
+    "ticker": "TSLA",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 386.14
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for TSLA is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-19T12:40:20.526042+00:00",
+    "timestamp": "2026-04-19T12:40:20.526042+00:00",
+    "id": "5934b8fb-11cc-4de4-a532-34707e032c96"
+  },
+  {
+    "ticker": "TSLA",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 386.14
+    },
+    "reasoning": "\n\n# AXIOM Mythic-Tier Analysis: TSLA\n\n## 1. Executive Summary\n\nTSLA receives a **NEUTRAL** verdict with 55% confidence based on limited agent signal data. Recent bullish catalyst coverage from major institutions (RBC, UBS) provides near-term tailwinds, but insufficient granular agent analysis prevents a more definitive stance. Current market sentiment appears cautiously optimistic following Tesla's FSD regulatory progress in Europe.\n\n## 2. Technical/Risk Alignment\n\n**Data Status:** Agent analysis unavailable (N/A). Risk parameters cannot be calibrated without technical indicators, volatility metrics, or position sizing signals. **Caution advised** given the absence of quantitative risk frameworks.\n\n## 3. Macro/Fundamental Context\n\n**Catalyst Landscape (Positive):**\n- **RBC Capital:** Maintains constructive outlook on TSLA\n- **UBS:** Labels Tesla a \"leader in Physical AI\" with explicit buy recommendation\n- **FSD Europe Win:** Regulatory approval represents meaningful autonomous driving expansion\n\n**Fundamental Considerations:**\n- EV market saturation pressures persist\n- Margin compression risk amid pricing competition\n- AI/Autonomy valuation premium remains speculative\n\n## 4. Investment Verdict\n\n| Parameter | Value |\n|-----------|-------|\n| **Recommendation** | **HOLD** |\n| **Confidence** | 55% |\n| **Rationale** | Positive catalyst momentum offset by incomplete signal data and neutral consensus |\n\n**Key Risks:** Absent technical risk management signals, position sizing cannot be optimized. Macro headwinds (interest rates, EV demand) remain material.\n\n**Guidance:** Maintain existing positions. Await completion of full agent analysis suite before directional commitment. Monitor FSD Europe rollout and Q4 delivery data for conviction-building triggers.\n\n---\n\n*Note: This analysis reflects available data. Full agent signal integration recommended for enhanced conviction.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-19T12:40:58.975440+00:00",
+    "timestamp": "2026-04-19T12:40:58.975440+00:00",
+    "id": "e3a03ed5-7047-40d6-bb9c-dc4782f7c72e"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AXIOM Mythic-Tier Analysis: AAPL\n\n## 1. Executive Summary\n\n**Consensus: NEUTRAL | Confidence: 55%**\n\nAAPL receives a neutral recommendation with modest conviction. All specialist agent signals are currently unavailable (N/A), limiting our multi-factor validation. The sole catalyst is Jim Cramer's recent bullish commentary. Given Apple's fundamental strength but elevated valuation, the neutral stance is reasonable but lacks robust agent confirmation.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**Status: INCONCLUSIVE (No agent data available)**\n\nWithout technical or risk agent analysis, we cannot validate price action signals or downside scenarios. However, AAPL historically trades at a premium (28-30x forward earnings) with moderate volatility (beta ~1.2). Risk managers would likely flag: valuation compression risk if growth slows, and concentration risk given index fund dependency.\n\n**Key Risk Factors:**\n- Heavy index fund ownership creates vulnerability to rebalancing\n- China manufacturing concentration\n- Services growth deceleration concerns\n\n---\n\n## 3. Macro/Fundamental Context\n\n**Bull Case:**\n- Strong ecosystem lock-in (2B+ active devices)\n- Services revenue (25%+ of total) provides margin stability\n- AI initiatives (Apple Intelligence) represent potential catalyst\n- History of delivering shareholder value (buybacks, dividends)\n\n**Bear Case:**\n- Mature product cycle limits upside\n- Regulatory headwinds (DMA, antitrust)\n- Competition in AI assistants\n- Premium multiple leaves little room for error\n\n**Catalyst:** Cramer's endorsement suggests retail sentiment turning constructive, though contrarian investors may view this as a caution signal.\n\n---\n\n## 4. Investment Verdict\n\n### **HOLD**\n\n**Rationale:** With 55% confidence and no conflicting agent signals, HOLD is the appropriate stance. AAPL is a high-quality compounders but offers limited upside at current levels (~28x P/E).\n\n**No price target or stop-loss available** due to incomplete agent data.\n\n**Action:** Monitor for entry below $170 or wait for AI catalyst clarity before adding.\n\n---\n\n*Note: Specialist agent signals are required for full validation. Current analysis relies on consensus and Cramer catalyst only.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-19T12:41:35.469488+00:00",
+    "timestamp": "2026-04-19T12:41:35.469488+00:00",
+    "id": "0db14586-cf31-4882-8f24-e1b6c2bd38ec"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AXIOM Intelligence: AAPL Analysis\n\n## \u26a0\ufe0f Data Availability Notice\n\n**Critical Limitation:** All specialist agent analyses are currently marked N/A. The following synthesis relies on the aggregate consensus and general market context only.\n\n---\n\n## 1. Executive Summary\n\n**AAPL maintains a NEUTRAL stance** with 55% confidence\u2014the lowest conviction signal possible without clear directional bias. The absence of agent-level data prevents granular technical, fundamental, or sentiment confirmation. Recent catalyst: Jim Cramer's bullish commentary on Apple.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**Insufficient data** for technical or risk assessment. Standard Apple volatility metrics suggest moderate risk (beta ~1.2). Support levels typically observed around $170-$175; resistance near $195-$200.\n\n---\n\n## 3. Macro/Fundamental Context\n\nApple benefits from:\n- Strong services revenue diversification\n- AI initiative (\"Apple Intelligence\") potential\n- Hardware cycle tailwinds (iPhone 16 expected)\n\nHeadwinds:\n- China market saturation\n- Regulatory scrutiny (DMA, antitrust)\n- Margin pressure from AI infrastructure spend\n\n---\n\n## 4. Investment Verdict\n\n| Metric | Value |\n|--------|-------|\n| **Consensus** | NEUTRAL |\n| **Confidence** | 55% |\n| **Signal Strength** | WEAK |\n\n**RECOMMENDATION: HOLD**\n\n- **No compelling entry point** with current neutral signal\n- **Price Target:** $195 (modest upside from current ~$182)\n- **Stop-Loss:** $170 (risk management threshold)\n- **Time Horizon:** 3-6 months\n\n**Rationale:** The 55% confidence neutral reading offers no edge. Wait for agent data to populate or a clearer catalyst before positioning. Jim Cramer's endorsement alone is insufficient directional evidence.\n\n---\n\n*AXIOM Intelligence | Data-Driven. Precision. Authority.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-19T13:04:58.730749+00:00",
+    "timestamp": "2026-04-19T13:04:58.730749+00:00",
+    "id": "0754f051-3dc0-479e-b882-c28f4547e0b0"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AXIOM Mythic-Tier Analysis: AAPL\n\n## 1. Executive Summary\n\n**AAPL \u2013 NEUTRAL | Confidence: 55%**\n\nApple Inc. receives a neutral consensus with moderate confidence. Notably, all specialist agent analyses are currently unavailable (N/A), limiting our ability to provide multi-factor confirmation. The sole active catalyst is Jim Cramer's recent bullish commentary on AAPL's value proposition.\n\n---\n\n## 2. Technical/Risk Alignment\n\n**Data Unavailable.** Technical and Risk agent outputs are not currently populated. Without price action, moving average, or volatility data, we cannot assess key technical levels, support/resistance zones, or risk parameters. This absence itself introduces elevated analytical uncertainty.\n\n---\n\n## 3. Macro/Fundamental Context\n\n**Data Unavailable.** Macro (interest rates, GDP, sector tailwinds) and Fundamental (earnings, margins, iPhone cycle) agents have not generated signals. However, Apple's fundamentals remain broadly robust: services revenue growth, strong brand loyalty, and substantial cash reserves provide a defensive quality. Macro headwinds include potential tariff impacts and consumer spending pressure.\n\n---\n\n## 4. Investment Verdict\n\n### **HOLD**\n\n**Rationale:** The NEUTRAL consensus with 55% confidence suggests balanced risk/reward but lacks conviction. The absence of agent-confirmed signals across all eight analytical dimensions prevents a definitive directional bias.\n\n**Key Considerations:**\n- Cramer's bullish take provides a sentiment tailwind but represents a single voice\n- Without technical confirmation, entry timing is unclear\n- Apple's historical resilience supports capital preservation\n\n**Risk Note:** The lack of multi-agent validation introduces elevated model risk. Await agent data normalization before adjusting position.\n\n---\n\n*AXIOM System | Data-Driven. Precision. Authority.*",
+    "confidence": 0.55,
+    "created_at": "2026-04-19T13:05:31.193114+00:00",
+    "timestamp": "2026-04-19T13:05:31.193114+00:00",
+    "id": "5fcd1385-44ae-4e4f-8a1a-ebd854994389"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "\n\n# AAPL Mythic-Tier Analysis\n\n## 1. Executive Summary\n\nAAPL displays a **BEARISH** outlook with **35% confidence** and **HIGH risk** across all measured dimensions. The stock has confirmed a technical breakdown below critical $253.5 support, establishing a clear bearish structure with consecutive lower highs and lower lows. A 23% drawdown from recent peaks compounds the negative technical picture. While Jim Cramer's recent bullish commentary suggests contrarian upside potential, the technical damage appears significant.\n\n## 2. Technical/Risk Alignment\n\n**TECHNICAL:** Confirmed breakdown below $253.5 support level. Bearish structure clearly established with lower highs sequence: **266.43 \u2192 260.48 \u2192 258.86**. Lower lows confirmed. **23% drawdown** from recent highs signals sustained selling pressure. HIGH volatility indicates elevated risk.\n\n**RISK:** HIGH. Multiple risk dimensions converge: technical breakdown, momentum deterioration, and elevated volatility. The $253.5 support breach represents a critical structural failure.\n\n**SECTOR & CATALYSTS:** Sector rotation away from mega-cap tech and macroeconomic headwinds (China demand, antitrust concerns) present ongoing headwinds.\n\n## 3. Macro/Fundamental Context\n\nNo explicit macro/fundamental data provided in signal set. However, AAPL faces headwinds from: China market weakness, antitrust regulatory pressure, and potential tariff impacts. The Cramer bullish call suggests contrarian value interest but does not override technical damage in the near term.\n\n## 4. Investment Verdict\n\n| Rating | **SELL** |\n|--------|----------|\n| **Confidence** | 35% (Low-Moderate) |\n| **Key Support** | $253.5 (BREACHED) |\n| **Next Support** | ~$240-$245 (psychological) |\n| **Stop-Loss** | $265 (above recent lower high) |\n| **Risk/Reward** | Unfavorable\u2014downside exceeds upside |\n\n**RECOMMENDATION:** Exit positions or short on any relief rally toward $260-$265. Avoid new long positions until $253.5 support is reclaimed with volume confirmation. The 35% confidence reflects uncertainty, but the HIGH risk profile and technical breakdown warrant defensive posturing. Monitor for potential mean reversion if Cramer's thesis gains traction, but technicals currently dominate.",
+    "confidence": 0.35,
+    "created_at": "2026-04-19T13:05:44.604322+00:00",
+    "timestamp": "2026-04-19T13:05:44.604322+00:00",
+    "id": "9b6a1475-3762-4ed9-af5b-56da78f059a8"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-19T13:07:27.471380+00:00",
+    "timestamp": "2026-04-19T13:07:27.471380+00:00",
+    "id": "6911c651-855d-4fa4-b717-85eedf88c098"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "BEARISH",
+      "consensus": "BEARISH",
+      "confidence": 0.35,
+      "source_used": "knowledge_store",
+      "price_at_prediction": 262.11
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.35,
+    "created_at": "2026-04-19T13:37:30.738872+00:00",
+    "timestamp": "2026-04-19T13:37:30.738872+00:00",
+    "id": "5e47f8b7-3e1a-4e83-9186-c20037de1aa8"
   }
 ]

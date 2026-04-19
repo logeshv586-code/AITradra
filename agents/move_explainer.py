@@ -114,19 +114,19 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS daily_ohlcv (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol    TEXT    NOT NULL,
-            ts        TEXT    NOT NULL,
+            ticker    TEXT    NOT NULL,
+            date      TEXT    NOT NULL,
             open      REAL,
             high      REAL,
             low       REAL,
             close     REAL,
             volume    REAL,
-            UNIQUE(symbol, ts)
+            UNIQUE(ticker, date)
         );
 
         CREATE TABLE IF NOT EXISTS news_articles (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol          TEXT    NOT NULL,
+            ticker          TEXT    NOT NULL,
             headline        TEXT    NOT NULL,
             url             TEXT,
             source          TEXT,
@@ -138,9 +138,9 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS agent_insights (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_name     TEXT    NOT NULL,
-            symbol         TEXT    NOT NULL,
+            ticker         TEXT    NOT NULL,
             insight_type   TEXT    NOT NULL,
-            payload        TEXT    NOT NULL,   -- JSON blob
+            content        TEXT    NOT NULL,   -- JSON blob or plain text
             price_change   REAL,
             sentiment      TEXT,
             confidence     INTEGER,
@@ -162,9 +162,9 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
             updated_at   TEXT    DEFAULT (datetime('now'))
         );
 
-        CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol_ts    ON daily_ohlcv(symbol, ts DESC);
-        CREATE INDEX IF NOT EXISTS idx_news_symbol_pub    ON news_articles(symbol, published_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_insights_symbol    ON agent_insights(symbol, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol_ts    ON daily_ohlcv(ticker, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_news_symbol_pub    ON news_articles(ticker, published_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_insights_symbol    ON agent_insights(ticker, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_health_agent       ON agent_health(agent_name);
     """)
     conn.commit()
@@ -172,21 +172,21 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
 
 # ── Data fetchers ─────────────────────────────────────────────────────────────
 
-def fetch_recent_ohlcv(conn: sqlite3.Connection, symbol: str, n_bars: int = 12) -> list[dict]:
-    """Return the last n_bars OHLCV rows for a symbol, newest first."""
+def fetch_recent_ohlcv(conn: sqlite3.Connection, ticker: str, n_bars: int = 12) -> list[dict]:
+    """Return the last n_bars OHLCV rows for a ticker, newest first."""
     rows = conn.execute("""
-        SELECT ts, open, high, low, close, volume
+        SELECT date, open, high, low, close, volume
         FROM   daily_ohlcv
-        WHERE  symbol = ?
-        ORDER  BY ts DESC
+        WHERE  ticker = ?
+        ORDER  BY date DESC
         LIMIT  ?
-    """, (symbol, n_bars)).fetchall()
+    """, (ticker, n_bars)).fetchall()
     return [dict(r) for r in rows]
 
 
 def fetch_recent_news(
     conn: sqlite3.Connection,
-    symbol: str,
+    ticker: str,
     lookback_hours: int = 6,
 ) -> list[dict]:
     """Return news articles published within the lookback window."""
@@ -194,11 +194,11 @@ def fetch_recent_news(
     rows = conn.execute("""
         SELECT headline, url, source, sentiment_score, published_at
         FROM   news_articles
-        WHERE  symbol      = ?
+        WHERE  ticker      = ?
           AND  published_at >= ?
         ORDER  BY published_at DESC
         LIMIT  20
-    """, (symbol, cutoff)).fetchall()
+    """, (ticker, cutoff)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -255,7 +255,7 @@ def _build_user_prompt(
     articles: list[dict],
 ) -> str:
     ohlcv_summary = "\n".join(
-        f"  {b['ts']}: O={b['open']} H={b['high']} L={b['low']} C={b['close']} V={b['volume']}"
+        f"  {b['date']}: O={b['open']} H={b['high']} L={b['low']} C={b['close']} V={b['volume']}"
         for b in reversed(bars)
     ) or "  (no OHLCV data available)"
 
@@ -378,10 +378,10 @@ def _parse_llm_response(raw: str, symbol: str, price_change: float, model: str) 
 
 def _persist_explanation(conn: sqlite3.Connection, exp: MoveExplanation) -> int:
     """Write the explanation to agent_insights. Returns the new row id."""
-    payload = json.dumps(exp.to_dict(), ensure_ascii=False)
+    content = json.dumps(exp.to_dict(), ensure_ascii=False)
     cur = conn.execute("""
         INSERT INTO agent_insights
-            (agent_name, symbol, insight_type, payload,
+            (agent_name, ticker, insight_type, content,
              price_change, sentiment, confidence, catalyst_type,
              magnitude, created_at, model_used)
         VALUES (?, ?, 'move_explanation', ?,
@@ -390,7 +390,7 @@ def _persist_explanation(conn: sqlite3.Connection, exp: MoveExplanation) -> int:
     """, (
         AGENT_NAME,
         exp.symbol,
-        payload,
+        content,
         exp.price_change,
         exp.sentiment,
         exp.confidence,
@@ -521,10 +521,10 @@ class MoveExplainerAgent:
         Returns the payload dict or None.
         """
         row = self._conn.execute("""
-            SELECT payload, created_at
+            SELECT content, created_at
             FROM   agent_insights
             WHERE  agent_name = ?
-              AND  symbol     = ?
+              AND  ticker     = ?
               AND  insight_type = 'move_explanation'
             ORDER  BY created_at DESC
             LIMIT  1
@@ -533,23 +533,23 @@ class MoveExplainerAgent:
         if not row:
             return None
 
-        result = json.loads(row["payload"])
+        result = json.loads(row["content"])
         result["retrieved_at"] = row["created_at"]
         return result
 
     def get_history(self, symbol: str, limit: int = 10) -> list[dict]:
         """Return the last `limit` explanations for a symbol, newest first."""
         rows = self._conn.execute("""
-            SELECT payload, created_at, confidence, sentiment, magnitude
+            SELECT content, created_at, confidence, sentiment, magnitude
             FROM   agent_insights
             WHERE  agent_name    = ?
-              AND  symbol        = ?
+              AND  ticker        = ?
               AND  insight_type  = 'move_explanation'
             ORDER  BY created_at DESC
             LIMIT  ?
         """, (AGENT_NAME, symbol, limit)).fetchall()
 
-        return [json.loads(r["payload"]) for r in rows]
+        return [json.loads(r["content"]) for r in rows]
 
     def health(self) -> dict:
         """Return current agent_health row as dict."""
