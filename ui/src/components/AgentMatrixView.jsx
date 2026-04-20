@@ -1,8 +1,30 @@
 import React, { useState } from "react";
 import { Network, Activity, Clock, ShieldAlert, Cpu, X, Zap } from "lucide-react";
+import { API_BASE } from "../api_config";
 
 export default function AgentMatrixView({ agents = [] }) {
   const [selectedAgent, setSelectedAgent] = useState(null);
+  const [restarting, setRestarting] = useState(null);
+
+  const handleRestart = async (agentId) => {
+    setRestarting(agentId);
+    try {
+      const res = await fetch(`${API_BASE}/api/intel/agents/${agentId}/restart`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        // Successful reset
+        setTimeout(() => {
+           setRestarting(null);
+        }, 3000);
+      } else {
+        setRestarting(null);
+      }
+    } catch (err) {
+      console.error("Failed to restart agent:", err);
+      setRestarting(null);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status?.toUpperCase()) {
@@ -220,7 +242,18 @@ export default function AgentMatrixView({ agents = [] }) {
              {/* Footer Actions */}
              <div className="p-5 border-t border-[var(--border-color)] bg-[var(--app-bg)] flex justify-end gap-3">
                 <button className="btn-standard" onClick={() => setSelectedAgent(null)}>Close</button>
-                <button className="btn-primary">Restart Interrogation</button>
+                <button 
+                  className={`btn-primary ${restarting === selectedAgent.id ? "opacity-50 cursor-not-allowed" : ""}`}
+                  disabled={restarting === selectedAgent.id}
+                  onClick={() => handleRestart(selectedAgent.id)}
+                >
+                  {restarting === selectedAgent.id ? (
+                    <>
+                      <Clock size={14} className="animate-spin mr-2" />
+                      Restarting...
+                    </>
+                  ) : "Restart Interrogation"}
+                </button>
              </div>
            </div>
          </div>

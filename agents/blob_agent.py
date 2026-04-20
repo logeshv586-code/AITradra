@@ -63,8 +63,16 @@ class BlobAgent:
         # Fetch fresh data
         df, source = await fetch_ticker(ticker, period="1y")
         if df.empty:
-            logger.warning(f"[BlobAgent] No data available for {ticker}")
-            return None
+            logger.warning(f"[BlobAgent] No historical data available for {ticker}")
+            # Instead of returning None, return a skeleton so ApiAgent knows we tried
+            return {
+                "ticker": ticker,
+                "source": "none",
+                "records": 0,
+                "last_price": 0,
+                "is_stale": True,
+                "fetched_at": datetime.now(timezone.utc).isoformat()
+            }
 
         blob = self._df_to_blob(ticker, df, source)
         await self._save_blob(path, blob)

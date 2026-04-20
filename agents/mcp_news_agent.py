@@ -117,12 +117,3 @@ class McpNewsAgent(BaseAgent):
             f"RSS fetched: {latest_action.get('rss_fetched', False)}"
         )
         return context
-
-if __name__ == "__main__":
-    async def test():
-        agent = McpNewsAgent()
-        ctx = AgentContext(task="Fetch news for TSLA", ticker="TSLA")
-        res = await agent.run(ctx)
-        print(json.dumps(res.result, indent=2))
-    
-    asyncio.run(test())

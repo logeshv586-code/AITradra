@@ -3,7 +3,7 @@ import asyncio
 from agents.data_agent import DataAgent
 from agents.blob_agent import BlobAgent
 from agents.rag_agent import RagAgent
-from agents.news_agent import NewsAgent
+from agents.news_agent import get_agent as get_news_agent
 from agents.price_agent import PriceAgent
 from agents.forecast_agent import ForecastAgent
 from agents.explain_agent import ExplainAgent
@@ -20,13 +20,14 @@ class ApiAgent:
         self.data_agent = DataAgent()
         self.blob_agent = BlobAgent()
         self.rag_agent = RagAgent()
-        self.news_agent = NewsAgent()
+        self.news_agent = get_news_agent()
         self.price_agent = PriceAgent()
         self.forecast_agent = ForecastAgent()
         self.explain_agent = ExplainAgent()
         self.think_agent = ThinkAgent()
         self.mcp_news_agent = McpNewsAgent()
         self.batch_agent = BatchAgent()
+        self._cache = {} # Simple TTL cache: {ticker_endpoint: (timestamp, data)}
         
         # Load RAG Index on startup
         try:
@@ -39,18 +40,27 @@ class ApiAgent:
     def _setup_routes(self):
         @self.router.get("/api/stock/{ticker}")
         async def get_stock_detail(ticker: str, live: bool = False):
-            """Institutional-Grade persistent fetch flow."""
+            """Institutional-Grade persistent fetch flow with lazy-synchronization."""
             try:
+                # Normalize ticker
+                ticker = ticker.upper()
                 blob = await self.blob_agent.load_blob(ticker)
+                
                 if blob is None:
-                    from fastapi import HTTPException
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"No data available for {ticker} from any source"
-                    )
-                return blob
+                    # If entirely missing even after fetch_ticker attempt, 
+                    # we return a 'Syncing' stub so the UI can show the spinner 
+                    # while agents work in the background.
+                    return {
+                        "ticker": ticker,
+                        "status": "syncing",
+                        "last_price": 0,
+                        "pct_1d": 0,
+                        "records": 0,
+                        "fetched_at": None,
+                        "is_new_ticker": True
+                    }
+                return {**blob, "status": "active"}
             except Exception as e:
-                if isinstance(e, HTTPException): raise e
                 from fastapi import HTTPException
                 raise HTTPException(status_code=500, detail=str(e))
 
@@ -61,6 +71,16 @@ class ApiAgent:
         @self.router.get("/api/explain/{ticker}")
         async def explain_movement(ticker: str):
             """Step 3: Synthetic Thinking Flow - V3 Institutional Deep Reasoner."""
+            import time
+            ticker = ticker.upper()
+            cache_key = f"explain_{ticker}"
+            
+            # Check Cache (15 min TTL)
+            if cache_key in self._cache:
+                ts, data = self._cache[cache_key]
+                if time.time() - ts < 900:
+                    return data
+
             # 1. Gather all inputs
             price_res = await self.price_agent.run(AgentContext(task=f"Analyze {ticker}", ticker=ticker))
             news_res = await self.mcp_news_agent.run(AgentContext(task=f"Fetch News {ticker}", ticker=ticker))
@@ -80,17 +100,27 @@ class ApiAgent:
                 "news_data": news_res.result
             }))
             
-            return {
+            res = {
                 "movement": price_res.result,
                 "explanation": explain_res.result,
                 "thinking": think_res.result,
                 "news": news_res.result,
                 "confidence": think_res.result.get("confidence_score")
             }
+            self._cache[cache_key] = (time.time(), res)
+            return res
 
         @self.router.get("/api/forecast/{ticker}")
         async def get_forecast(ticker: str):
+            import time
+            ticker = ticker.upper()
+            cache_key = f"forecast_{ticker}"
+            if cache_key in self._cache:
+                ts, data = self._cache[cache_key]
+                if time.time() - ts < 900: return data
+
             res = await self.forecast_agent.run(AgentContext(task=f"Predict {ticker}", ticker=ticker))
+            self._cache[cache_key] = (time.time(), res.result)
             return res.result
 
         @self.router.get("/api/news/{ticker}")

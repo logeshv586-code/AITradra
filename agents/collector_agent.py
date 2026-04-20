@@ -48,13 +48,20 @@ TICKER_ALIASES: dict[str, str] = {
     # Indian markets — dollar sign is invalid
     "$TATOMOTORS.NS": "TATAMOTORS.NS",
     "TATOMOTORS.NS": "TATAMOTORS.NS",
+    "TATAMOTORS": "TATAMOTORS.NS",
+    "RELIANCE": "RELIANCE.NS",
+    "HDFCBANK": "HDFCBANK.NS",
+    "INFY": "INFY.NS",
+    "TCS": "TCS.NS",
+    "SBIN": "SBIN.NS",
+    "ICICIBANK": "ICICIBANK.NS",
     # Rebranded tickers - keep original if API doesn't support the new ticker
     "SQ": "SQ",  # Block Inc
-    "MATIC-USD": "POL-USD",  # Polygon rebranded to POL (try POL first, fallback works)
+    "MATIC-USD": "POL-USD",  # Polygon rebranded to POL
     "FB": "META",
-    "TWTR": "X",  # note: X is no longer publicly traded
+    "TWTR": "X",
     # OTC / ADR alternatives (fallback to these if primary fails)
-    "BABA": "BABA",  # keep, but scrape if yf fails
+    "BABA": "BABA",
     "TCEHY": "TCEHY",
 }
 
@@ -78,6 +85,15 @@ CACHE_DIR = Path(os.environ.get("DATA_CACHE_DIR", "./data/cache"))
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "demo")
+
+# ── Layer 1: Dynamic Watchlist loading ───────────────────────────────────────
+def get_watchlist() -> list[str]:
+    """Load watchlist from environment variable or fallback to settings."""
+    env_watchlist = os.environ.get("WATCHLIST")
+    if env_watchlist:
+        # Split bypasses whitespace and comma/semicolon delimiters
+        return [t.strip().upper() for t in re.split(r'[,\s;]+', env_watchlist) if t.strip()]
+    return settings.DEFAULT_WATCHLIST
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -176,10 +192,13 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
     try:
         import yfinance as yf
 
+        interval = '5m' if period == '1d' else '1d'
+        fetch_period = '1mo' if (period == '1d' or period == '') else period
+
         df = yf.download(
             tickers=ticker,
-            period=period,
-            interval="1d",
+            period=fetch_period,
+            interval=interval,
             auto_adjust=False,
             progress=False,
             threads=False,
@@ -191,6 +210,48 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
                 col[0] if isinstance(col, tuple) else col for col in df.columns
             ]
         df = _normalize_df(df, "yfinance")
+        
+        # Capture metadata (Market Cap, PE) if available
+        try:
+            info = yf.Ticker(ticker).info
+            df.attrs["mktcap"] = info.get("marketCap", 0)
+            df.attrs["pe"] = info.get("forwardPE", info.get("trailingPE", 0))
+        except Exception:
+            try:
+                # Fallback: Scrape from Yahoo Finance summary page if info fails
+                import httpx
+                import re
+                url = f"https://finance.yahoo.com/quote/{ticker}"
+                headers = {"User-Agent": "Mozilla/5.0"}
+                with httpx.Client(timeout=10, follow_redirects=True) as client:
+                    resp = client.get(url, headers=headers)
+                    if resp.status_code == 200:
+                        # Find "Market Cap" and "PE Ratio (TTM)"
+                        import re
+                        # Using a more flexible regex that survives layout changes
+                        mcap_match = re.search(r'(?:Market Cap|Market cap).*?(?:<span[^>]*>)([\d\.]+[TBM])', resp.text, re.IGNORECASE | re.DOTALL)
+                        pe_match = re.search(r'(?:PE Ratio \(TTM\)|PE ratio).*?(?:<span[^>]*>)([\d\.]+)', resp.text, re.IGNORECASE | re.DOTALL)
+                        
+                        def parse_mcap(s):
+                            # Remove tags and whitespace
+                            s = re.sub(r'<.*?>', '', s).strip().upper().replace(',', '')
+                            if 'T' in s: return float(s.replace('T', '')) * 1e12
+                            if 'B' in s: return float(s.replace('B', '')) * 1e9
+                            if 'M' in s: return float(s.replace('M', '')) * 1e6
+                            try: return float(s)
+                            except: return 0
+
+                        if mcap_match:
+                            df.attrs["mktcap"] = parse_mcap(mcap_match.group(1))
+                        if pe_match:
+                            pe_str = re.sub(r'<.*?>', '', pe_match.group(1)).strip().replace(',', '')
+                            try: df.attrs["pe"] = float(pe_str)
+                            except: df.attrs["pe"] = 0
+            except Exception as e:
+                logger.debug(f"[Collector] Fallback scrape failed for {ticker}: {e}")
+                df.attrs["mktcap"] = df.attrs.get("mktcap", 0)
+                df.attrs["pe"] = df.attrs.get("pe", 0)
+            
         return df if not df.empty else None
     except Exception as e:
         logger.debug(f"[Collector] yfinance failed for {ticker}: {e}")
@@ -233,10 +294,14 @@ def _to_stooq_symbol(ticker: str) -> str:
     t = ticker.upper()
     if t.endswith("-USD"):  # crypto: BTC-USD → BTC.V
         return t.replace("-USD", ".V")
-    if t.endswith(".NS") or t.endswith(".BO"):  # Indian markets
-        return t.lower()
-    if t.endswith(".DE") or t.endswith(".L"):  # European
-        return t.lower()
+    if t.endswith(".NS"): # NSE
+        return t.replace(".NS", ".IN")
+    if t.endswith(".BO"): # BSE
+        return t.replace(".BO", ".IN")
+    if t.endswith(".L"): # London
+        return t.replace(".L", ".UK")
+    if t.endswith(".DE"): # Germany
+        return t.replace(".DE", ".DE")
     if t.startswith("^"):  # index — pass through
         return t
     return f"{t}.US"  # default: US stock
@@ -326,12 +391,14 @@ async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
                         r'"regularMarketVolume":\{"raw":([\d.]+)', script.string
                     )
                     name_match = re.search(r'"longName":"([^"]+)"', script.string)
+                    mcap_match = re.search(r'"marketCap":\{"raw":([\d.]+)', script.string)
+                    pe_match = re.search(r'"trailingPE":\{"raw":([\d.]+)', script.string)
                     return {
                         "price": price,
-                        "prev_close": float(prev_match.group(1))
-                        if prev_match
-                        else None,
+                        "prev_close": float(prev_match.group(1)) if prev_match else None,
                         "volume": float(vol_match.group(1)) if vol_match else None,
+                        "mktcap": float(mcap_match.group(1)) if mcap_match else 0,
+                        "pe": float(pe_match.group(1)) if pe_match else 0,
                         "name": name_match.group(1) if name_match else ticker,
                         "source": "yahoo_scrape",
                         "scraped_at": datetime.now(timezone.utc).isoformat(),
@@ -402,6 +469,8 @@ def _snapshot_to_df(snapshot: dict, ticker: str) -> pd.DataFrame:
         index=[today],
     )
     df.index.name = "Date"
+    df.attrs["mktcap"] = snapshot.get("mktcap", 0)
+    df.attrs["pe"] = snapshot.get("pe", 0)
     return df
 
 
@@ -493,8 +562,14 @@ async def fetch_ticker(
     df = _fetch_yfinance(ticker, period)
     if df is not None and not df.empty:
         source = "yfinance"
-        logger.info(f"[Collector] {ticker}: {len(df)} OHLCV records from yfinance")
+        logger.info(f"[Collector] {ticker}: {len(df)} OHLCV records (5m) from yfinance")
         _save_cache(ticker, period, df)
+        
+        # Fire internal market_update event for MoveExplainer
+        from agents.move_explainer import on_market_update
+        latest_close = float(df.iloc[-1]["Close"])
+        on_market_update(symbol=ticker, latest_close=latest_close)
+        
         return df, source
 
     # ── Layer 2: Stooq ───────────────────────────────────────────────────────
@@ -618,7 +693,8 @@ class CollectorAgent:
 async def collect_historical_data():
     """Triggered on startup and weekly. Pulls 5y history for all tickers."""
     logger.info("📡 Starting exhaustive historical data collection (5y)...")
-    collector = CollectorAgent(settings.DEFAULT_WATCHLIST, period="5y")
+    watchlist = get_watchlist()
+    collector = CollectorAgent(watchlist, period="5y")
     results = await collector.run()
     # Save to blobs
     from agents.blob_agent import BlobAgent
@@ -634,7 +710,8 @@ async def collect_historical_data():
 async def collect_daily_data():
     """Triggered daily. Pulls 1y (compact) update for all tickers."""
     logger.info("📡 Starting daily refresh for all tickers...")
-    collector = CollectorAgent(settings.DEFAULT_WATCHLIST, period="1y")
+    watchlist = get_watchlist()
+    collector = CollectorAgent(watchlist, period="1y")
     await collector.run()
     logger.info("✅ Daily refresh complete.")
 
@@ -644,7 +721,8 @@ async def collect_news_data():
     from agents.mcp_news_agent import McpNewsAgent
 
     agent = McpNewsAgent()
-    for ticker in settings.DEFAULT_WATCHLIST:
+    watchlist = get_watchlist()
+    for ticker in watchlist:
         try:
             await agent.run(AgentContext(task=f"News sync for {ticker}", ticker=ticker))
         except Exception as e:
@@ -656,7 +734,8 @@ async def index_knowledge_to_rag():
     from agents.rag_agent import RagAgent
 
     agent = RagAgent()
-    for ticker in settings.DEFAULT_WATCHLIST:
+    watchlist = get_watchlist()
+    for ticker in watchlist:
         try:
             # We index "what is stock" or similar generic task to force a summary refresh
             await agent.run(

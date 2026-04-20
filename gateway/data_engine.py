@@ -36,7 +36,7 @@ class DataEngine:
         # 2. Check knowledge store for recent OHLCV
         try:
             from gateway.knowledge_store import knowledge_store
-            ohlcv = knowledge_store.get_ohlcv_history(ticker, days=7)
+            ohlcv = knowledge_store.get_ohlcv_history(ticker, days=100)
             if ohlcv and len(ohlcv) > 0:
                 latest = ohlcv[0]
                 px = float(latest.get("close", 0))
@@ -54,8 +54,8 @@ class DataEngine:
                         "close": px,
                         "volume": int(latest.get("volume", 0)),
                         "avg_volume": 0,
-                        "mktcap": 0,
-                        "pe": 0,
+                        "mktcap": latest.get("market_cap", 0),
+                        "pe": latest.get("pe_ratio", 0),
                         "week52_high": max(float(r.get("high", 0)) for r in ohlcv[:252]) if len(ohlcv) > 10 else px * 1.3,
                         "week52_low": min(float(r.get("low", px)) for r in ohlcv[:252] if float(r.get("low", 0)) > 0) if len(ohlcv) > 10 else px * 0.7,
                         "ts": latest.get("date", datetime.now().isoformat()),
@@ -68,11 +68,12 @@ class DataEngine:
         except Exception as e:
             logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
 
-        # 3. If we allow scraping and nothing was found in DB/Cache
-        if allow_scrape:
+        # 3. If we allow scraping (or data is completely missing and this is a priority request)
+        if allow_scrape or (not ohlcv and ticker in settings.DEFAULT_WATCHLIST):
             try:
                 from agents.collector_agent import fetch_ticker
-                df, source = await fetch_ticker(ticker, period="1y", scrape_ok=True)
+                # Use 1mo period to ensure charts are populated on first hit
+                df, source = await fetch_ticker(ticker, period="1mo", scrape_ok=True)
                 if not df.empty:
                     latest_row = df.iloc[-1]
                     px = float(latest_row.get("Close", 0))
@@ -86,7 +87,9 @@ class DataEngine:
                         records = [{"date": str(idx.date()) if hasattr(idx, 'date') else str(idx),
                                     "open": float(row.get("Open", 0)), "high": float(row.get("High", 0)),
                                     "low": float(row.get("Low", 0)), "close": float(row.get("Close", 0)),
-                                    "volume": int(row.get("Volume", 0))}
+                                    "volume": int(row.get("Volume", 0)),
+                                    "mktcap": df.attrs.get("mktcap", 0),
+                                    "pe": df.attrs.get("pe", 0)}
                                    for idx, row in df.iterrows()]
                         if records:
                             knowledge_store.store_daily_ohlcv(ticker, records)
@@ -104,7 +107,8 @@ class DataEngine:
                         "open": float(latest_row.get("Open", px)), "high": float(latest_row.get("High", px)),
                         "low": float(latest_row.get("Low", px)), "close": px, "volume": int(latest_row.get("Volume", 0)),
                         "avg_volume": int(df["Volume"].mean()) if "Volume" in df.columns else 0,
-                        "mktcap": 0, "pe": 0,
+                        "mktcap": df.attrs.get("mktcap", 0),
+                        "pe": df.attrs.get("pe", 0),
                         "week52_high": float(df["Close"].max()) if "Close" in df.columns else px,
                         "week52_low": float(df["Close"].min()) if "Close" in df.columns else px,
                         "ts": datetime.now().isoformat(), "ohlcv": ohlcv_list,
@@ -117,11 +121,6 @@ class DataEngine:
         # 4. Return stale cache if available (last chance before fallback)
         if data:
             return {**data, "source_used": "cache_stale", "is_stale": True}
-
-        # 5. Final fallback — trigger a background task to fetch this ticker soon
-        if not allow_scrape:
-            # Non-blocking trigger for later
-            asyncio.create_task(self._trigger_background_fetch(ticker))
 
         return {
             "px": 0, "chg": 0, "pct_chg": 0, "open": 0, "high": 0, "low": 0, "close": 0,
@@ -139,16 +138,6 @@ class DataEngine:
             logger.info(f"Background warming complete for {ticker}")
         except Exception:
             pass
-
-
-        # 5. Final fallback — minimal stub so UI doesn't break
-        return {
-            "px": 0, "chg": 0, "pct_chg": 0, "open": 0, "high": 0, "low": 0, "close": 0,
-            "volume": 0, "avg_volume": 0, "mktcap": 0, "pe": 0,
-            "week52_high": 0, "week52_low": 0,
-            "ts": datetime.now().isoformat(), "ohlcv": [],
-            "source_used": "none", "is_estimated": True,
-        }
 
     async def get_news(self, ticker: str, max_items: int = 10, allow_scrape: bool = False) -> list[dict]:
         """Deduplicated news from knowledge store + RSS + Web."""
@@ -182,6 +171,14 @@ class DataEngine:
                     web_news = web_scraper.scrape_ticker_news(ticker)
                     for n in web_news:
                         articles.append(n)
+                
+                # Persist discovered news to Knowledge Store
+                if articles:
+                    try:
+                        from gateway.knowledge_store import knowledge_store
+                        knowledge_store.store_news(articles)
+                    except Exception as store_err:
+                        logger.warning(f"Failed to persist news for {ticker}: {store_err}")
             except Exception:
                 pass
 

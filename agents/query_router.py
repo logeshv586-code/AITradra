@@ -14,6 +14,8 @@ from datetime import datetime
 from typing import Optional
 from agents.base_agent import BaseAgent, AgentContext
 from core.logger import get_logger
+from agents.collector_agent import collect_historical_data
+from gateway.knowledge_store import knowledge_store
 
 logger = get_logger(__name__)
 
@@ -52,6 +54,14 @@ class QueryRouter(BaseAgent):
 
     async def observe(self, context: AgentContext) -> AgentContext:
         query = context.task.lower()
+
+        # ─── EXTRACTION: Automated Ticker Discovery ───────────────────────
+        found_ticker = await self._extract_ticker_from_query(context.task)
+        if found_ticker:
+            if context.ticker and found_ticker.upper() != context.ticker.upper():
+                self._add_thought(context, f"User explicitly mentioned {found_ticker.upper()}. Overriding context '{context.ticker}'.")
+            context.ticker = found_ticker.upper()
+        # ──────────────────────────────────────────────────────────────────
 
         # Classify intent
         intent_scores = {}
@@ -92,6 +102,22 @@ class QueryRouter(BaseAgent):
         ticker = context.observations.get("ticker")
         query = context.observations["query"]
         research_mode = context.metadata.get("research_mode", "QUICK")
+
+        # ─── LAZY SYNC: Ensure ticker exists in KnowledgeStore ──────────────
+        if ticker:
+            # Check if we have any RAG indexed documents for this ticker
+            from gateway.knowledge_store import knowledge_store
+            status = knowledge_store.get_collection_status()
+            
+            # If ticker is not Apple/Microsoft/etc (basic ones), trigger a deep sync
+            # or if it has 0 articles in DB
+            news_count = len(knowledge_store.get_news_for_ticker(ticker, limit=1))
+            if news_count == 0:
+                self._add_thought(context, f"Ticker {ticker} has no local data. Triggering Deep Sync...")
+                # Trigger the full collector pipeline
+                asyncio.create_task(collect_historical_data(ticker))
+                # For QUICK mode, we continue, but the orchestrator will see thin data.
+                # If research_mode is DEEP, we might want to wait, but that's complex for chat.
 
         # ─── PARALLEL FAN-OUT to all 4 data sources ─────────────────────────
         gathered_context = await self._parallel_gather(query, ticker)
@@ -313,6 +339,30 @@ Current: {datetime.now().isoformat()}"""
         except Exception as e:
             logger.error(f"Fallback LLM also failed: {e}")
             return f"⚠️ Analysis engine initializing. Please retry. Query: {query}"
+
+    async def _extract_ticker_from_query(self, query: str) -> Optional[str]:
+        """Extract ticker symbol using lightweight LLM extraction."""
+        from llm.client import get_shared_llm
+        llm = get_shared_llm()
+
+        prompt = f"""EXTRACT TICKER SYMBOL
+Identify if the user is asking about a specific stock/ticker.
+Query: "{query}"
+
+Rules:
+- If a ticker (e.g. AAPL, BTC, RELIANCE) is mentioned, output ONLY the symbol.
+- If a company name (e.g. Google, Apple, Tesla) is mentioned, convert to symbol.
+- If NO specific stock is mentioned, output "NONE".
+- Be precise. Output ONLY the symbol or "NONE".
+"""
+        try:
+            res = await llm.complete_small(prompt=prompt)
+            symbol = str(res).strip().upper().replace('"', '').replace("'", "")
+            if symbol in ("NONE", "NA", "") or len(symbol) > 12:
+                return None
+            return symbol
+        except Exception:
+            return None
 
 
 # Global instance

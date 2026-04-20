@@ -1,74 +1,55 @@
-import yfinance as yf
-from datetime import datetime, timezone
-import json
-import asyncio
+"""NewsAgent — Simplified wrapper for news aggregation."""
+
 from agents.base_agent import BaseAgent, AgentContext
+from core.logger import get_logger
+import random
+
+logger = get_logger(__name__)
 
 class NewsAgent(BaseAgent):
-    """Agent 4: News Intelligence Agent - Explains 'Why price moved' using Claude Flow."""
-    
+    """Collects news catalysts and scores sentiment."""
+
     def __init__(self, memory=None, improvement_engine=None):
-        super().__init__(name="NewsIntelligenceAgent", memory=memory, improvement_engine=improvement_engine)
+        super().__init__("NewsAgent", memory, improvement_engine, timeout_seconds=20)
 
     async def observe(self, context: AgentContext) -> AgentContext:
-        symbol = context.ticker or context.task.split()[-1]
-        context.ticker = symbol
-        self._add_thought(context, f"Observing recent news catalysts for {symbol}")
         return context
 
     async def think(self, context: AgentContext) -> AgentContext:
-        self._add_thought(context, f"Analyzing news impact for {context.ticker}. Identifying top titles and publishers.")
         return context
 
     async def plan(self, context: AgentContext) -> AgentContext:
-        context.plan = [
-            "Access yfinance news feed",
-            "Extract title, publisher, and timestamp",
-            "Prepare for sentiment analysis batching"
-        ]
-        self._add_thought(context, "News retrieval plan active.")
+        context.plan = ["Fetch news from knowledge store"]
         return context
 
     async def act(self, context: AgentContext) -> AgentContext:
-        symbol = context.ticker
-        self._add_thought(context, f"Acting: Fetching news for {symbol}...")
         try:
-            from gateway.data_engine import data_engine
-            news = await data_engine.get_news(symbol, max_items=5)
+            from gateway.knowledge_store import knowledge_store
+            recent_news = knowledge_store.get_news_for_ticker(context.ticker, limit=10, days=7)
             
-            processed_news = []
-            for item in news:
-                processed_news.append({
-                    "title": item.get("headline"),
-                    "publisher": item.get("source"),
-                    "link": item.get("url"),
-                    "timestamp": item.get("date"),
-                    "sentiment": "Neutral" # Initial state
-                })
-            context.result = processed_news
-            context.actions_taken.append({"action": "fetch_news_data_engine", "count": len(processed_news)})
+            if not recent_news:
+                # Fallback to general news
+                recent_news = knowledge_store.get_news_for_ticker("", limit=10, days=7)
+
+            context.result = {
+                "ticker": context.ticker,
+                "news_count": len(recent_news),
+                "articles": [
+                    {
+                        "title": n.get("headline"),
+                        "source": n.get("source"),
+                        "sentiment": n.get("sentiment_score", 0.5)
+                    } for n in recent_news
+                ]
+            }
         except Exception as e:
-            context.errors.append(f"News fetch error: {str(e)}")
-            
+            logger.error(f"NewsAgent failed: {e}")
+            context.result = {"articles": [], "news_count": 0}
+
         return context
 
     async def reflect(self, context: AgentContext) -> AgentContext:
-        if context.result:
-            context.reflection = f"Collected {len(context.result)} news items for {context.ticker}."
-            context.confidence = 0.85
         return context
 
-    # Legacy compatibility
-    def fetch_news(self, symbol: str):
-        loop = asyncio.get_event_loop()
-        ctx = AgentContext(task=f"Fetch news for {symbol}", ticker=symbol)
-        res = loop.run_until_complete(self.run(ctx))
-        return res.result if isinstance(res.result, list) else []
-
-if __name__ == "__main__":
-    async def test():
-        agent = NewsAgent()
-        res = await agent.run(AgentContext(task="Fetch news for TSLA"))
-        print(json.dumps(res.result, indent=2))
-    
-    asyncio.run(test())
+def get_agent():
+    return NewsAgent()

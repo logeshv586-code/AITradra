@@ -266,9 +266,9 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS agent_insights (
             id             INTEGER PRIMARY KEY AUTOINCREMENT,
             agent_name     TEXT    NOT NULL,
-            symbol         TEXT    NOT NULL,
+            ticker         TEXT    NOT NULL,
             insight_type   TEXT    NOT NULL,
-            payload        TEXT    NOT NULL,
+            content        TEXT    NOT NULL,
             price_change   REAL,
             sentiment      TEXT,
             confidence     INTEGER,
@@ -280,7 +280,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS news_articles (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol          TEXT    NOT NULL,
+            ticker          TEXT    NOT NULL,
             headline        TEXT    NOT NULL,
             url             TEXT,
             source          TEXT,
@@ -291,14 +291,14 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS daily_ohlcv (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol    TEXT    NOT NULL,
-            ts        TEXT    NOT NULL,
+            ticker    TEXT    NOT NULL,
+            date      TEXT    NOT NULL,
             open      REAL,
             high      REAL,
             low       REAL,
             close     REAL,
             volume    REAL,
-            UNIQUE(symbol, ts)
+            UNIQUE(ticker, date)
         );
 
         CREATE TABLE IF NOT EXISTS rag_index_log (
@@ -323,9 +323,9 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         );
 
         CREATE INDEX IF NOT EXISTS idx_rag_log_src ON rag_index_log(source_type, source_id);
-        CREATE INDEX IF NOT EXISTS idx_ohlcv_sym   ON daily_ohlcv(symbol, ts DESC);
-        CREATE INDEX IF NOT EXISTS idx_insights_sym ON agent_insights(symbol, created_at DESC);
-        CREATE INDEX IF NOT EXISTS idx_news_sym     ON news_articles(symbol, published_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_ohlcv_sym   ON daily_ohlcv(ticker, date DESC);
+        CREATE INDEX IF NOT EXISTS idx_insights_sym ON agent_insights(ticker, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_news_sym     ON news_articles(ticker, published_at DESC);
     """)
     conn.commit()
 
@@ -336,17 +336,17 @@ def _fetch_ohlcv(conn: sqlite3.Connection, symbol: str | None, n: int) -> str:
     """Return a formatted table of recent OHLCV rows, optionally filtered by symbol."""
     if symbol:
         rows = conn.execute("""
-            SELECT symbol, ts, open, high, low, close, volume
+            SELECT ticker, date, open, high, low, close, volume
             FROM   daily_ohlcv
-            WHERE  symbol = ?
-            ORDER  BY ts DESC
+            WHERE  ticker = ?
+            ORDER  BY date DESC
             LIMIT  ?
         """, (symbol, n)).fetchall()
     else:
         rows = conn.execute("""
-            SELECT symbol, ts, open, high, low, close, volume
+            SELECT ticker, date, open, high, low, close, volume
             FROM   daily_ohlcv
-            ORDER  BY ts DESC
+            ORDER  BY date DESC
             LIMIT  ?
         """, (n,)).fetchall()
 
@@ -357,7 +357,7 @@ def _fetch_ohlcv(conn: sqlite3.Connection, symbol: str | None, n: int) -> str:
              "----------+-----------------------+---------+---------+---------+---------+----------"]
     for r in reversed(rows):
         lines.append(
-            f"{r['symbol']:<9} | {r['ts'][:19]:<21} | "
+            f"{r['ticker']:<9} | {r['date'][:19]:<21} | "
             f"{r['open']:>7.2f} | {r['high']:>7.2f} | {r['low']:>7.2f} | "
             f"{r['close']:>7.2f} | {int(r['volume']):>10,}"
         )
@@ -588,7 +588,7 @@ class MarketRAGAgent:
     def index_insight(
         self,
         insight_id: int,
-        symbol:     str,
+        ticker:     str,
         text:       str,
         metadata:   dict | None = None,
     ) -> str | None:
@@ -606,7 +606,7 @@ class MarketRAGAgent:
             payload   = {
                 "source_type": "insight",
                 "source_id":   insight_id,
-                "symbol":      symbol,
+                "symbol":      ticker,
                 "text":        text[:2000],   # cap payload size
                 "created_at":  datetime.now(timezone.utc).isoformat(),
                 **(metadata or {}),
@@ -626,7 +626,7 @@ class MarketRAGAgent:
     def index_news(
         self,
         news_id:   int,
-        symbol:    str,
+        ticker:    str,
         headline:  str,
         metadata:  dict | None = None,
     ) -> str | None:
@@ -640,7 +640,7 @@ class MarketRAGAgent:
             payload  = {
                 "source_type": "news",
                 "source_id":   news_id,
-                "symbol":      symbol,
+                "symbol":      ticker,
                 "text":        headline[:1000],
                 "created_at":  datetime.now(timezone.utc).isoformat(),
                 **(metadata or {}),
@@ -667,7 +667,7 @@ class MarketRAGAgent:
 
         # ── Insights ──
         rows = self._conn.execute("""
-            SELECT ai.id, ai.symbol, ai.payload, ai.insight_type, ai.sentiment,
+            SELECT ai.id, ai.ticker, ai.content, ai.insight_type, ai.sentiment,
                    ai.confidence, ai.catalyst_type, ai.created_at
             FROM   agent_insights ai
             LEFT JOIN rag_index_log l
@@ -680,12 +680,17 @@ class MarketRAGAgent:
         for r in rows:
             # Build a rich text blob combining all searchable fields
             try:
-                payload_data = json.loads(r["payload"])
-                reason = payload_data.get("reason", "")
+                # content might be JSON or plain text
+                content_data = r["content"]
+                if content_data.startswith("{"):
+                    payload_data = json.loads(content_data)
+                    reason = payload_data.get("reason", payload_data.get("content", content_data))
+                else:
+                    reason = content_data
             except Exception:
-                reason = ""
+                reason = r["content"]
             text = (
-                f"[{r['insight_type']}] {r['symbol']} "
+                f"[{r['insight_type']}] {r['ticker']} "
                 f"sentiment={r['sentiment']} confidence={r['confidence']} "
                 f"catalyst={r['catalyst_type']} "
                 f"{reason}"
@@ -710,7 +715,7 @@ class MarketRAGAgent:
                     payload={
                         "source_type": "insight",
                         "source_id":   insight_id,
-                        "symbol":      row["symbol"],
+                        "symbol":      row["ticker"],
                         "text":        text[:2000],
                         "created_at":  row["created_at"],
                         **meta,
@@ -726,7 +731,7 @@ class MarketRAGAgent:
 
         # ── News ──
         news_rows = self._conn.execute("""
-            SELECT n.id, n.symbol, n.headline, n.source, n.sentiment_score, n.published_at
+            SELECT n.id, n.ticker, n.headline, n.source, n.sentiment_score, n.published_at
             FROM   news_articles n
             LEFT JOIN rag_index_log l
               ON  l.source_type = 'news' AND l.source_id = n.id
@@ -751,7 +756,7 @@ class MarketRAGAgent:
                     payload={
                         "source_type":     "news",
                         "source_id":       news_id,
-                        "symbol":          r["symbol"],
+                        "symbol":          r["ticker"],
                         "text":            text[:1000],
                         "created_at":      r["published_at"] or "",
                         "sentiment_score": r["sentiment_score"],
@@ -855,10 +860,14 @@ class MarketRAGAgent:
                 row = next((r for r in insight_rows if r["id"] == chunk.source_id), None)
                 if row:
                     try:
-                        payload = json.loads(row["payload"])
-                        reason  = payload.get("reason", "")
+                        content_data = row["content"]
+                        if content_data.startswith("{"):
+                            payload = json.loads(content_data)
+                            reason = payload.get("reason", payload.get("content", content_data))
+                        else:
+                            reason = content_data
                     except Exception:
-                        reason = ""
+                        reason = row["content"]
                     lines.append(
                         f"   TYPE: agent_insight | {row['insight_type']} | "
                         f"sentiment={row['sentiment']} | confidence={row['confidence']} | "
@@ -1069,16 +1078,16 @@ def index_insight(insight_id: int, symbol: str, text: str, metadata: dict | None
     return get_agent().index_insight(insight_id, symbol, text, metadata)
 
 
-def index_news_headline(news_id: int, symbol: str, headline: str, metadata: dict | None = None) -> str | None:
+def index_news_headline(news_id: int, ticker: str, headline: str, metadata: dict | None = None) -> str | None:
     """
     Call this after every news_articles INSERT.
     Returns the Qdrant point ID string, or None if already indexed / error.
 
     Example in news_intel_agent.py:
         from agents.market_rag import index_news_headline
-        index_news_headline(news_id, symbol, headline, {"source": source})
+        index_news_headline(news_id, ticker, headline, {"source": source})
     """
-    return get_agent().index_news(news_id, symbol, headline, metadata)
+    return get_agent().index_news(news_id, ticker, headline, metadata)
 
 
 def ask_stream(question: str, symbol: str | None = None) -> AsyncIterator[str]:

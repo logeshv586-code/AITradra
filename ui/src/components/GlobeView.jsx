@@ -33,7 +33,7 @@ export default function GlobeView({ onSelect, stocks = [] }) {
   // Dynamically build globe data from live stocks
   const STOCK_POINTS = useMemo(() => stocks.map(s => ({
     lat: s.lat || s.latitude || 40.7,
-    lng: s.lon || s.longitude || -74.0,
+    lng: s.lng || s.longitude || -74.0,
     size: 0.6,
     color: (s.pct_chg || s.chg || 0) >= 0 ? '#00f0ff' : '#ff2a5f',
     stock: s,
@@ -45,10 +45,10 @@ export default function GlobeView({ onSelect, stocks = [] }) {
     for (let i = 0; i < Math.min(stocks.length - 1, 6); i++) {
       const a = stocks[i];
       const b = stocks[(i + 1) % stocks.length];
-      if (a.lat && b.lat && a.lon && b.lon) {
+      if (a.lat && b.lat && a.lng && b.lng) {
         arcs.push({
-          startLat: a.lat, startLng: a.lon,
-          endLat: b.lat, endLng: b.lon,
+          startLat: a.lat, startLng: a.lng,
+          endLat: b.lat, endLng: b.lng,
           color: ['rgba(0,240,255,0.6)', 'rgba(168,85,247,0.6)'],
         });
       }
@@ -56,12 +56,12 @@ export default function GlobeView({ onSelect, stocks = [] }) {
     return arcs;
   }, [stocks]);
 
-  const RINGS_DATA = useMemo(() => stocks.filter(s => s.lat && s.lon).map((s, index) => {
+  const RINGS_DATA = useMemo(() => stocks.filter(s => s.lat && s.lng).map((s, index) => {
     const key = String(s.id || s.ticker || s.name || index);
     const pulseOffset = [...key].reduce((sum, char) => sum + char.charCodeAt(0), index * 97) % 800;
     return {
       lat: s.lat,
-      lng: s.lon,
+      lng: s.lng,
       maxR: (s.pct_chg || s.chg || 0) >= 0 ? 3 : 2,
       propagationSpeed: 2,
       repeatPeriod: 1200 + pulseOffset,

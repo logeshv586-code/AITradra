@@ -49,7 +49,7 @@ from agents.api_agent import router as v3_router
 from agents.data_agent import DataAgent as V3DataAgent
 from agents.blob_agent import BlobAgent as V3BlobAgent
 from agents.rag_agent import RagAgent as V3RagAgent
-from agents.news_agent import NewsAgent as V3NewsAgent
+from agents.news_agent import get_agent as get_news_agent
 from agents.price_agent import PriceAgent as V3PriceAgent
 from agents.forecast_agent import ForecastAgent as V3ForecastAgent
 from agents.explain_agent import ExplainAgent as V3ExplainAgent
@@ -83,7 +83,7 @@ from gateway.market_intel_router import (
 data_agent = V3DataAgent()
 blob_agent = V3BlobAgent()
 rag_agent = V3RagAgent()
-news_agent = V3NewsAgent()
+news_agent = get_news_agent()
 price_agent = V3PriceAgent()
 forecast_agent = V3ForecastAgent()
 explain_agent = V3ExplainAgent()
@@ -180,7 +180,7 @@ async def lifespan(app: FastAPI):
 
     # V1 Core Agents
     data_agent = DataAgent(memory=app.state.memory)
-    news_agent = NewsAgent(memory=app.state.memory)
+    news_agent = get_news_agent()
     trend_agent = TrendAgent(memory=app.state.memory)
     risk_agent = RiskAgent(memory=app.state.memory)
     ml_agent = MLAgent(memory=app.state.memory)
@@ -357,7 +357,7 @@ async def _fetch_yf_ticker(ticker: str) -> dict:
 
     # Fetch real data via DataEngine (knowledge store -> collector -> scrape)
     try:
-        price_data = await data_engine.get_price_data(ticker)
+        price_data = await data_engine.get_price_data(ticker, allow_scrape=True)
         px = price_data.get("px", 0)
         chg = price_data.get("chg", 0)
         lat, lon = get_coords_for_ticker(ticker)
@@ -413,7 +413,7 @@ async def _fetch_yf_ticker(ticker: str) -> dict:
 async def _fetch_yf_index(symbol: str, name: str) -> dict:
     """Fetch index value from knowledge store or collector."""
     try:
-        price_data = await data_engine.get_price_data(symbol)
+        price_data = await data_engine.get_price_data(symbol, allow_scrape=True)
         return {
             "name": name,
             "value": round(price_data.get("px", 0), 2),

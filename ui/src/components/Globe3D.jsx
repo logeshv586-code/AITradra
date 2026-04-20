@@ -27,30 +27,12 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllStocks, setShowAllStocks] = useState(false);
-
-  // User-provided Globe Configuration
-  const globeConfig = {
-    pointSize: 4,
-    globeColor: "#062056",
-    showAtmosphere: true,
-    atmosphereColor: "#FFFFFF",
-    atmosphereAltitude: 0.1,
-    emissive: "#062056",
-    emissiveIntensity: 0.1,
-    shininess: 0.9,
-    polygonColor: "rgba(255,255,255,0.7)",
-    ambientLight: "#38bdf8",
-    directionalLeftLight: "#ffffff",
-    directionalTopLight: "#ffffff",
-    pointLight: "#ffffff",
-    arcTime: 1000,
-    arcLength: 0.9,
-    rings: 1,
-    maxRings: 3,
-    initialPosition: { lat: 22.3193, lng: 114.1694 },
+  const [globeConfig, setGlobeConfig] = useState({
     autoRotate: true,
-    autoRotateSpeed: 0.5,
-  };
+    autoRotateSpeed: 0.8,
+  });
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [autoRotate, setAutoRotate] = useState(true);
 
   useEffect(() => {
     const updateSize = () => {
@@ -64,14 +46,13 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
     updateSize();
     window.addEventListener('resize', updateSize);
 
-    // Apply auto-rotate from config config
-    if (globeRef.current && globeConfig.autoRotate) {
-      globeRef.current.controls().autoRotate = true;
+    if (globeRef.current) {
+      globeRef.current.controls().autoRotate = autoRotate;
       globeRef.current.controls().autoRotateSpeed = globeConfig.autoRotateSpeed;
     }
 
     return () => window.removeEventListener('resize', updateSize);
-  }, [globeConfig.autoRotate, globeConfig.autoRotateSpeed]);
+  }, [autoRotate, globeConfig.autoRotateSpeed]);
 
   const filteredStocks = useMemo(() => {
     if (!Array.isArray(stocks)) return [];
@@ -89,17 +70,49 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
 
   const STOCK_POINTS = useMemo(() => {
     if (!Array.isArray(stocks)) return [];
-    return stocks.map(s => ({
-      lat: s.lat || 40.7,
-      lng: s.lon || -74.0,
-      size: s.px > 0 ? 0.8 : 0.3,
-      color: (s.chg || s.pct_chg || 0) >= 0 ? COL_POSITIVE : COL_NEGATIVE,
-      label: `${s.id || s.ticker} $${s.px || 0} (${(s.chg || s.pct_chg || 0).toFixed?.(2) || 0}%)`,
-      ticker: s.id || s.ticker
-    }));
+    return stocks.map((s, index) => {
+      const { lat, lng } = s;
+      
+      // Deterministic jitter to prevent stacking in financial hubs (like NYC)
+      // Generates a tiny spiral-like offset based on the stock index
+      const jitterAmount = 0.5; // Degrees
+      const angle = (index * 137.5) * (Math.PI / 180); // Golden angle
+      const radius = index > 0 ? (index % 5) * (jitterAmount / 5) : 0;
+      
+      const jitteredLat = (lat || 40.7) + (radius * Math.sin(angle));
+      const jitteredLng = (lng || -74.0) + (radius * Math.cos(angle));
+
+      return {
+        lat: jitteredLat,
+        lng: jitteredLng,
+        size: 0.15,
+        color: (s.chg || s.pct_chg || 0) >= 0 ? 'rgba(0, 240, 255, 0.8)' : 'rgba(255, 42, 95, 0.7)',
+        label: `
+          <div class="p-4 bg-[#0a0f1e]/90 backdrop-blur-xl border border-indigo-500/30 rounded-2xl shadow-2xl min-w-[150px]">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-black text-white uppercase tracking-tighter">${s.id}</span>
+              <span class="text-[9px] font-bold ${(s.chg || 0) >= 0 ? 'text-cyan-400' : 'text-rose-400'}">
+                ${(s.chg || 0) >= 0 ? '▲' : '▼'} ${Math.abs(s.chg || 0).toFixed(2)}%
+              </span>
+            </div>
+            <div class="space-y-1">
+              <div class="flex justify-between">
+                <span class="text-[8px] text-slate-500 font-bold uppercase">Price</span>
+                <span class="text-[10px] font-mono text-cyan-300">$${s.px?.toFixed(2)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-[8px] text-slate-500 font-bold uppercase">MCAP</span>
+                <span class="text-[10px] font-mono text-indigo-300 font-bold">${s.mcap || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+        `,
+        ticker: s.id || s.ticker,
+        raw: s
+      };
+    });
   }, [stocks]);
 
-  // Combine dynamic stock arcs with user-provided sample arcs
   const ARCS_DATA = useMemo(() => {
     const stockArcs = [];
     if (Array.isArray(stocks) && stocks.length >= 2) {
@@ -107,8 +120,8 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         const next = stocks[(i + 1) % stocks.length];
         if (s.lat && next.lat) {
           stockArcs.push({
-            startLat: s.lat, startLng: s.lon,
-            endLat: next.lat, endLng: next.lon,
+            startLat: s.lat, startLng: s.lng,
+            endLat: next.lat, endLng: next.lng,
             color: ['rgba(0, 240, 255, 0.6)', 'rgba(168, 85, 247, 0.6)'],
             arcAlt: 0.3
           });
@@ -116,36 +129,17 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
       });
     }
 
-    const colors = ["#06b6d4", "#3b82f6", "#6366f1"];
-    const baseSampleArcs = [
-      { startLat: -19.885592, startLng: -43.951191, endLat: -22.9068, endLng: -43.1729, arcAlt: 0.1 },
-      { startLat: 28.6139, startLng: 77.209, endLat: 3.139, endLng: 101.6869, arcAlt: 0.2 },
-      { startLat: -19.885592, startLng: -43.951191, endLat: -1.303396, endLng: 36.852443, arcAlt: 0.5 },
-      { startLat: 1.3521, startLng: 103.8198, endLat: 35.6762, endLng: 139.6503, arcAlt: 0.2 },
-      { startLat: 51.5072, startLng: -0.1276, endLat: 3.139, endLng: 101.6869, arcAlt: 0.3 },
-      { startLat: -15.785493, startLng: -47.909029, endLat: 36.162809, endLng: -115.119411, arcAlt: 0.3 },
-      { startLat: -33.8688, startLng: 151.2093, endLat: 22.3193, endLng: 114.1694, arcAlt: 0.3 },
-      { startLat: 21.3099, startLng: -157.8581, endLat: 40.7128, endLng: -74.006, arcAlt: 0.3 },
-      { startLat: -6.2088, startLng: 106.8456, endLat: 51.5072, endLng: -0.1276, arcAlt: 0.3 },
-      { startLat: 11.986597, startLng: 8.571831, endLat: -15.595412, endLng: -56.05918, arcAlt: 0.5 },
-      { startLat: -34.6037, startLng: -58.3816, endLat: 22.3193, endLng: 114.1694, arcAlt: 0.7 },
-      { startLat: 51.5072, startLng: -0.1276, endLat: 48.8566, endLng: -2.3522, arcAlt: 0.1 },
-      { startLat: 14.5995, startLng: 120.9842, endLat: 51.5072, endLng: -0.1276, arcAlt: 0.3 },
-      { startLat: 1.3521, startLng: 103.8198, endLat: -33.8688, endLng: 151.2093, arcAlt: 0.2 },
-      { startLat: 34.0522, startLng: -118.2437, endLat: 48.8566, endLng: -2.3522, arcAlt: 0.2 }
-    ].map(a => ({ ...a, color: colors[Math.floor(Math.random() * colors.length)] }));
-
-    return [...stockArcs, ...baseSampleArcs];
+    return stockArcs;
   }, [stocks]);
 
   const RINGS_DATA = useMemo(() => {
-    if (!Array.isArray(stocks)) return [];
-    return stocks.filter(s => s.lat && s.lon && s.px > 0).map((s, index) => {
+    if (!Array.isArray(stocks) || stocks.length === 0) return [];
+    return stocks.filter(s => s.lat && s.lng && s.px > 0).map((s, index) => {
       const key = String(s.id || s.ticker || s.name || index);
       const pulseOffset = [...key].reduce((sum, char) => sum + char.charCodeAt(0), index * 97) % 800;
       return {
         lat: s.lat,
-        lng: s.lon,
+        lng: s.lng,
         maxR: (s.chg || s.pct_chg || 0) >= 0 ? 3 : 2,
         propagationSpeed: 2,
         repeatPeriod: 1200 + pulseOffset,
@@ -160,6 +154,14 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
     if (chg > 0.4) return { bg: 'rgba(34, 197, 94, 0.15)', border: 'rgba(34, 197, 94, 0.3)', text: '#4ade80', label: 'BUY' };
     if (chg < -0.4) return { bg: 'rgba(239, 68, 68, 0.15)', border: 'rgba(239, 68, 68, 0.3)', text: '#f87171', label: 'SELL' };
     return { bg: 'rgba(251, 191, 36, 0.15)', border: 'rgba(251, 191, 36, 0.3)', text: '#fbbf24', label: 'HOLD' };
+  };
+
+  const handlePointClick = (point) => {
+    setAutoRotate(false);
+    setSelectedStock(point.raw);
+    if (globeRef.current) {
+      globeRef.current.pointOfView({ lat: point.lat, lng: point.lng, altitude: 0.5 }, 1000);
+    }
   };
 
   return (
@@ -178,14 +180,13 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         globeImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg"
         bumpImageUrl="//cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png"
 
-        // Applied globeConfig attributes
         atmosphereColor={globeConfig.atmosphereColor}
         atmosphereAltitude={globeConfig.atmosphereAltitude}
         showAtmosphere={globeConfig.showAtmosphere}
 
         hexPolygonsData={countriesGeo.features}
         hexPolygonResolution={3}
-        hexPolygonMargin={0.7} // tweaked margin based loosely on Aceternity
+        hexPolygonMargin={0.7}
         hexPolygonUseDots={true}
         hexPolygonColor={() => globeConfig.polygonColor}
         hexPolygonAltitude={globeConfig.polygonAltitude || 0.01}
@@ -195,7 +196,11 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         pointRadius="size"
         pointColor="color"
         pointLabel="label"
-        onPointClick={(p) => onStockSelect?.(p.ticker)}
+        onPointHover={(point) => {
+          if (point) setAutoRotate(false);
+          else if (!selectedStock) setAutoRotate(true);
+        }}
+        onPointClick={handlePointClick}
 
         arcsData={ARCS_DATA}
         arcColor="color"
@@ -207,6 +212,46 @@ export default function Globe3D({ onStockSelect, stocks = [] }) {
         ringColor="color"
         ringMaxRadius="maxR"
       />
+
+      {/* Selected Stock Summary Overlay */}
+      {selectedStock && (
+        <div className="absolute bottom-24 p-6 left-6 z-40 w-80 bg-[#0a1020]/90 backdrop-blur-3xl border border-indigo-500/30 rounded-3xl shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-black text-white tracking-tight">{selectedStock.id}</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{selectedStock.sector}</p>
+            </div>
+            <button 
+              onClick={() => { setSelectedStock(null); setAutoRotate(true); }}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+              <span className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Price</span>
+              <span className="text-lg font-mono font-bold text-cyan-400">${selectedStock.px}</span>
+            </div>
+            <div className="p-3 bg-white/5 rounded-2xl border border-white/5">
+              <span className="text-[9px] text-slate-500 font-bold uppercase block mb-1">Market Cap</span>
+              <span className="text-lg font-mono font-bold text-indigo-400">{selectedStock.mcap}</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => onStockSelect?.(selectedStock.id)}
+              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold rounded-2xl transition-all shadow-lg shadow-indigo-600/20 uppercase tracking-widest">
+              Stock Terminal
+            </button>
+            <button onClick={() => setAutoRotate(true)}
+              className="p-3 bg-white/5 hover:bg-white/10 text-slate-300 rounded-2xl transition-all border border-white/10">
+              <Zap size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Clay HUD Control - Bubbled Aesthetic */}
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30">

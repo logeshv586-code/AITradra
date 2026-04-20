@@ -29,6 +29,7 @@ class SimulationEngine:
             "invested_amount": 0.0,
             "positions": [],
             "history": [],
+            "daily_profit_history": [],
             "accuracy_metrics": {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 100.0}
         }
 
@@ -248,6 +249,9 @@ class SimulationEngine:
         self.state["invested_amount"] = sum(
             p["invested_value"] for p in self.state["positions"]
         )
+        
+        # Ensure total balance is recalculated
+        self.state["total_balance"] = self.state["available_cash"] + self.state["invested_amount"]
 
         self.state["history"].append(
             {
@@ -303,3 +307,28 @@ class SimulationEngine:
             self.state["accuracy_metrics"]["accuracy_score"] = 0.0
 
         return self.state
+
+    def record_daily_snapshot(self):
+        """Record a snapshot of the current portfolio value for historical tracking."""
+        if not self.state.get("initialized"):
+            return
+        
+        self.calculate_live_portfolio()
+        snapshot = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "total_balance": self.state["total_balance"],
+            "profit_loss": self.state.get("total_profit_loss", 0),
+            "available_cash": self.state["available_cash"]
+        }
+        
+        history = self.state.setdefault("daily_profit_history", [])
+        # Check if we already recorded today's snapshot, update if so
+        today = datetime.now().strftime("%Y-%m-%d")
+        existing = next((s for s in history if s["date"] == today), None)
+        if existing:
+            existing.update(snapshot)
+        else:
+            history.append(snapshot)
+        
+        self._save_state()
+        return snapshot

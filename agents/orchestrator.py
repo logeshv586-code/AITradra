@@ -114,6 +114,22 @@ class MythicOrchestrator:
 
         start = datetime.now()
 
+        # ─── Data Integrity Check ──────────────────────────────────────────
+        # Ensure the gathered_data actually contains context for the target ticker.
+        # If the ticker was overridden by QueryRouter, we might have mismatched data.
+        if ticker and gathered_data.get("price_data"):
+            data_ticker = gathered_data["price_data"].get("ticker", gathered_data["price_data"].get("id", "")).upper()
+            if data_ticker and data_ticker != ticker.upper():
+                logger.warning(f"[Orchestrator] Data mismatch! Requested {ticker}, got {data_ticker}. Forcing dynamic refresh...")
+                # We can't easily redo the fan-out here without adding latency,
+                # but we can flag it for the synthesis layer or specialists.
+                gathered_data["context_mismatch"] = True
+                gathered_data["requested_ticker"] = ticker
+                # Trigger background sync for the correct ticker to ensure next query is fast
+                from agents.collector_agent import collect_historical_data
+                asyncio.create_task(collect_historical_data(ticker))
+        # ──────────────────────────────────────────────────────────────────
+
         # Step 0: Check for existing checkpoint
         from gateway.knowledge_store import knowledge_store
 

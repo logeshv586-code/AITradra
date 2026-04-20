@@ -42,7 +42,7 @@ class MarketScheduler:
         return MarketManager.get_market_status("US") == "OPEN"
 
     def any_market_open(self) -> bool:
-        """Check if any major market is open."""
+        """Check if any major market (including 24/7 Crypto) is open."""
         for key in MarketManager.MARKETS:
             if MarketManager.get_market_status(key) == "OPEN":
                 return True

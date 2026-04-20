@@ -15,6 +15,7 @@ const PortfolioInsightsView = lazy(() => import("./components/PortfolioInsightsV
 const VirtualPortfolioView = lazy(() => import("./components/VirtualPortfolioView"));
 const IntelligenceStatusView = lazy(() => import("./components/IntelligenceStatusView"));
 import Logo from "./components/Logo";
+import AskBar from "./components/AskBar";
 
 import { MessageSquareText, Search, Activity, Cpu, Globe2, Layout, X, Bell, LayoutDashboard, Shield, TrendingUp, Presentation, Network, Clock, DollarSign, Loader2 } from "lucide-react";
 import { API_BASE } from "./api_config";
@@ -105,13 +106,17 @@ function AppContent() {
         if(s.ok) {
            const sysData = await s.json();
            const stocksArray = Array.isArray(sysData) ? sysData : (sysData.stocks || sysData.data || []);
-if (stocksArray.length > 0) {
+           if (stocksArray.length > 0) {
               hasWatchlistPayload = true;
               setLiveStocks(stocksArray);
-              if (!selectedTicker && stocksArray[0]) {
-                const firstTicker = stocksArray[0].id || stocksArray[0].ticker;
-                if (firstTicker) setSelectedTicker(String(firstTicker).toUpperCase());
-              }
+              
+              // Only set a default ticker if none is currently selected 
+              // (avoids overwriting a manual click from the globe during startup)
+              setSelectedTicker(prev => {
+                if (prev) return prev;
+                const first = stocksArray[0].id || stocksArray[0].ticker;
+                return first ? String(first).toUpperCase() : null;
+              });
             }
         }
         if(!hasWatchlistPayload && g.ok) {
@@ -303,21 +308,11 @@ if (stocksArray.length > 0) {
            </div>
 
            {/* Right: Actions (Responsive spaced) */}
+           <div className="flex items-center gap-3 sm:gap-4 ml-auto flex-1 justify-center max-w-xl">
+              <AskBar onResult={(res) => console.log("Ask result:", res)} />
+           </div>
+
            <div className="flex items-center gap-3 sm:gap-4 ml-auto">
-              {/* Search Bar - Hide on very small screens, show on md+ */}
-              <form onSubmit={handleSearchSubmit} className="hidden md:flex relative w-48 lg:w-64">
-                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                 <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search tickers..." 
-                    className="input-standard pl-9 py-1.5 h-8 placeholder-[var(--text-muted)]"
-                 />
-                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                    <kbd className="px-1.5 py-0.5 text-[9px] font-mono bg-[#252a33] text-[var(--text-muted)] rounded border border-[var(--border-color)]">⌘K</kbd>
-                 </div>
-              </form>
 
               {/* Time - hidden on mobile */}
               <div className="hidden lg:flex items-center gap-2 text-[var(--text-muted)]">
@@ -370,6 +365,7 @@ if (stocksArray.length > 0) {
             {activeView === "Portfolio" && <PortfolioInsightsView />}
             {activeView === "Paper Trading" && <VirtualPortfolioView />}
             {activeView === "News Evidence" && <NewsEvidenceView />}
+            {activeView === "Network Pulse" && <IntelligenceStatusView />}
             {activeView === "AI Expert Chat" && <ChatPanel messages={chatMessages} onSend={(text) => handleChat(text, selectedTicker)} fullView={true} intelligenceStatus={intelligenceStatus} />}
             </Suspense>
           </div>

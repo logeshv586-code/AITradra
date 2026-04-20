@@ -39,30 +39,22 @@ export default function StockDetailPanel({ ticker, onClose }) {
         })
         .catch(() => null);
     
-    Promise.all([
-      safeFetch(`${API_BASE}/api/stock/${tickerId}`),
-      safeFetch(`${API_BASE}/api/stock/${tickerId}/analysis`),
-      safeFetch(`${API_BASE}/api/stock/${tickerId}/explain-move`),
-      safeFetch(`${API_BASE}/api/market/predictions`),
-      safeFetch(`${API_BASE}/api/stock/${tickerId}/risk`),
-      safeFetch(`${API_BASE}/api/knowledge/status`),
-      safeFetch(`${API_BASE}/api/simulation/status`),
-    ]).then(([stock, analysis, reason, preds, , kStatus, sData]) => {
-      clearTimeout(timeoutId);
+    // Separate fetches to prevent peripheral intelligence from blocking core price UI
+    safeFetch(`${API_BASE}/api/stock/${tickerId}`).then(stock => {
       setData(stock);
-      setAnalysis(analysis);
-      setMoveReason(reason);
-      setKnowledgeStatus(kStatus);
-      setSimData(sData);
-      
+      setLoading(false);
+    });
+
+    safeFetch(`${API_BASE}/api/stock/${tickerId}/analysis`).then(setAnalysis);
+    safeFetch(`${API_BASE}/api/stock/${tickerId}/explain-move`).then(setMoveReason);
+    safeFetch(`${API_BASE}/api/market/predictions`).then(preds => {
       const p = preds?.predictions?.find(x => x.ticker === tickerId);
       setPrediction(p);
-      
-      setLoading(false);
-    }).catch(err => {
+    });
+    safeFetch(`${API_BASE}/api/knowledge/status`).then(setKnowledgeStatus);
+    safeFetch(`${API_BASE}/api/simulation/status`).then(sData => {
+      setSimData(sData);
       clearTimeout(timeoutId);
-      console.error("Failed to load stock data", err);
-      setLoading(false);
     });
 
     return () => {
@@ -104,6 +96,12 @@ export default function StockDetailPanel({ ticker, onClose }) {
             </div>
             <div className="flex items-center gap-3">
               <FreshnessBadge label={data.freshness_label} />
+              {data.mcap && (
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.1]">
+                   <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">MCAP</span>
+                   <span className="text-[9px] font-mono font-bold text-indigo-400 uppercase">{data.mcap}</span>
+                </div>
+              )}
               {knowledgeStatus && (
                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/[0.05] border border-white/[0.1]">
                    <Globe size={10} className="text-slate-500" />
