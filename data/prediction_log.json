@@ -687,7 +687,19 @@
     "confidence": 0.35,
     "created_at": "2026-04-18T05:14:40.276487+00:00",
     "timestamp": "2026-04-18T05:14:40.276487+00:00",
-    "id": "6989d77b-003a-4178-a70b-d46a7a4eadca"
+    "id": "6989d77b-003a-4178-a70b-d46a7a4eadca",
+    "actual_price": 262.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 262.11,
+      "target_price": 254.2467,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.622499+00:00"
   },
   {
     "ticker": "AAPL",
@@ -702,7 +714,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T05:15:06.503182+00:00",
     "timestamp": "2026-04-18T05:15:06.503182+00:00",
-    "id": "4f5637c9-7941-403a-b2b7-bbec26077c15"
+    "id": "4f5637c9-7941-403a-b2b7-bbec26077c15",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.641491+00:00"
   },
   {
     "ticker": "AAPL",
@@ -717,7 +741,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T05:32:20.634568+00:00",
     "timestamp": "2026-04-18T05:32:20.634568+00:00",
-    "id": "11c12816-479f-45c2-9a00-39ae39c1d188"
+    "id": "11c12816-479f-45c2-9a00-39ae39c1d188",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.656256+00:00"
   },
   {
     "ticker": "AAPL",
@@ -732,7 +768,19 @@
     "confidence": 0.35,
     "created_at": "2026-04-18T05:32:20.701560+00:00",
     "timestamp": "2026-04-18T05:32:20.701560+00:00",
-    "id": "37b8e9d4-1d36-4021-b98d-4514aa94e084"
+    "id": "37b8e9d4-1d36-4021-b98d-4514aa94e084",
+    "actual_price": 262.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 262.11,
+      "target_price": 254.2467,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.672832+00:00"
   },
   {
     "ticker": "AAPL",
@@ -747,7 +795,19 @@
     "confidence": 0.35,
     "created_at": "2026-04-18T05:43:55.285333+00:00",
     "timestamp": "2026-04-18T05:43:55.285333+00:00",
-    "id": "631e7296-c2a6-4d58-bcbd-04596d46ed36"
+    "id": "631e7296-c2a6-4d58-bcbd-04596d46ed36",
+    "actual_price": 262.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 262.11,
+      "target_price": 254.2467,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.687664+00:00"
   },
   {
     "ticker": "AAPL",
@@ -762,7 +822,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T05:44:59.075521+00:00",
     "timestamp": "2026-04-18T05:44:59.075521+00:00",
-    "id": "bb9978ec-6c2c-475e-8545-7d24bbbbf52d"
+    "id": "bb9978ec-6c2c-475e-8545-7d24bbbbf52d",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.703701+00:00"
   },
   {
     "ticker": "AAPL",
@@ -777,7 +849,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:04:09.353470+00:00",
     "timestamp": "2026-04-18T06:04:09.353470+00:00",
-    "id": "df52a0f1-7778-457c-b84d-5cba0f76100a"
+    "id": "df52a0f1-7778-457c-b84d-5cba0f76100a",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.718888+00:00"
   },
   {
     "ticker": "SQ",
@@ -792,7 +876,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:04:11.041438+00:00",
     "timestamp": "2026-04-18T06:04:11.041438+00:00",
-    "id": "eff2cb28-b7e8-4f5d-8d12-a1a14346159a"
+    "id": "eff2cb28-b7e8-4f5d-8d12-a1a14346159a",
+    "actual_price": 7032.29,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 7032.29,
+      "target_price": 7032.29,
+      "actual_price": 7032.29,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.733336+00:00"
   },
   {
     "ticker": "SQ",
@@ -807,7 +903,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:06:12.408232+00:00",
     "timestamp": "2026-04-18T06:06:12.408232+00:00",
-    "id": "45a2d189-b8b8-47fa-8d7a-8a4effbfe197"
+    "id": "45a2d189-b8b8-47fa-8d7a-8a4effbfe197",
+    "actual_price": 7032.29,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 7032.29,
+      "target_price": 7032.29,
+      "actual_price": 7032.29,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T06:07:01.621499+00:00"
+    },
+    "resolved_at": "2026-04-19T06:07:01.748608+00:00"
   },
   {
     "ticker": "AAPL",
@@ -822,7 +930,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T06:07:09.448531+00:00",
     "timestamp": "2026-04-18T06:07:09.448531+00:00",
-    "id": "7415de03-e0c0-4052-9bef-3a6399f763f4"
+    "id": "7415de03-e0c0-4052-9bef-3a6399f763f4",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T07:07:01.770587+00:00"
+    },
+    "resolved_at": "2026-04-19T07:07:01.772585+00:00"
   },
   {
     "ticker": "AAPL",
@@ -837,7 +957,19 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T07:10:11.434353+00:00",
     "timestamp": "2026-04-18T07:10:11.434353+00:00",
-    "id": "66e173d6-566b-4ba7-b95c-df9cf6d52223"
+    "id": "66e173d6-566b-4ba7-b95c-df9cf6d52223",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T08:07:01.800848+00:00"
+    },
+    "resolved_at": "2026-04-19T08:07:01.802868+00:00"
   },
   {
     "ticker": "AAPL",
@@ -852,6 +984,18 @@
     "confidence": 0.55,
     "created_at": "2026-04-18T07:11:23.868620+00:00",
     "timestamp": "2026-04-18T07:11:23.868620+00:00",
-    "id": "f5552d9b-ef67-4eac-9134-d39084269c9b"
+    "id": "f5552d9b-ef67-4eac-9134-d39084269c9b",
+    "actual_price": 262.11,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 262.11,
+      "target_price": 262.11,
+      "actual_price": 262.11,
+      "price_source": "cache",
+      "scored_at": "2026-04-19T08:07:01.800848+00:00"
+    },
+    "resolved_at": "2026-04-19T08:07:01.821405+00:00"
   }
 ]
