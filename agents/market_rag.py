@@ -616,7 +616,7 @@ class MarketRAGAgent:
                 points=[PointStruct(id=point_id, vector=vector, payload=payload)],
             )
             _log_indexed(self._conn, "insight", insight_id, point_id)
-            log.debug("Indexed insight id=%d symbol=%s point=%s", insight_id, symbol, point_id)
+            log.debug("Indexed insight id=%d ticker=%s point=%s", insight_id, ticker, point_id)
             return point_id
 
         except Exception as exc:
