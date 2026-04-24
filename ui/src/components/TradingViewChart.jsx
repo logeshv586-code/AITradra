@@ -100,6 +100,11 @@ export default function TradingViewChart({ data = [], ticker = "STOCK" }) {
   return (
     <div className="relative w-full h-[400px]">
       <div ref={chartContainerRef} className="w-full h-full" />
+      {data.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="surface-badge">Waiting for live candles...</span>
+        </div>
+      )}
       <div className="absolute top-4 left-4 pointer-events-none">
         <span className="text-[10px] font-black tracking-widest text-[#00f0ff] uppercase opacity-40">Axiom Data Stream // {ticker}</span>
       </div>

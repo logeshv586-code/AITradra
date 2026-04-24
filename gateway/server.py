@@ -582,6 +582,51 @@ def _normalize_swarm_payload(swarm: dict | None) -> dict:
     }
 
 
+def _build_evidence_brief(ticker: str, context: dict) -> str:
+    price = context.get("price_data", context)
+    news = context.get("news") or context.get("top_headlines") or []
+    price_line = (
+        f"{ticker} live context: price {price.get('px', 'n/a')}, "
+        f"change {price.get('pct_chg', price.get('chg', 'n/a'))}%, "
+        f"source {price.get('source_used', 'unknown')}, "
+        f"as-of {price.get('ts', context.get('updated_at', 'now'))}."
+    )
+    evidence_lines = []
+    for idx, item in enumerate(news[:5], 1):
+        headline = item.get("headline") or item.get("title") or "Market update"
+        source = item.get("source", "News")
+        url = item.get("url", "")
+        evidence_lines.append(f"{idx}. {headline} ({source}) {url}".strip())
+    if not evidence_lines:
+        evidence_lines.append("No fresh headline evidence was available; rely more on price, trend, and risk context.")
+    return f"{price_line}\nEvidence:\n" + "\n".join(evidence_lines)
+
+
+def _humanize_trading_answer(answer: str, ticker: str, context: dict) -> str:
+    """Add a consistent analyst-desk wrapper when agents return plain text."""
+    if not answer:
+        return answer
+    if "Evidence" in answer or "Verdict" in answer:
+        return answer
+    price = context.get("price_data", context)
+    news = context.get("news") or context.get("top_headlines") or []
+    source_line = ""
+    if news:
+        first = news[0]
+        headline = first.get("headline") or first.get("title")
+        url = first.get("url")
+        if headline and url:
+            source_line = f"\n\nEvidence I checked: [{headline}]({url})"
+        elif headline:
+            source_line = f"\n\nEvidence I checked: {headline}"
+    return (
+        f"**{ticker or 'Market'} read:** price `{price.get('px', 'n/a')}` "
+        f"({price.get('pct_chg', price.get('chg', 'n/a'))}%) from `{price.get('source_used', 'unknown')}`.\n\n"
+        f"{answer.strip()}"
+        f"{source_line}"
+    )
+
+
 # ─── AXIOM v2 Endpoints ──────────────────────────────────────────────────────
 
 
@@ -593,8 +638,11 @@ async def get_stock_detail_v2(ticker: str):
     ticker = ticker.upper()
     # Fast path: use cached intelligence by default
     snapshot = await intelligence_service.get_ticker_intelligence(
-        ticker, max_age_minutes=120
+        ticker, max_age_minutes=5
     )
+    live_price = await data_engine.get_price_data(ticker, allow_scrape=True)
+    if live_price.get("px", 0) > 0:
+        snapshot["price_data"] = {**snapshot.get("price_data", {}), **live_price}
     data = snapshot.get("price_data", {})
     news = snapshot.get("top_headlines", [])
     sentiment = snapshot.get("sentiment", {})
@@ -612,6 +660,12 @@ async def get_stock_detail_v2(ticker: str):
         "intelligence_profile": snapshot.get("intelligence_profile", {}),
         "adaptive_plan": snapshot.get("adaptive_plan", {}),
     }
+
+
+@app.get("/api/stock/{ticker}/chart")
+async def get_stock_live_chart(ticker: str, period: str = "1d"):
+    """Live terminal chart data. Uses intraday bars where available."""
+    return await data_engine.get_live_chart_data(ticker.upper(), period=period)
 
 
 @app.get("/api/stock/{ticker}/analysis")
@@ -840,7 +894,21 @@ async def stock_chat(ticker: str, body: ChatRequest):
             session.add_message("user", body.message)
 
     # Route through QueryRouter (RAG → Agents → LLM)
-    ctx = AgentContext(task=body.message, ticker=ticker)
+    live_context = await data_engine.get_full_context(ticker, allow_scrape=True)
+    evidence_brief = _build_evidence_brief(
+        ticker,
+        {"price_data": live_context, "news": live_context.get("news", [])},
+    )
+    enhanced_task = (
+        f"{body.message}\n\nUse this current market evidence first. "
+        "Answer like a human trading analyst, with verdict, evidence, risk, and next step.\n"
+        f"{evidence_brief}"
+    )
+    ctx = AgentContext(
+        task=enhanced_task,
+        ticker=ticker,
+        metadata={"live_context": live_context, "research_mode": body.research_mode},
+    )
     result = await query_router.run(ctx)
     response = (
         result.result.get("response", "")
@@ -848,12 +916,24 @@ async def stock_chat(ticker: str, body: ChatRequest):
         else str(result.result)
     )
 
+    response = _humanize_trading_answer(
+        response,
+        ticker,
+        {"price_data": live_context, "news": live_context.get("news", [])},
+    )
+
     if session_id:
         session = session_manager.get_session(session_id)
         if session:
             session.add_message("assistant", response)
 
-    return {"response": response, "ticker": ticker}
+    return {
+        "response": response,
+        "ticker": ticker,
+        "source": "stock_chat_live_evidence",
+        "sources_used": live_context.get("news", [])[:5],
+        "price_data": live_context,
+    }
 
 
 @app.post("/api/chat/stock/{ticker}/session")
@@ -1268,13 +1348,35 @@ async def chat_endpoint(request: Request):
             logger.error(f"Sentiment command failed: {e}")
             return {"response": f"Sentiment analysis failed: {e}", "source": "system"}
 
+    live_context = {}
+    evidence_brief = ""
+    routed_message = user_msg
+    if ticker:
+        try:
+            live_context = await data_engine.get_full_context(
+                ticker.upper(),
+                allow_scrape=True,
+            )
+            evidence_brief = _build_evidence_brief(
+                ticker.upper(),
+                {"price_data": live_context, "news": live_context.get("news", [])},
+            )
+            routed_message = (
+                f"{user_msg}\n\nUse this current market evidence first. "
+                "Answer like a human trading analyst: clear verdict, evidence, risk, and next step.\n"
+                f"{evidence_brief}"
+            )
+        except Exception as e:
+            logger.warning(f"Live chat context unavailable for {ticker}: {e}")
+
     # Route through the intelligent QueryRouter and MythicOrchestrator
     ctx = AgentContext(
-        task=user_msg,
+        task=routed_message,
         ticker=ticker.upper() if ticker else None,
         metadata={
             "research_mode": body.get("research_mode", "QUICK"),
             "history": body.get("history", []),
+            "live_context": live_context,
         },
     )
 
@@ -1289,6 +1391,12 @@ async def chat_endpoint(request: Request):
 
     if isinstance(result.result, dict) and result.result.get("response"):
         response = result.result.get("response", "")
+        if ticker and live_context:
+            response = _humanize_trading_answer(
+                response,
+                ticker.upper(),
+                {"price_data": live_context, "news": live_context.get("news", [])},
+            )
         llm_meta = get_shared_llm().runtime_profile()
         return {
             "response": response,
@@ -1302,7 +1410,8 @@ async def chat_endpoint(request: Request):
             "specialist_outputs": result.result.get("specialist_outputs"),
             "critique": result.result.get("critique"),
             "pipeline_ms": result.result.get("pipeline_ms"),
-            "sources_used": result.result.get("sources_used", []),
+            "sources_used": result.result.get("sources_used", []) or live_context.get("news", [])[:5],
+            "price_data": live_context,
         }
 
     # Fallback: direct LLM call when the full pipeline fails or returns empty
@@ -1316,15 +1425,23 @@ async def chat_endpoint(request: Request):
         )
         prompt = f"User question: {user_msg}"
         if ticker:
-            prompt += f"\nContext ticker: {ticker.upper()}"
+            prompt += f"\nContext ticker: {ticker.upper()}\n{evidence_brief}"
 
         direct_response = await llm.complete(prompt=prompt, system=system, temperature=0.3, max_tokens=1200)
+        if ticker and live_context:
+            direct_response = _humanize_trading_answer(
+                direct_response,
+                ticker.upper(),
+                {"price_data": live_context, "news": live_context.get("news", [])},
+            )
         llm_meta = llm.runtime_profile()
         return {
             "response": direct_response,
             "source": "direct_llm_fallback",
             "llm_provider": llm_meta.get("last_provider_used") or llm_meta.get("active_provider"),
             "model_router": llm_meta,
+            "sources_used": live_context.get("news", [])[:5],
+            "price_data": live_context,
         }
     except Exception as fallback_err:
         logger.error(f"Direct LLM fallback also failed: {fallback_err}")

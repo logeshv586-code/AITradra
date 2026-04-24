@@ -50,6 +50,7 @@ export default function StockDetailView({ ticker }) {
   const [stockData, setStockData] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [explanation, setExplanation] = useState(null);
+  const [chartPayload, setChartPayload] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -64,6 +65,7 @@ export default function StockDetailView({ ticker }) {
         setStockData(cached.stock);
         setAnalysis(cached.analysis);
         setExplanation(cached.explanation);
+        setChartPayload(cached.chart);
         setLoading(false);
       } else {
         setLoading(true);
@@ -82,6 +84,19 @@ export default function StockDetailView({ ticker }) {
           setLoading(false);
           // Update cache
           terminalCache[tickerId] = { ...terminalCache[tickerId], stock: stockPayload };
+        }
+
+        // Step 1b: Load live chart bars separately so the terminal can use
+        // intraday candles when the collector has them.
+        try {
+          const chartRes = await fetch(`${API_BASE}/api/stock/${tickerId}/chart?period=1d`);
+          if (chartRes.ok && !cancelled) {
+            const chartData = await chartRes.json();
+            setChartPayload(chartData);
+            terminalCache[tickerId] = { ...terminalCache[tickerId], chart: chartData };
+          }
+        } catch (chartErr) {
+          console.warn(`Chart stream for ${tickerId}:`, chartErr.message);
         }
 
         // Step 2: Load analysis in background (slow LLM pipeline — don't block UI)
@@ -148,8 +163,8 @@ export default function StockDetailView({ ticker }) {
   const dataQuality = intelligenceProfile.data_quality || {};
   const modelRouter = intelligenceProfile.model_router || {};
   const chartData = useMemo(
-    () => normalizeBars(stockData?.ohlcv_history || priceData.ohlcv || []),
-    [stockData, priceData],
+    () => normalizeBars(chartPayload?.ohlcv || stockData?.ohlcv_history || priceData.ohlcv || []),
+    [chartPayload, stockData, priceData],
   );
   const news = stockData?.news || intelligence.top_headlines || [];
   const direction = intelligence.prediction_direction || intelligence.consensus || "SIDEWAYS";
@@ -215,6 +230,9 @@ export default function StockDetailView({ ticker }) {
                 {isUp ? "+" : ""}{change.toFixed(2)}%
               </span>
               <span className="surface-badge">{priceData.source_used || "syncing"}</span>
+              <span className="surface-badge">
+                {chartPayload?.live ? "Live chart" : chartPayload?.source_used ? `Chart ${chartPayload.source_used}` : "Chart syncing"}
+              </span>
             </div>
           </div>
         </div>
