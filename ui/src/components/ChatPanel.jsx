@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquareText, Send, Loader2, Bot, User, ShieldAlert, Sparkles } from "lucide-react";
+import { Send, Loader2, Bot, User, ShieldAlert, Sparkles, Newspaper, Activity } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 
 export default function ChatPanel({ messages = [], onSend, fullView = false, intelligenceStatus = null }) {
@@ -92,6 +92,43 @@ export default function ChatPanel({ messages = [], onSend, fullView = false, int
                      <div className="flex items-center gap-1.5 mt-2 text-[10px] text-[var(--negative)]">
                         <ShieldAlert size={12}/> Connection Interrupted
                      </div>
+                  )}
+                  {!isUser && (m.priceData || m.sources?.length > 0 || m.meta?.source) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                      {m.priceData?.source_used && (
+                        <span className="surface-badge flex items-center gap-1">
+                          <Activity size={10} />
+                          {m.priceData.source_used}
+                        </span>
+                      )}
+                      {m.meta?.confidence !== undefined && m.meta?.confidence !== null && (
+                        <span className="surface-badge">{Number(m.meta.confidence).toFixed(0)}% confidence</span>
+                      )}
+                      {(m.sources || []).slice(0, 3).map((source, sourceIndex) => {
+                        const headline = source.headline || source.title || source.url || `Evidence ${sourceIndex + 1}`;
+                        const content = (
+                          <>
+                            <Newspaper size={10} />
+                            <span className="max-w-[220px] truncate">{headline}</span>
+                          </>
+                        );
+                        return source.url ? (
+                          <a
+                            key={`${headline}-${sourceIndex}`}
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="surface-badge flex items-center gap-1 hover:text-white"
+                          >
+                            {content}
+                          </a>
+                        ) : (
+                          <span key={`${headline}-${sourceIndex}`} className="surface-badge flex items-center gap-1">
+                            {content}
+                          </span>
+                        );
+                      })}
+                    </div>
                   )}
                </div>
              </div>

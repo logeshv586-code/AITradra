@@ -178,7 +178,18 @@ function AppContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        setChatMessages(prev => [...prev, { role: "ai", text: data.response || data.output }]);
+        setChatMessages(prev => [...prev, {
+          role: "ai",
+          text: data.response || data.output,
+          sources: data.sources_used || [],
+          priceData: data.price_data || null,
+          meta: {
+            provider: data.llm_provider,
+            confidence: data.confidence,
+            pipelineMs: data.pipeline_ms,
+            source: data.source,
+          }
+        }]);
       }
     } catch {
       setChatMessages(prev => [...prev, { role: "ai", text: "Connection to Axiom.AI expert system failed." }]);

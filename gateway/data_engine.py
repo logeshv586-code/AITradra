@@ -12,6 +12,7 @@ NEVER returns empty. Always provides the best available data with freshness labe
 
 import asyncio
 from datetime import datetime, timedelta
+from core.config import settings
 from core.logger import get_logger
 from gateway.cache import cache
 from gateway.scrapers.rss_scraper import rss_scraper
@@ -23,6 +24,22 @@ logger = get_logger(__name__)
 
 class DataEngine:
     """Real data engine with knowledge store integration."""
+
+    def _df_to_ohlcv(self, df, tail: int = 120) -> list[dict]:
+        """Convert collector frames into frontend chart bars."""
+        rows = []
+        if df is None or df.empty:
+            return rows
+        for idx, row in df.tail(tail).iterrows():
+            rows.append({
+                "t": str(idx.isoformat()) if hasattr(idx, "isoformat") else str(idx),
+                "o": float(row.get("Open", 0) or 0),
+                "h": float(row.get("High", 0) or 0),
+                "l": float(row.get("Low", 0) or 0),
+                "c": float(row.get("Close", 0) or 0),
+                "v": int(row.get("Volume", 0) or 0),
+            })
+        return rows
 
     async def get_price_data(self, ticker: str, allow_scrape: bool = False) -> dict:
         """Returns real price data from knowledge store or collector."""
@@ -96,11 +113,7 @@ class DataEngine:
                     except Exception as store_err:
                         logger.warning(f"Failed to store OHLCV for {ticker}: {store_err}")
 
-                    ohlcv_list = [{"t": str(idx.date()) if hasattr(idx, 'date') else str(idx),
-                                   "o": float(row.get("Open", 0)), "h": float(row.get("High", 0)),
-                                   "l": float(row.get("Low", 0)), "c": float(row.get("Close", 0)),
-                                   "v": int(row.get("Volume", 0))}
-                                  for idx, row in df.tail(30).iterrows()]
+                    ohlcv_list = self._df_to_ohlcv(df, tail=120)
 
                     res = {
                         "px": round(px, 2), "chg": round(chg, 2), "pct_chg": round(chg, 2),
@@ -128,6 +141,52 @@ class DataEngine:
             "week52_high": 0, "week52_low": 0,
             "ts": datetime.now().isoformat(), "ohlcv": [],
             "source_used": "none", "is_estimated": True, "syncing": True
+        }
+
+    async def get_live_chart_data(self, ticker: str, period: str = "1d") -> dict:
+        """Fetch chart data optimized for the stock terminal.
+
+        A 1d request uses yfinance 5-minute bars when available through the
+        collector, then gracefully falls back to cached/daily history.
+        """
+        ticker = ticker.upper()
+        period = period if period in {"1d", "5d", "1mo", "3mo", "6mo", "1y"} else "1d"
+        cache_key = f"{ticker}:{period}"
+        cached, is_fresh = cache.get(cache_key, "chart")
+        if cached and is_fresh:
+            return {**cached, "source_used": cached.get("source_used", "chart_cache")}
+
+        try:
+            from agents.collector_agent import fetch_ticker
+            df, source = await fetch_ticker(
+                ticker,
+                period=period,
+                use_cache=period != "1d",
+                scrape_ok=True,
+            )
+            bars = self._df_to_ohlcv(df, tail=160)
+            if bars:
+                payload = {
+                    "ticker": ticker,
+                    "period": period,
+                    "ohlcv": bars,
+                    "source_used": source,
+                    "updated_at": datetime.now().isoformat(),
+                    "live": period == "1d" and source not in {"stale_cache", "none"},
+                }
+                cache.set(cache_key, "chart", payload, source)
+                return payload
+        except Exception as e:
+            logger.warning(f"Live chart fetch failed for {ticker}: {e}")
+
+        price = await self.get_price_data(ticker, allow_scrape=True)
+        return {
+            "ticker": ticker,
+            "period": period,
+            "ohlcv": price.get("ohlcv", []),
+            "source_used": price.get("source_used", "fallback"),
+            "updated_at": datetime.now().isoformat(),
+            "live": False,
         }
 
     async def _trigger_background_fetch(self, ticker: str):

@@ -8,6 +8,7 @@ class Config:
     LLM_PROVIDERS = os.getenv("LLM_PROVIDER_ORDER", "mistral_gguf,nvidia_nim,ollama").split(",")
     CACHE_TTL = {
         "price":     int(os.getenv("CACHE_TTL_PRICE_MINUTES", 5)),
+        "chart":     int(os.getenv("CACHE_TTL_CHART_MINUTES", 1)),
         "news":      int(os.getenv("CACHE_TTL_NEWS_MINUTES", 15)),
         "sentiment": int(os.getenv("CACHE_TTL_SENTIMENT_HOURS", 1)),
         "fundamentals": int(os.getenv("CACHE_TTL_FUNDAMENTALS_HOURS", 24)),
