@@ -42,11 +42,15 @@ venv.bak/
 .env.production.local
 
 # Databases and stores
-# *.sqlite
-# *.sqlite3
+*.sqlite
+*.sqlite3
 chroma/
 chroma_db/
-# *.db
+*.db
+data/cache/
+data/blobs/
+*.shm
+*.wal
 
 # Model weights
 *.gguf
