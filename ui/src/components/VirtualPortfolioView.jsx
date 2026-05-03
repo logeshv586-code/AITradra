@@ -257,9 +257,73 @@ export default function VirtualPortfolioView({ onSelect }) {
                         </tbody>
                      </table>
                   </div>
+                ) : (
+                   <div className="p-12 text-center text-[13px] text-[var(--text-muted)]">
+                      No active positions. Submit an order above to execute.
+                   </div>
+                )}
+             </section>
+
+            {/* Trade History */}
+            <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] shadow-sm overflow-hidden">
+               <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between bg-[#1b1f27]">
+                  <h2 className="heading-3">Activity History</h2>
+                  <span className="surface-badge">{data.history?.length || 0} Events</span>
+               </div>
+               
+               {data.history?.length > 0 ? (
+                  <div className="overflow-x-auto max-h-[300px] no-scrollbar">
+                     <table className="table-standard min-w-[700px]">
+                        <thead>
+                           <tr>
+                              <th className="w-[15%]">Time</th>
+                              <th className="w-[10%]">Action</th>
+                              <th className="w-[15%]">Symbol</th>
+                              <th className="w-[15%] text-right">Shares</th>
+                              <th className="w-[15%] text-right">Price</th>
+                              <th className="w-[15%] text-right">Total</th>
+                              <th className="w-[15%] text-right">Return</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {[...data.history].reverse().map((h, i) => {
+                              const isSell = h.type === "SELL";
+                              const profit = h.profit_loss || 0;
+                              const pct = h.profit_loss_pct || 0;
+                              return (
+                                 <tr key={i} className="opacity-80 hover:opacity-100 transition-opacity">
+                                    <td className="text-[11px] text-[var(--text-muted)] font-mono">
+                                       {new Date(h.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                    </td>
+                                    <td>
+                                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${h.type === "BUY" ? "bg-[#10b98120] text-[var(--positive)]" : "bg-[#ef444420] text-[var(--negative)]"}`}>
+                                          {h.type}
+                                       </span>
+                                    </td>
+                                    <td className="font-semibold text-white">{h.ticker}</td>
+                                    <td className="text-right font-mono text-[var(--text-muted)]">{h.quantity}</td>
+                                    <td className="text-right font-mono text-[var(--text-muted)]">${h.price?.toFixed(2)}</td>
+                                    <td className="text-right font-mono text-white">${h.amount?.toLocaleString()}</td>
+                                    <td className="text-right font-mono">
+                                       {isSell ? (
+                                          <div className="flex flex-col items-end">
+                                             <span className={profit >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}>
+                                                {profit >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                                             </span>
+                                          </div>
+                                       ) : (
+                                          <span className="text-[var(--text-muted)]">—</span>
+                                       )}
+                                    </td>
+                                 </tr>
+                              );
+                           })}
+                        </tbody>
+                     </table>
+                  </div>
                ) : (
-                  <div className="p-12 text-center text-[13px] text-[var(--text-muted)]">
-                     No active positions. Submit an order above to execute.
+                  <div className="p-8 text-center text-[12px] text-[var(--text-muted)]">
+                     No trade history found.
                   </div>
                )}
             </section>

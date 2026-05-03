@@ -331,6 +331,8 @@ class QueryRouter(BaseAgent):
         full_prompt = "\n".join(prompt_parts)
 
         system = f"""You are OMNI-DATA, an elite AI market intelligence system.
+{self._get_skills_context()}
+
 Use ONLY the provided data context. Cite URLs. Be specific with numbers.
 Current: {datetime.now().isoformat()}"""
 

@@ -16,7 +16,7 @@
         "confidence_score": 85.6,
         "risk_level": "MEDIUM",
         "primary_driver": "news",
-        "updated_at": "2026-05-03T18:15:34.190683"
+        "updated_at": "2026-05-03T20:47:10.664749"
       },
       "timestamp": "2026-04-18T12:53:31.181858",
       "current_price": 245.71,
@@ -96,7 +96,7 @@
         "confidence_score": 76.5,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-05-03T18:15:47.171465"
+        "updated_at": "2026-05-03T20:47:17.154997"
       },
       "timestamp": "2026-04-19T18:11:55.482382",
       "current_price": 197.62,

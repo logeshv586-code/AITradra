@@ -11,6 +11,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional, List
 from core.logger import get_logger
+from core.skill_manager import skill_manager
 from agents.base_agent import AgentContext
 
 logger = get_logger(__name__)
@@ -549,15 +550,15 @@ class MythicOrchestrator:
 
         full_prompt = "\n".join(prompt_parts)
 
-        system_prompt = (
-            "You are AXIOM, a premium multi-agent trading intelligence system powered by NVIDIA NIM. "
-            "Write an authoritative, data-driven synthesis of all agent signals. "
-            "Structure: 1) Executive Summary, 2) Technical/Risk alignment, "
-            "3) Macro/Fundamental context, 4) Investment Verdict (BUY/SELL/HOLD). "
-            "IMPORTANT: If the Signal Aggregator shows a strong verdict, be extremely clear about it. "
-            "Provide specific price targets and stop-losses if available. "
-            "Be extremely specific. Use professional financial tone. Keep under 400 words."
-        )
+        system_prompt = f"""You are AXIOM, a premium multi-agent trading intelligence system powered by NVIDIA NIM.
+{skill_manager.get_platform_master_skill()}
+
+Write an authoritative, data-driven synthesis of all agent signals.
+Structure: 1) Executive Summary, 2) Technical/Risk alignment,
+3) Macro/Fundamental context, 4) Investment Verdict (BUY/SELL/HOLD).
+IMPORTANT: If the Signal Aggregator shows a strong verdict, be extremely clear about it.
+Provide specific price targets and stop-losses if available.
+Be extremely specific. Use professional financial tone. Keep under 400 words."""
 
         try:
             return await llm.complete(

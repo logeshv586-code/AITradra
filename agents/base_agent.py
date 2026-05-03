@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import asyncio
 import traceback
 from core.logger import get_logger
+from core.skill_manager import skill_manager
 
 logger = get_logger(__name__)
 
@@ -57,6 +58,10 @@ class BaseAgent(ABC):
         except Exception as e:
             self.logger.warning(f"[{self.name}] Failed to fetch cross-agent insights: {e}")
             return []
+
+    def _get_skills_context(self) -> str:
+        """Retrieve the platform skills documentation for inclusion in LLM prompts."""
+        return skill_manager.get_platform_master_skill()
 
     async def run(self, context: AgentContext) -> AgentContext:
         """Standard execution flow with integrated telemetry."""
