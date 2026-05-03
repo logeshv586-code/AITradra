@@ -6,10 +6,17 @@ Supports Crypto and HIP-3 assets (Stocks, Commodities, etc.).
 import os
 import asyncio
 from typing import Optional, List, Dict
-from eth_account import Account
-import hyperliquid.utils
-from hyperliquid.info import Info
-from hyperliquid.exchange import Exchange
+try:
+    from eth_account import Account
+    import hyperliquid.utils
+    from hyperliquid.info import Info
+    from hyperliquid.exchange import Exchange
+    HAS_HL = True
+except ImportError:
+    HAS_HL = False
+    Account = None
+    Info = None
+    Exchange = None
 from brokers.broker_router import BaseBroker, Order, OrderSide, OrderType
 from core.config import settings
 from core.logger import get_logger
@@ -29,6 +36,12 @@ class HyperliquidBroker(BaseBroker):
         super().__init__(paper=settings.PAPER_TRADE_MODE)
         self.private_key = private_key or settings.HYPERLIQUID_PRIVATE_KEY
         self.vault_address = vault_address or settings.HYPERLIQUID_VAULT_ADDRESS
+
+        if not HAS_HL:
+            logger.warning("Hyperliquid SDK not installed. Broker disabled.")
+            self.exchange = None
+            self.info = None
+            return
 
         if not self.private_key:
             logger.warning(

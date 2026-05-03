@@ -2,7 +2,7 @@
   "initialized": true,
   "total_balance": 100000.0,
   "available_cash": 55739.490000000005,
-  "invested_amount": 44260.51,
+  "invested_amount": 44260.509999999995,
   "positions": [
     {
       "ticker": "AMZN",
@@ -20,7 +20,7 @@
       },
       "timestamp": "2026-04-18T12:53:31.181858",
       "current_price": 245.71,
-      "current_value": 4422.78,
+      "current_value": 4177.07,
       "profit_loss": 0.0,
       "profit_loss_pct": 0.0
     },

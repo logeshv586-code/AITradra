@@ -670,7 +670,7 @@ async def market_intel_overview(request: Request):
     watchlist = [intelligence_service.to_watchlist_record(snapshot) for snapshot in snapshots]
 
     simulation = getattr(request.app.state, "simulation", None)
-    portfolio_state = simulation.get_status() if simulation else {"positions": [], "initialized": False}
+    portfolio_state = await simulation.get_status() if simulation else {"positions": [], "initialized": False}
     positions = portfolio_state.get("positions", []) or []
     positions_by_ticker = {str(position.get("ticker", "")).upper(): position for position in positions}
 

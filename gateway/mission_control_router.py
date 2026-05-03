@@ -113,7 +113,7 @@ async def activate_suggestion(req: ActivateRequest):
     try:
         from gateway.server import app
         # Trigger a simulation buy
-        res = app.state.simulation.buy_stock(req.ticker, req.amount, f"MISSION_ACTIVATE: {req.reasoning}")
+        res = await app.state.simulation.buy_stock(req.ticker, req.amount, f"MISSION_ACTIVATE: {req.reasoning}")
         return {"status": "success", "result": res}
     except Exception as e:
         logger.error(f"Failed to activate suggestion for {req.ticker}: {e}")
