@@ -4,7 +4,10 @@ import httpx
 from fastapi import APIRouter
 from llm.client import LLMClient
 from memory.mem0_manager import Mem0Manager
-from gateway.data_engine_v2 import data_engine
+try:
+    from gateway.data_engine_v2 import data_engine
+except ImportError:
+    data_engine = None  # openbb not installed — diagnostic uses v1 data engine
 from gateway.security import input_guard
 
 from core.config import settings

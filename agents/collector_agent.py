@@ -212,45 +212,30 @@ def _fetch_yfinance(ticker: str, period: str) -> Optional[pd.DataFrame]:
         df = _normalize_df(df, "yfinance")
         
         # Capture metadata (Market Cap, PE) if available
+        mktcap, pe = 0, 0
         try:
-            info = yf.Ticker(ticker).info
-            df.attrs["mktcap"] = info.get("marketCap", 0)
-            df.attrs["pe"] = info.get("forwardPE", info.get("trailingPE", 0))
-        except Exception:
+            t = yf.Ticker(ticker)
+            # fast_info is much more reliable and doesn't require a full HTTP call
             try:
-                # Fallback: Scrape from Yahoo Finance summary page if info fails
-                import httpx
-                import re
-                url = f"https://finance.yahoo.com/quote/{ticker}"
-                headers = {"User-Agent": "Mozilla/5.0"}
-                with httpx.Client(timeout=10, follow_redirects=True) as client:
-                    resp = client.get(url, headers=headers)
-                    if resp.status_code == 200:
-                        # Find "Market Cap" and "PE Ratio (TTM)"
-                        import re
-                        # Using a more flexible regex that survives layout changes
-                        mcap_match = re.search(r'(?:Market Cap|Market cap).*?(?:<span[^>]*>)([\d\.]+[TBM])', resp.text, re.IGNORECASE | re.DOTALL)
-                        pe_match = re.search(r'(?:PE Ratio \(TTM\)|PE ratio).*?(?:<span[^>]*>)([\d\.]+)', resp.text, re.IGNORECASE | re.DOTALL)
-                        
-                        def parse_mcap(s):
-                            # Remove tags and whitespace
-                            s = re.sub(r'<.*?>', '', s).strip().upper().replace(',', '')
-                            if 'T' in s: return float(s.replace('T', '')) * 1e12
-                            if 'B' in s: return float(s.replace('B', '')) * 1e9
-                            if 'M' in s: return float(s.replace('M', '')) * 1e6
-                            try: return float(s)
-                            except: return 0
-
-                        if mcap_match:
-                            df.attrs["mktcap"] = parse_mcap(mcap_match.group(1))
-                        if pe_match:
-                            pe_str = re.sub(r'<.*?>', '', pe_match.group(1)).strip().replace(',', '')
-                            try: df.attrs["pe"] = float(pe_str)
-                            except: df.attrs["pe"] = 0
-            except Exception as e:
-                logger.debug(f"[Collector] Fallback scrape failed for {ticker}: {e}")
-                df.attrs["mktcap"] = df.attrs.get("mktcap", 0)
-                df.attrs["pe"] = df.attrs.get("pe", 0)
+                fi = t.fast_info
+                mktcap = getattr(fi, 'market_cap', 0) or 0
+                pe = getattr(fi, 'forward_pe', 0) or getattr(fi, 'trailing_pe', 0) or 0
+            except Exception:
+                pass
+            
+            # Fallback to full info if fast_info didn't get market cap
+            if not mktcap:
+                try:
+                    info = t.info
+                    mktcap = info.get("marketCap", 0) or 0
+                    pe = pe or info.get("forwardPE", info.get("trailingPE", 0)) or 0
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"[Collector] Metadata fetch failed for {ticker}: {e}")
+        
+        df.attrs["mktcap"] = mktcap
+        df.attrs["pe"] = pe
             
         return df if not df.empty else None
     except Exception as e:

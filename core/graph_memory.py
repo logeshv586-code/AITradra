@@ -6,8 +6,15 @@ Provides entity linking, relationship management, and GraphRAG.
 import os
 import asyncio
 from typing import List, Dict, Any, Optional
-from zep_python import ZepClient
-from zep_python.document import Document, DocumentCollection
+try:
+    from zep_python import ZepClient
+    from zep_python.document import Document, DocumentCollection
+    HAS_ZEP = True
+except ImportError:
+    HAS_ZEP = False
+    ZepClient = None
+    Document = None
+    DocumentCollection = None
 from core.logger import get_logger
 from core.config import settings
 
@@ -27,8 +34,11 @@ class GraphMemory:
         try:
             # The ZepClient constructor performs a health check. 
             # We catch errors here to allow the system to boot without Docker.
-            self.client = ZepClient(self.api_url)
-            self._ensure_collection()
+            if HAS_ZEP:
+                self.client = ZepClient(self.api_url)
+                self._ensure_collection()
+            else:
+                logger.info("Zep client package not found. GraphMemory disabled.")
         except Exception as e:
             logger.warning(f"Zep initialization failed (offline mode): {e}. GraphMemory features will be disabled.")
 

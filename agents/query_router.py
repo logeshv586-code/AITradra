@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Optional
 from agents.base_agent import BaseAgent, AgentContext
 from core.logger import get_logger
-from agents.collector_agent import collect_historical_data
+from agents.collector_agent import fetch_ticker as _collector_fetch_ticker
 from gateway.knowledge_store import knowledge_store
 
 logger = get_logger(__name__)
@@ -115,7 +115,7 @@ class QueryRouter(BaseAgent):
             if news_count == 0:
                 self._add_thought(context, f"Ticker {ticker} has no local data. Triggering Deep Sync...")
                 # Trigger the full collector pipeline
-                asyncio.create_task(collect_historical_data(ticker))
+                asyncio.create_task(_collector_fetch_ticker(ticker))
                 # For QUICK mode, we continue, but the orchestrator will see thin data.
                 # If research_mode is DEEP, we might want to wait, but that's complex for chat.
 

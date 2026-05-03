@@ -106,7 +106,8 @@ export default function VirtualPortfolioView({ onSelect }) {
 
   const bal = data.available_cash || 0;
   const eq = data.total_balance || 0;
-  const ret = ((eq - 100000) / 100000) * 100;
+  const totalPL = data.total_profit_loss || 0;
+  const ret = data.profit_loss_percentage || ((eq - 100000) / 100000) * 100;
   const positions = Array.isArray(data.positions) ? data.positions : Object.values(data.positions || {});
   const isUp = ret >= 0;
   const topPicks = (intel?.top_opportunities || []).slice(0, 6).map((item) => item.ticker);
@@ -208,11 +209,12 @@ export default function VirtualPortfolioView({ onSelect }) {
                      <table className="table-standard min-w-[700px]">
                         <thead>
                            <tr>
-                              <th className="w-[20%]">Symbol</th>
-                              <th className="w-[15%] text-right">Shares</th>
-                              <th className="w-[20%] text-right hidden sm:table-cell">Avg Price</th>
-                              <th className="w-[20%] text-right">Return</th>
-                              <th className="w-[25%] text-center">Manage</th>
+                              <th className="w-[18%]">Symbol</th>
+                              <th className="w-[12%] text-right">Shares</th>
+                              <th className="w-[18%] text-right hidden sm:table-cell">Avg Price</th>
+                              <th className="w-[18%] text-right">Current</th>
+                              <th className="w-[14%] text-right">Return</th>
+                              <th className="w-[20%] text-center">Manage</th>
                            </tr>
                         </thead>
                         <tbody>
@@ -221,15 +223,20 @@ export default function VirtualPortfolioView({ onSelect }) {
                               const avgPrice = p.buy_price || p.avg_price || 0;
                               const currentPrice = p.current_price || avgPrice;
                               const shares = p.quantity || p.shares || 0;
-                              const ret = avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+                              const pnl = p.profit_loss || 0;
+                              const ret = p.profit_loss_pct || (avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0);
                               const isPos = ret >= 0;
                               return (
                               <tr key={ticker}>
                                  <td className="font-semibold text-white">{ticker}</td>
-                                 <td className="text-right font-mono text-[var(--text-muted)]">{shares}</td>
+                                 <td className="text-right font-mono text-[var(--text-muted)]">{typeof shares === 'number' ? shares.toFixed(shares % 1 === 0 ? 0 : 2) : shares}</td>
                                  <td className="text-right font-mono text-[var(--text-muted)] hidden sm:table-cell">${avgPrice?.toFixed(2)}</td>
+                                 <td className="text-right font-mono font-semibold text-white">${currentPrice?.toFixed(2)}</td>
                                  <td className="text-right font-mono font-bold" style={{ color: isPos ? "var(--positive)" : "var(--negative)" }}>
-                                    {isPos ? "+" : ""}{ret.toFixed(2)}%
+                                    <div className="flex flex-col items-end">
+                                      <span>{isPos ? "+" : ""}{ret.toFixed(2)}%</span>
+                                      <span className="text-[10px] opacity-70">${Math.abs(pnl).toFixed(2)}</span>
+                                    </div>
                                  </td>
                                  <td className="px-4 py-2">
                                     <div className="flex items-center justify-center gap-2">

@@ -1931,7 +1931,7 @@ async def analyze_stream(websocket: WebSocket, ticker: str):
 @app.get("/api/simulation/status")
 async def simulation_status():
     """Get summarized virtual portfolio status."""
-    return app.state.simulation.get_status()
+    return await app.state.simulation.get_status()
 
 
 @app.post("/api/simulation/init")
@@ -1944,7 +1944,7 @@ async def simulation_init(req: SimulationInitRequest):
 async def simulation_buy(request: BuyRequest):
     """Execute virtual BUY using live market price."""
     try:
-        return app.state.simulation.buy_stock(
+        return await app.state.simulation.buy_stock(
             request.ticker,
             request.shares,
             request.prediction,
@@ -1959,7 +1959,7 @@ async def simulation_buy(request: BuyRequest):
 async def simulation_sell(req: SimulationTradeRequest):
     """Execute virtual SELL using live market price."""
     try:
-        return app.state.simulation.sell_stock(req.ticker, req.shares)
+        return await app.state.simulation.sell_stock(req.ticker, req.shares)
     except ValueError as e:
         return {"error": str(e)}
 
@@ -1967,7 +1967,7 @@ async def simulation_sell(req: SimulationTradeRequest):
 @app.get("/api/simulation/update")
 async def simulation_update():
     """Fetch real-time revaluation of all virtual positions."""
-    return app.state.simulation.calculate_live_portfolio()
+    return await app.state.simulation.calculate_live_portfolio()
 
 
 if UI_DIST_DIR.exists():

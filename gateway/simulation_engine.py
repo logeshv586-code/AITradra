@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Optional
 from core.logger import get_logger
@@ -47,7 +48,24 @@ class SimulationEngine:
             logger.warning(f"Failed to load intelligence snapshot for {ticker}: {e}")
             return None
 
-    def _get_live_price(self, ticker: str) -> float:
+    async def _get_live_price(self, ticker: str) -> float:
+        """Fetch live price using the data engine with yfinance/collector fallback.
+        
+        Priority:
+          1. data_engine.get_price_data (hits cache -> knowledge store -> yfinance -> scrape)
+          2. intelligence snapshot (px from knowledge store)
+          3. Returns 0 only if everything fails
+        """
+        # 1. Try data engine (async, hits yfinance/collector if needed)
+        try:
+            price_data = await self.data_engine.get_price_data(ticker.upper(), allow_scrape=True)
+            px = float(price_data.get("px", 0) or 0)
+            if px > 0:
+                return px
+        except Exception as e:
+            logger.warning(f"Data engine price fetch failed for {ticker}: {e}")
+
+        # 2. Fallback to intelligence snapshot
         snapshot = self._get_snapshot(ticker)
         price = ((snapshot or {}).get("price_data") or {}).get("px", 0)
         return float(price or 0)
@@ -76,7 +94,7 @@ class SimulationEngine:
         self._save_state()
         return self.state
 
-    def get_status(self):
+    async def get_status(self):
         metrics = self.state.setdefault(
             "accuracy_metrics",
             {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 0.0},
@@ -84,10 +102,10 @@ class SimulationEngine:
         if metrics.get("total_trades", 0) == 0:
             metrics["accuracy_score"] = 0.0
         if self.state.get("initialized"):
-            return self.calculate_live_portfolio()
+            return await self.calculate_live_portfolio()
         return self.state
 
-    def buy_stock(
+    async def buy_stock(
         self,
         ticker: str,
         quantity: float,
@@ -98,7 +116,7 @@ class SimulationEngine:
         if not self.state["initialized"]:
             raise ValueError("Simulation not initialized")
 
-        price = self._get_live_price(ticker)
+        price = await self._get_live_price(ticker)
         if price <= 0:
             raise ValueError(f"Could not fetch live price for {ticker}")
 
@@ -191,9 +209,9 @@ class SimulationEngine:
         )
 
         self._save_state()
-        return self.calculate_live_portfolio()
+        return await self.calculate_live_portfolio()
 
-    def sell_stock(self, ticker: str, quantity_to_sell: Optional[float] = None):
+    async def sell_stock(self, ticker: str, quantity_to_sell: Optional[float] = None):
         if not self.state["initialized"]:
             raise ValueError("Simulation not initialized")
 
@@ -213,9 +231,9 @@ class SimulationEngine:
         else:
             fully_closed = False
 
-        current_price = self._get_live_price(ticker) or pos.get(
-            "current_price", pos["buy_price"]
-        )
+        current_price = await self._get_live_price(ticker)
+        if current_price <= 0:
+            current_price = pos.get("current_price", pos["buy_price"])
 
         sale_value = quantity_to_sell * current_price
         profit_loss = sale_value - (quantity_to_sell * pos["buy_price"])
@@ -261,30 +279,41 @@ class SimulationEngine:
                 "amount": sale_value,
                 "quantity": quantity_to_sell,
                 "profit_loss": profit_loss,
+                "profit_loss_pct": round((profit_loss / (quantity_to_sell * pos["buy_price"])) * 100, 2) if pos["buy_price"] > 0 else 0,
                 "signal_context": self._get_signal_context(ticker),
                 "timestamp": datetime.now().isoformat(),
             }
         )
 
         self._save_state()
-        return self.calculate_live_portfolio()
+        return await self.calculate_live_portfolio()
 
-    def calculate_live_portfolio(self):
+    async def calculate_live_portfolio(self):
         if not self.state["initialized"]:
             return self.state
 
         total_invested_current = 0.0
         total_p_l = 0.0
 
+        # Fetch all live prices concurrently
+        tickers = [pos["ticker"] for pos in self.state["positions"]]
+        prices = await asyncio.gather(
+            *[self._get_live_price(t) for t in tickers],
+            return_exceptions=True
+        )
+        price_map = {}
+        for t, px in zip(tickers, prices):
+            price_map[t] = float(px) if isinstance(px, (int, float)) and px > 0 else 0
+
         for pos in self.state["positions"]:
-            curr_px = self._get_live_price(pos["ticker"]) or pos["buy_price"]
+            curr_px = price_map.get(pos["ticker"], 0) or pos["buy_price"]
             signal_context = self._get_signal_context(pos["ticker"])
 
             pos["current_price"] = curr_px
             pos["current_value"] = curr_px * pos["quantity"]
             pos["profit_loss"] = pos["current_value"] - pos["invested_value"]
             pos["profit_loss_pct"] = (
-                (pos["profit_loss"] / pos["invested_value"] * 100)
+                round((pos["profit_loss"] / pos["invested_value"] * 100), 2)
                 if pos["invested_value"]
                 else 0
             )
@@ -299,13 +328,14 @@ class SimulationEngine:
         )
         self.state["total_profit_loss"] = total_p_l
         self.state["profit_loss_percentage"] = (
-            (total_p_l / (self.state["total_balance"] - total_p_l) * 100)
+            round((total_p_l / (self.state["total_balance"] - total_p_l) * 100), 2)
             if (self.state["total_balance"] - total_p_l) > 0
             else 0
         )
         if self.state["accuracy_metrics"].get("total_trades", 0) == 0:
             self.state["accuracy_metrics"]["accuracy_score"] = 0.0
 
+        self._save_state()
         return self.state
 
     def record_daily_snapshot(self):
@@ -313,7 +343,7 @@ class SimulationEngine:
         if not self.state.get("initialized"):
             return
         
-        self.calculate_live_portfolio()
+        # Use synchronous price for snapshot (already cached from last calculate_live_portfolio)
         snapshot = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "total_balance": self.state["total_balance"],
@@ -322,7 +352,6 @@ class SimulationEngine:
         }
         
         history = self.state.setdefault("daily_profit_history", [])
-        # Check if we already recorded today's snapshot, update if so
         today = datetime.now().strftime("%Y-%m-%d")
         existing = next((s for s in history if s["date"] == today), None)
         if existing:
