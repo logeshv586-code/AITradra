@@ -66,7 +66,7 @@ class HyperliquidTradingService:
                 latest_indicators = IndicatorService.get_latest_indicators(df)
                 
                 # 4. Create Agent Context
-                context = AgentContext(ticker=ticker)
+                context = AgentContext(task=f"Hyperliquid trading analysis for {ticker}", ticker=ticker)
                 context.observations["indicators"] = latest_indicators
                 context.observations["portfolio"] = portfolio_context
                 
@@ -79,7 +79,7 @@ class HyperliquidTradingService:
                     continue
 
                 # 6. Risk Manager Validation
-                risk_context = AgentContext(ticker=ticker)
+                risk_context = AgentContext(task=f"Risk evaluation for {ticker} trade", ticker=ticker)
                 risk_context.observations["portfolio"] = portfolio_context
                 risk_context.observations["confidence"] = context.confidence
                 risk_context.observations["requested_leverage"] = context.result.get("leverage", 1)

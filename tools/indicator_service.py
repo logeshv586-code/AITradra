@@ -56,9 +56,17 @@ class IndicatorService:
         # OBV
         df['OBV'] = ta.obv(df['close'], df['volume'])
         
-        # VWAP
-        # Note: VWAP usually needs an HLC3 column
-        df['VWAP'] = ta.vwap(df['high'], df['low'], df['close'], df['volume'])
+        # VWAP — requires an ordered DatetimeIndex
+        try:
+            if 'timestamp' in df.columns:
+                vwap_df = df.copy()
+                vwap_df.index = pd.to_datetime(vwap_df['timestamp'])
+                vwap_df = vwap_df.sort_index()
+                df['VWAP'] = ta.vwap(vwap_df['high'], vwap_df['low'], vwap_df['close'], vwap_df['volume']).values
+            else:
+                df['VWAP'] = None
+        except Exception:
+            df['VWAP'] = None
         
         return df
 
