@@ -60,8 +60,15 @@ class BaseAgent(ABC):
             return []
 
     def _get_skills_context(self) -> str:
-        """Retrieve the platform skills documentation for inclusion in LLM prompts."""
-        return skill_manager.get_platform_master_skill()
+        """Retrieve the targeted skill context for this specific agent."""
+        return skill_manager.get_agent_skill_context(self.name)
+
+    def _build_skill_enhanced_prompt(self, base_system_prompt: str) -> str:
+        """Combines this agent's skill context with its system prompt for LLM calls."""
+        skill_ctx = self._get_skills_context()
+        if skill_ctx:
+            return f"{base_system_prompt}\n\n--- PLATFORM INTELLIGENCE RULES ---\n{skill_ctx}"
+        return base_system_prompt
 
     async def run(self, context: AgentContext) -> AgentContext:
         """Standard execution flow with integrated telemetry."""

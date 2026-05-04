@@ -45,6 +45,7 @@ class MythicOrchestrator:
         from agents.risk_manager import RiskManagerAgent
         from agents.signal_aggregator import SignalAggregatorAgent
         from agents.regime_detector import RegimeDetectorAgent
+        from agents.breakout_agent import BreakoutMomentumAgent
 
         # Vibe Trading AI Agents
         from agents.swarm_agent import swarm_agent
@@ -55,6 +56,7 @@ class MythicOrchestrator:
         self.technical = TechnicalSpecialist()
         self.risk = RiskSpecialist()
         self.macro = MacroSpecialist()
+        self.breakout = BreakoutMomentumAgent()
 
         # Extended Specialists & AI Upgrades
         self.sentiment = SentimentSpecialist()
@@ -89,6 +91,7 @@ class MythicOrchestrator:
             self.technical,
             self.risk,
             self.macro,
+            self.breakout,
             self.sentiment,
             self.sentiment_finbert,
             self.fundamental,
@@ -457,11 +460,12 @@ class MythicOrchestrator:
             self.technical.run(ctx),
             self.macro.run(ctx),
             self.fundamental.run(ctx),
+            self.breakout.run(ctx),
             return_exceptions=True,
         )
 
         outputs = {}
-        for name, res in zip(["technical", "macro", "fundamental"], results):
+        for name, res in zip(["technical", "macro", "fundamental", "breakout"], results):
             outputs[name] = (
                 res.result if not isinstance(res, Exception) else {"error": str(res)}
             )

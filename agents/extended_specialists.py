@@ -90,7 +90,7 @@ class SentimentSpecialist(_SpecialistBase):
         prompt = f"TICKER: {ctx.ticker}\nHeadlines:\n" + "\n".join(f"- {h}" for h in headlines) + ic
         try:
             llm = get_shared_llm()
-            res = await llm.complete(prompt=prompt, system=self.system_prompt,
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt),
                                      expect_json=True, temperature=0.1, role="sentiment")
             if isinstance(res, dict) and "signal" in res:
                 ctx.result = res
@@ -132,7 +132,7 @@ class FundamentalSpecialist(_SpecialistBase):
 
         try:
             llm = get_shared_llm()
-            res = await llm.complete(prompt=prompt, system=self.system_prompt,
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt),
                                      expect_json=True, temperature=0.1, role="analysis")
             if isinstance(res, dict) and "signal" in res:
                 ctx.result = res
@@ -170,7 +170,7 @@ class SectorSpecialist(_SpecialistBase):
         prompt = f"TICKER: {ctx.ticker}\nEvaluate sector positioning.{ic}"
         try:
             llm = get_shared_llm()
-            res = await llm.complete(prompt=prompt, system=self.system_prompt,
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt),
                                      expect_json=True, temperature=0.2, role="analysis")
             if isinstance(res, dict) and "signal" in res:
                 ctx.result = res
@@ -197,7 +197,7 @@ class CatalystSpecialist(_SpecialistBase):
                   "\n".join(f"- {h}" for h in headlines) + ic)
         try:
             llm = get_shared_llm()
-            res = await llm.complete(prompt=prompt, system=self.system_prompt,
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt),
                                      expect_json=True, temperature=0.1, role="analysis")
             if isinstance(res, dict) and "signal" in res:
                 ctx.result = res

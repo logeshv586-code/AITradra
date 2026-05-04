@@ -3,208 +3,126 @@
 ## RiskManagerAgent Decision Tree
 
 ```
-Input: ticker + portfolio state + signal from aggregator
-        ↓
-1. CHECK: open_positions >= MAX_OPEN_POSITIONS?
-   YES → BLOCK ("Max positions reached")
-        ↓
-2. CHECK: daily_pnl_pct <= -MAX_DAILY_LOSS_PCT?
-   YES → BLOCK ("Daily loss limit exceeded")
-        ↓
-3. CHECK: any position unrealized_pnl_pct <= -FORCE_CLOSE_LOSS_PCT?
-   YES → FORCE_CLOSE (that position)
-        ↓
-4. CHECK: available_cash < total_balance * BALANCE_RESERVE_PCT?
-   YES → BLOCK ("Below cash reserve")
-        ↓
-5. CAP leverage to MAX_LEVERAGE if exceeded
-        ↓
-6. READ signal aggregator verdict + confidence
-   - Get direction (BUY/SELL/HOLD) and confidence (0-100)
-   - Calculate risk_level from historical volatility
-        ↓
-7. CALCULATE sizing multiplier:
-   confidence >= 80 → 1.0 (full size)
-   confidence >= 65 → 0.6
-   confidence >= 50 → 0.3
-   confidence < 50  → 0.0 → BLOCK
-        ↓
-8. APPROVE with suggested_position_size = balance * MAX_POSITION_PCT * multiplier
+Priority 1: Max Open Positions (≥ MAX_OPEN_POSITIONS → BLOCK)
+    ↓
+Priority 2: Daily Loss Limit (≤ -MAX_DAILY_LOSS_PCT → BLOCK)
+    ↓
+Priority 3: Force Close (position loss > FORCE_CLOSE_LOSS_PCT → FORCE_CLOSE)
+    ↓
+Priority 4: Cash Reserve (cash < BALANCE_RESERVE_PCT × total → BLOCK)
+    ↓
+Priority 5: Leverage Cap (cap at MAX_LEVERAGE)
+    ↓
+Priority 6: Confidence Gating (get_recommendation() → HOLD if low)
+    ↓
+Priority 7: Volatility Regime Adjustment (reduce size in HIGH/CRISIS)
+    ↓
+Priority 8: Kelly + Conviction Sizing → APPROVE with position size
 ```
 
 ## Settings Reference
 
-```python
-# core/config.py — these are the critical risk settings:
-
-MAX_POSITION_PCT = 0.10       # Max 10% of portfolio per trade
-MAX_DAILY_LOSS_PCT = 0.05     # Stop trading after 5% daily loss
-MAX_OPEN_POSITIONS = 5        # Max 5 concurrent positions
-FORCE_CLOSE_LOSS_PCT = 0.15   # Force close at 15% unrealized loss
-BALANCE_RESERVE_PCT = 0.20    # Keep 20% cash always
-MAX_LEVERAGE = 10             # Hard leverage cap
-MIN_SIGNAL_CONFIDENCE = 60    # Minimum confidence to generate signal
-MIN_CONSENSUS_AGENTS = 3      # Minimum agents that must agree
-PAPER_TRADE_MODE = True       # DEFAULT: paper trading (no real orders)
-PREDICTION_SCORE_DELAY_HOURS = 24  # Wait 24h before scoring predictions
-```
-
----
+| Setting | Paper | Live | Description |
+|---------|-------|------|-------------|
+| MAX_POSITION_PCT | 0.10 | 0.05 | Max position as % of portfolio |
+| MAX_DAILY_LOSS_PCT | 0.05 | 0.02 | Daily loss circuit breaker |
+| MAX_OPEN_POSITIONS | 5 | 3 | Maximum concurrent positions |
+| MAX_LEVERAGE | 3 | 2 | Leverage cap |
+| BALANCE_RESERVE_PCT | 0.20 | 0.30 | Cash reserve floor |
+| FORCE_CLOSE_LOSS_PCT | 0.10 | 0.05 | Position force-close threshold |
+| MANDATORY_STOP_LOSS_PCT | 0.05 | 0.03 | Percentage stop if no ATR |
 
 ## Position Sizing Models
 
-### 1. Conviction-Based (Default, RiskManagerAgent)
+### 1. Kelly Criterion (Primary)
 ```python
-multiplier = {
-    confidence >= 80: 1.0,
-    confidence >= 65: 0.6,
-    confidence >= 50: 0.3,
-    confidence < 50:  0.0  # No trade
-}
-base_size = portfolio_value * MAX_POSITION_PCT
-position_size = base_size * multiplier
+calculate_kelly_size(win_rate, avg_win, avg_loss, max_position_pct, safety_factor=0.5)
+```
+- Formula: `K = W - (1-W)/R` where W = win_rate, R = avg_win/avg_loss
+- Applied: Half-Kelly (× 0.5 safety factor)
+- Hard cap: MAX_POSITION_PCT
+- Minimum: 3% of max when insufficient data
+
+### 2. Conviction-Based Multiplier
+```python
+get_sizing_multiplier(confidence)
+```
+| Confidence | Multiplier | Position |
+|-----------|------------|----------|
+| >= 80 | 1.0 | Full position |
+| >= 65 | 0.6 | 60% position |
+| >= 50 | 0.3 | 30% position |
+| < 50 | 0.0 | BLOCKED |
+
+### 3. Regime-Adjusted Final Size
+```
+effective_pct = min(kelly, max_position × conviction) × regime_multiplier
+suggested_size = total_balance × effective_pct
 ```
 
-### 2. Kelly Criterion (PortfolioAgent)
-```python
-win_rate = wins / total_trades
-win_loss_ratio = avg_win / avg_loss
-kelly_raw = win_rate - (1 - win_rate) / win_loss_ratio
-half_kelly = max(0.0, kelly_raw * 0.5)  # Safety: use half-Kelly
-
-# Final: min of Kelly, risk-parity, and hard cap
-risk_parity_size = target_risk (0.15) / annualized_volatility
-final_size = min(half_kelly, risk_parity_size, MAX_POSITION_PCT)
-```
-
-### 3. Risk-Parity
-```python
-target_portfolio_risk = 0.15  # 15% annual portfolio volatility
-asset_volatility = daily_std * sqrt(252)  # Annualized
-position_size = target_portfolio_risk / asset_volatility
-position_size = min(position_size, MAX_POSITION_PCT)
-```
-
----
-
-## VaR Calculation
+## Volatility Regime Classification
 
 ```python
-# Historical VaR (95% confidence)
-closes = [bar['close'] for bar in ohlcv_data]
-returns = np.diff(closes) / closes[:-1]
-var_95 = abs(np.percentile(returns, 5)) * 100  # As percentage
-
-# Parametric VaR (approximate)
-daily_std = np.std(returns)
-var_95_parametric = 1.65 * daily_std * 100  # 95% confidence
-
-# CVaR (Conditional VaR / Expected Shortfall)
-threshold = np.percentile(returns, 5)
-cvar_95 = abs(np.mean(returns[returns <= threshold])) * 100
+classify_volatility_regime(annualized_vol)
 ```
 
----
+| Ann. Vol | Regime | Risk Multiplier | Action |
+|----------|--------|----------------|--------|
+| > 0.40 | CRISIS | 0.25× | Almost stop trading |
+| > 0.25 | HIGH | 0.50× | Reduce positions significantly |
+| > 0.12 | NORMAL | 1.00× | Standard sizing |
+| ≤ 0.12 | LOW | 1.20× | Can increase size slightly |
+
+### 6-Regime Detector (agents/regime_detector.py)
+| Regime | Description | Risk Mult | Strategy |
+|--------|-------------|-----------|----------|
+| BULL_TRENDING | Low vol + rising | 1.20 | Trend following |
+| BULL_VOLATILE | High vol + rising | 0.70 | Momentum |
+| BEAR_TRENDING | High vol + falling | 0.40 | Defensive |
+| BEAR_QUIET | Low vol + falling | 0.60 | Mean reversion |
+| RANGE_BOUND | Low vol + sideways | 0.90 | Mean reversion |
+| CRISIS | Extreme vol | 0.20 | Cash preservation |
+
+## ATR-Based Stop-Loss and Take-Profit
+
+```python
+calculate_stop_target(entry_price, atr, direction, stop_mult=2.0, target_mult=3.0)
+```
+
+- **Stop**: Entry ± (ATR × 2.0)
+- **Target**: Entry ± (ATR × 3.0)
+- **R:R ratio**: target_mult / stop_mult = 1.5:1
+- **Mandatory**: Every APPROVE decision MUST include stop_loss and take_profit
 
 ## Circuit Breaker System
 
 ### Daily Loss Circuit Breaker
-```python
-# Checked at start of each trade
-daily_pnl_pct = (current_portfolio_value - day_start_value) / day_start_value
-if daily_pnl_pct <= -MAX_DAILY_LOSS_PCT:
-    return {"decision": "BLOCK", "reason": "Daily loss limit exceeded"}
-```
+- Triggered when `daily_pnl_pct <= -MAX_DAILY_LOSS_PCT`
+- Action: BLOCK all new trades for the day
+- Reset: Next trading day
 
 ### Force Close Mechanism
-```python
-# Checked for each open position
-for position in open_positions:
-    unrealized_pnl_pct = (current_price - entry_price) / entry_price
-    if unrealized_pnl_pct <= -FORCE_CLOSE_LOSS_PCT:
-        return {"decision": "FORCE_CLOSE", "ticker": position['ticker']}
-```
+- Triggered when `unrealized_pnl_pct <= -FORCE_CLOSE_LOSS_PCT`
+- Action: FORCE_CLOSE the position immediately
+- Priority: Higher than new trade evaluation
 
 ### Balance Reserve Protection
-```python
-reserve_amount = total_balance * BALANCE_RESERVE_PCT
-if available_cash < reserve_amount:
-    return {"decision": "BLOCK", "reason": "Below cash reserve threshold"}
-```
-
----
+- Triggered when `available_cash < BALANCE_RESERVE_PCT × total_value`
+- Action: BLOCK new trades until cash replenished
 
 ## Risk Scoring
 
 The `risk_score` returned by RiskManagerAgent (0.0 to 1.0, higher = more risky):
-
 ```python
-# Approved trades:
-risk_score = 0.2 + (1.0 - confidence/100) * 0.5
-# Example: 80% confidence → risk_score = 0.2 + 0.1 = 0.3 (low risk)
-# Example: 50% confidence → risk_score = 0.2 + 0.25 = 0.45 (medium risk)
-
-# Blocked trades: risk_score = 0.8 to 1.0
+calculate_risk_score(confidence, has_errors=False)
+# Approved: 0.2 + (1.0 - confidence/100) × 0.5
+# Blocked/Error: 0.8 to 1.0
 ```
 
----
+## Confidence Gating Rules
 
-## Volatility Regime Classification
-
-Used by TechnicalSpecialist and RegimeDetectorAgent:
-
-```python
-daily_vol = np.std(returns)
-ann_vol = daily_vol * np.sqrt(252)
-
-if ann_vol > 0.40:      regime = "CRISIS"
-elif ann_vol > 0.25:    regime = "HIGH"
-elif ann_vol > 0.12:    regime = "NORMAL"
-else:                   regime = "LOW"
-
-# Risk level → position sizing multiplier
-risk_multipliers = {
-    "CRISIS": 0.25,
-    "HIGH": 0.5,
-    "NORMAL": 1.0,
-    "LOW": 1.2
-}
-```
-
----
-
-## Stress Testing
-
-StressScenarios added by RiskSpecialist:
-
-```python
-beta = position_beta  # e.g., 1.2 for high-beta stock
-
-stress_scenarios = [
-    {"scenario": "Market crash -20%", "impact_pct": round(-20 * beta, 1)},
-    {"scenario": "Sector rotation -10%", "impact_pct": round(-10 * beta * 0.8, 1)},
-    {"scenario": "Rate hike shock", "impact_pct": round(-5 * beta, 1)},
-    {"scenario": "Black swan -35%", "impact_pct": round(-35 * beta, 1)},
-]
-```
-
----
-
-## Hyperliquid-Specific Risk
-
-For Hyperliquid perpetual futures:
-
-```python
-# Additional checks before Hyperliquid orders:
-settings.HYPERLIQUID_PRIVATE_KEY    # Must be set for live trading
-settings.HYPERLIQUID_VAULT_ADDRESS  # Optional vault address
-settings.PAPER_TRADE_MODE = True    # Default OFF for safety
-
-# Leverage handling:
-if requested_leverage > settings.MAX_LEVERAGE:
-    requested_leverage = settings.MAX_LEVERAGE  # Hard cap, never exceed
-
-# Market order vs limit:
-# MARKET: uses exchange.market_open(ticker, is_buy, qty, slippage)
-# LIMIT: uses exchange.order(ticker, is_buy, qty, price, {"limit": {"tif": "Gtc"}})
-```
+- **EXTREME risk** → always HOLD
+- **confidence < 50** → always HOLD (never trade doubt)
+- **HIGH risk + confidence < 70** → HOLD
+- **confidence >= 65** → allow BUY/SELL
+- **confidence >= 80** → allow STRONG BUY/STRONG SELL

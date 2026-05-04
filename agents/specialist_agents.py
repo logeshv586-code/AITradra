@@ -104,7 +104,7 @@ Return ONLY valid JSON:
 }}"""
 
         try:
-            res = await llm.complete(prompt=prompt, system=self.system_prompt, expect_json=True, temperature=0.2)
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt), expect_json=True, temperature=0.2)
             if isinstance(res, dict) and "signal" in res:
                 context.result = res
             else:
@@ -343,7 +343,7 @@ Return ONLY valid JSON:
 }}"""
 
         try:
-            res = await llm.complete(prompt=prompt, system=self.system_prompt, expect_json=True, temperature=0.1)
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt), expect_json=True, temperature=0.1)
             if isinstance(res, dict) and "risk_level" in res:
                 context.result = res
             else:
@@ -518,7 +518,7 @@ Return ONLY valid JSON:
 }}"""
 
         try:
-            res = await llm.complete(prompt=prompt, system=self.system_prompt, expect_json=True, temperature=0.3)
+            res = await llm.complete(prompt=prompt, system=self._build_skill_enhanced_prompt(self.system_prompt), expect_json=True, temperature=0.3)
             if isinstance(res, dict) and "macro_outlook" in res:
                 context.result = res
             else:

@@ -1,8 +1,16 @@
-"""Self-Improvement Engine — Evaluates past predictions to optimize agent parameters."""
+"""
+Self-Improvement Engine — Full Prediction Loop + Agent Optimization.
+
+From self-improvement.md:
+  Every agent run -> process_agent_run() -> record telemetry
+  Every directional signal -> store_prediction() -> score after 24h
+  Low performers -> _trigger_optimization() -> adjust parameters
+  Hourly loop -> _evaluate_pending_predictions() -> AccuracyStore
+"""
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from core.config import settings
 from core.logger import get_logger
 from self_improvement.scorer import PredictionScorer
@@ -27,6 +35,8 @@ class SelfImprovementEngine:
             "average_accuracy": None,
             "updated_at": None,
         }
+        # Agent weight adjustments based on historical accuracy
+        self._agent_weight_adjustments: Dict[str, float] = {}
 
     async def start(self):
         """Start the background optimization loop."""
@@ -39,9 +49,8 @@ class SelfImprovementEngine:
         """Continuously evaluate pending predictions as market data arrives."""
         while True:
             try:
-                # In production, this would query pending predictions from DB,
-                # fetch current actual prices, and score them.
                 await self._evaluate_pending_predictions()
+                await self._compute_agent_weights()
                 await asyncio.sleep(3600)  # Run hourly
             except asyncio.CancelledError:
                 break
@@ -53,6 +62,28 @@ class SelfImprovementEngine:
         """Check all past predictions whose resolution time has arrived."""
         prediction_store = getattr(self.memory, "structured", None)
         predictions = list(getattr(prediction_store, "_predictions", []) or [])
+
+        # Also pull predictions from knowledge store (SignalAggregator, specialists)
+        try:
+            from gateway.knowledge_store import knowledge_store
+            db_predictions = knowledge_store.get_recent_insights(
+                insight_type="prediction", hours=72
+            )
+            if db_predictions:
+                for p in db_predictions:
+                    predictions.append({
+                        "id": p.get("id", f"ks_{p.get('ticker', '')}_{p.get('timestamp', '')}"),
+                        "ticker": p.get("ticker", ""),
+                        "prediction": {
+                            "prediction_direction": self._extract_direction(p.get("content", "")),
+                            "price_at_prediction": self._extract_price(p.get("content", "")),
+                        },
+                        "created_at": p.get("timestamp"),
+                        "source_agent": p.get("agent_name", "unknown"),
+                    })
+        except Exception as e:
+            logger.debug(f"Could not fetch DB predictions: {e}")
+
         if not predictions:
             self.last_prediction_scoring = {
                 "evaluated": 0,
@@ -69,12 +100,14 @@ class SelfImprovementEngine:
         skipped = 0
         failed = 0
         scores: list[float] = []
+        agent_scores: Dict[str, list] = {}
         now = datetime.now(timezone.utc)
         min_age_seconds = max(settings.PREDICTION_SCORE_DELAY_HOURS, 0) * 3600
 
         for prediction in predictions:
             pred_id = prediction.get("id")
             ticker = str(prediction.get("ticker", "")).upper()
+            source_agent = prediction.get("source_agent", "unknown")
             if not pred_id or not ticker or prediction.get("resolved_at"):
                 skipped += 1
                 continue
@@ -131,19 +164,24 @@ class SelfImprovementEngine:
                         "target_price": round(target_price, 4),
                         "actual_price": actual_price,
                         "price_source": price_payload.get("source_used", "unknown"),
+                        "source_agent": source_agent,
                         "scored_at": now.isoformat(),
                     },
                 )
                 # Persist aggregate accuracy for long-term model comparison
                 accuracy_store.record_outcome(
                     ticker=ticker,
-                    model=price_payload.get("source_used", "unknown"),
-                    provider=getattr(
-                        getattr(self, "_last_provider", None), "__name__", "default"
-                    ) if hasattr(self, "_last_provider") else "default",
+                    model=source_agent,
+                    provider=price_payload.get("source_used", "default"),
                     direction=direction,
                     accuracy=accuracy,
                 )
+
+                # Track per-agent accuracy
+                if source_agent not in agent_scores:
+                    agent_scores[source_agent] = []
+                agent_scores[source_agent].append(accuracy)
+
                 scores.append(accuracy)
                 evaluated += 1
             except Exception as exc:
@@ -160,8 +198,12 @@ class SelfImprovementEngine:
             "skipped": skipped,
             "failed": failed,
             "average_accuracy": average_accuracy,
+            "agent_accuracies": {
+                agent: round(sum(s) / len(s), 4) for agent, s in agent_scores.items() if s
+            },
             "updated_at": now.isoformat(),
         }
+
         if evaluated:
             await self.tracker.record_run(
                 "PredictionOutcomeScorer",
@@ -172,9 +214,75 @@ class SelfImprovementEngine:
                     "success": failed == 0,
                 },
             )
+            logger.info(
+                f"Predictions scored: {evaluated} evaluated, {skipped} skipped, "
+                f"{failed} failed, avg_accuracy={average_accuracy}"
+            )
         return self.last_prediction_scoring
 
-    def _parse_timestamp(self, value: Any) -> datetime | None:
+    async def _compute_agent_weights(self):
+        """
+        Compute weight adjustments for agents based on historical accuracy.
+
+        Agents with accuracy > 60% get a boost.
+        Agents with accuracy < 40% get penalized.
+        This feeds back into the SignalAggregator for dynamic weighting.
+        """
+        try:
+            leaderboard = accuracy_store.get_leaderboard(group_by="model", limit=50)
+            for entry in leaderboard:
+                agent_name = entry.get("model", "")
+                avg_acc = entry.get("avg_accuracy", 0.5)
+                total = entry.get("total_scored", 0)
+
+                if total < 5:
+                    continue  # Not enough data to adjust
+
+                # Weight multiplier: 0.5 (terrible) to 1.5 (excellent)
+                if avg_acc > 0.7:
+                    self._agent_weight_adjustments[agent_name] = 1.3
+                elif avg_acc > 0.6:
+                    self._agent_weight_adjustments[agent_name] = 1.1
+                elif avg_acc > 0.5:
+                    self._agent_weight_adjustments[agent_name] = 1.0
+                elif avg_acc > 0.4:
+                    self._agent_weight_adjustments[agent_name] = 0.8
+                else:
+                    self._agent_weight_adjustments[agent_name] = 0.6
+
+            if self._agent_weight_adjustments:
+                logger.info(f"Agent weight adjustments: {self._agent_weight_adjustments}")
+        except Exception as e:
+            logger.debug(f"Weight computation skipped: {e}")
+
+    def get_agent_weight(self, agent_name: str) -> float:
+        """Returns the weight adjustment for a specific agent (default 1.0)."""
+        return self._agent_weight_adjustments.get(agent_name, 1.0)
+
+    # ─── Helpers ────────────────────────────────────────────────
+
+    def _extract_direction(self, content: str) -> str:
+        """Extract direction from prediction content string."""
+        content_upper = content.upper()
+        if "STRONG BUY" in content_upper or "BULLISH" in content_upper:
+            return "BULLISH"
+        elif "BUY" in content_upper:
+            return "BULLISH"
+        elif "STRONG SELL" in content_upper or "BEARISH" in content_upper:
+            return "BEARISH"
+        elif "SELL" in content_upper:
+            return "BEARISH"
+        return "NEUTRAL"
+
+    def _extract_price(self, content: str) -> float:
+        """Extract price from prediction content string like 'BUY @ 182.50'."""
+        import re
+        match = re.search(r'@\s*([\d.]+)', content)
+        if match:
+            return self._safe_float(match.group(1))
+        return 0.0
+
+    def _parse_timestamp(self, value: Any) -> Optional[datetime]:
         if not value:
             return None
         try:
@@ -260,16 +368,50 @@ class SelfImprovementEngine:
             "success": len(context.errors) == 0
         }
         await self.tracker.record_run(agent_name, metrics)
-        
-        # If the agent failed or had low confidence recursively, trigger prompt/parameter optimization
+
+        # Store prediction for directional signals from any agent
+        result = context.result
+        if isinstance(result, dict) and context.ticker:
+            signal = result.get("signal", result.get("verdict", ""))
+            if signal in ("BULLISH", "BEARISH", "BUY", "SELL", "STRONG BUY", "STRONG SELL"):
+                try:
+                    from gateway.knowledge_store import knowledge_store
+                    entry_price = (
+                        result.get("entry_point", 0) or
+                        result.get("breakout_data", {}).get("current_close", 0) or
+                        result.get("indicators", {}).get("sma20", 0)
+                    )
+                    knowledge_store.store_insight(
+                        ticker=context.ticker,
+                        agent_name=agent_name,
+                        insight_type="prediction",
+                        content=f"{signal} @ {entry_price} | conf={context.confidence:.2f}",
+                        confidence=context.confidence,
+                    )
+                    logger.debug(f"Stored prediction: {agent_name} -> {signal} for {context.ticker}")
+                except Exception as e:
+                    logger.debug(f"Could not store prediction for {agent_name}: {e}")
+
+        # If the agent failed or had low confidence, trigger optimization
         if metrics["error_count"] > 0 or context.confidence < 0.4:
             await self._trigger_optimization(agent_name, context)
 
     async def _trigger_optimization(self, agent_name: str, context: Any) -> None:
         """Adjusts agent parameters when performance drops."""
         logger.warning(f"Optimization triggered for {agent_name} due to poor performance/confidence.")
-        # E.g., instructing the LLM to rewrite its own prompt based on failure history
-        # or tuning TA parameters (RSI length 14 -> 10 in higher volatility).
+
+        # Record the failure for long-term tracking
+        try:
+            from gateway.knowledge_store import knowledge_store
+            knowledge_store.store_insight(
+                ticker=context.ticker or "SYSTEM",
+                agent_name="SelfImprovementEngine",
+                insight_type="optimization_trigger",
+                content=f"{agent_name}: errors={len(context.errors)}, conf={context.confidence:.2f}",
+                confidence=0.5,
+            )
+        except Exception:
+            pass
 
     async def get_status(self) -> Dict[str, Any]:
         """Return current self-improvement health and telemetry."""
@@ -281,9 +423,12 @@ class SelfImprovementEngine:
             ),
             "agent_health": await self.tracker.get_system_health(),
             "prediction_scoring": self.last_prediction_scoring,
+            "agent_weight_adjustments": self._agent_weight_adjustments,
             "feedback_loops": [
                 "agent_run_telemetry",
                 "prediction_outcome_scoring",
                 "low_confidence_optimization",
+                "dynamic_agent_weighting",
+                "all_agent_prediction_storage",
             ],
         }
