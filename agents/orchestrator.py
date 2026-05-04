@@ -44,6 +44,7 @@ class MythicOrchestrator:
         from agents.sentiment_classifier import SentimentClassifierAgent
         from agents.risk_manager import RiskManagerAgent
         from agents.signal_aggregator import SignalAggregatorAgent
+        from agents.regime_detector import RegimeDetectorAgent
 
         # Vibe Trading AI Agents
         from agents.swarm_agent import swarm_agent
@@ -65,6 +66,7 @@ class MythicOrchestrator:
         # Decision & Risk Layer
         self.risk_manager = RiskManagerAgent()
         self.signal_aggregator = SignalAggregatorAgent()
+        self.regime_detector = RegimeDetectorAgent()
 
         self.critique = CritiqueAgent()
 
@@ -94,6 +96,7 @@ class MythicOrchestrator:
             self.catalysts,
             self.risk_manager,
             self.signal_aggregator,
+            self.regime_detector,
             self.critique,
         ):
             if hasattr(agent, "improvement_engine"):
@@ -495,11 +498,12 @@ class MythicOrchestrator:
             self.sentiment.run(ctx),
             self.sector.run(ctx),
             self.catalysts.run(ctx),
+            self.regime_detector.run(ctx),
             return_exceptions=True,
         )
 
         outputs = {}
-        for name, res in zip(["risk", "sentiment", "sector", "catalysts"], results):
+        for name, res in zip(["risk", "sentiment", "sector", "catalysts", "regime"], results):
             outputs[name] = (
                 res.result if not isinstance(res, Exception) else {"error": str(res)}
             )

@@ -138,64 +138,128 @@ Return ONLY valid JSON:
         return context
 
     def _compute_technicals(self, ohlcv: list, price_data: dict) -> dict:
-        """Compute basic technical indicators from raw data."""
+        """Compute full indicator suite: RSI, MACD, Bollinger, ADX, SMA, Volume."""
+        from core.scoring import calculate_technical_score, calculate_atr
+
         if not ohlcv or len(ohlcv) < 3:
             pct = price_data.get("chg", price_data.get("pct_chg", 0))
             signal = "BULLISH" if pct and float(pct) > 1 else ("BEARISH" if pct and float(pct) < -1 else "NEUTRAL")
             return {
-                "signal": signal, "confidence": 0.4,
+                "signal": signal, "confidence": 0.35, "score": 0.0,
                 "patterns": ["Insufficient data"], "support_levels": [], "resistance_levels": [],
                 "indicators": {"trend": "UNKNOWN", "momentum": "UNKNOWN", "volume_signal": "NEUTRAL"},
                 "summary": f"Limited data. Current change: {pct}%"
             }
 
         closes = [bar.get("close", bar.get("c", 0)) for bar in ohlcv if bar.get("close") or bar.get("c")]
+        highs = [bar.get("high", bar.get("h", 0)) for bar in ohlcv if bar.get("high") or bar.get("h")]
+        lows = [bar.get("low", bar.get("l", 0)) for bar in ohlcv if bar.get("low") or bar.get("l")]
         volumes = [bar.get("volume", bar.get("v", 0)) for bar in ohlcv if bar.get("volume") or bar.get("v")]
 
-        if not closes:
-            return {"signal": "NEUTRAL", "confidence": 0.3, "patterns": [], "support_levels": [],
-                    "resistance_levels": [], "indicators": {}, "summary": "No price data"}
+        if not closes or len(closes) < 3:
+            return {"signal": "NEUTRAL", "confidence": 0.3, "score": 0.0, "patterns": [],
+                    "support_levels": [], "resistance_levels": [], "indicators": {},
+                    "summary": "No price data"}
 
-        # Simple trend detection
-        recent = closes[:5] if len(closes) >= 5 else closes
-        older = closes[5:15] if len(closes) >= 15 else closes[len(recent):]
+        # ─── RSI(14) ──────────────────────────────────────────
+        rsi = 50.0
+        if len(closes) >= 15:
+            gains, losses = [], []
+            for i in range(min(14, len(closes) - 1)):
+                diff = closes[i] - closes[i + 1]  # Most recent first
+                gains.append(max(diff, 0))
+                losses.append(abs(min(diff, 0)))
+            avg_gain = sum(gains) / len(gains) if gains else 0
+            avg_loss = sum(losses) / len(losses) if losses else 0.001
+            rs = avg_gain / avg_loss if avg_loss > 0 else 100
+            rsi = 100 - (100 / (1 + rs))
 
-        avg_recent = sum(recent) / len(recent) if recent else 0
-        avg_older = sum(older) / len(older) if older else avg_recent
+        # ─── SMA20, SMA50 ──────────────────────────────────────
+        sma20 = sum(closes[:20]) / min(20, len(closes)) if closes else 0
+        sma50 = sum(closes[:50]) / min(50, len(closes)) if len(closes) >= 20 else sma20
 
-        if avg_recent > avg_older * 1.02:
-            trend, signal = "UP", "BULLISH"
-        elif avg_recent < avg_older * 0.98:
-            trend, signal = "DOWN", "BEARISH"
+        # ─── MACD(12,26,9) — simplified EMA approximation ─────
+        macd_hist = 0.0
+        if len(closes) >= 26:
+            ema12 = sum(closes[:12]) / 12
+            ema26 = sum(closes[:26]) / 26
+            macd_line = ema12 - ema26
+            signal_line = macd_line * 0.8  # Simplified
+            macd_hist = macd_line - signal_line
+
+        # ─── Bollinger %B ──────────────────────────────────────
+        bb_pct_b = 0.5
+        if len(closes) >= 20:
+            bb_mean = sum(closes[:20]) / 20
+            variance = sum((c - bb_mean) ** 2 for c in closes[:20]) / 20
+            bb_std = variance ** 0.5
+            if bb_std > 0:
+                upper = bb_mean + 2 * bb_std
+                lower = bb_mean - 2 * bb_std
+                bb_pct_b = (closes[0] - lower) / (upper - lower) if upper != lower else 0.5
+
+        # ─── ADX(14) — simplified ──────────────────────────────
+        adx = 20.0
+        if len(highs) >= 15 and len(lows) >= 15:
+            plus_dm, minus_dm = 0, 0
+            for i in range(min(14, len(highs) - 1)):
+                up = highs[i] - highs[i + 1]
+                down = lows[i + 1] - lows[i]
+                if up > down and up > 0:
+                    plus_dm += up
+                if down > up and down > 0:
+                    minus_dm += down
+            total_dm = plus_dm + minus_dm
+            if total_dm > 0:
+                adx = min(50, (abs(plus_dm - minus_dm) / total_dm) * 50 + 10)
+
+        # ─── Volume Ratio ──────────────────────────────────────
+        avg_vol = sum(volumes) / len(volumes) if volumes else 0
+        recent_vol = sum(volumes[:3]) / min(3, len(volumes)) if volumes else 0
+        vol_ratio = recent_vol / avg_vol if avg_vol > 0 else 1.0
+        vol_signal = "ACCUMULATION" if vol_ratio > 1.3 else ("DISTRIBUTION" if vol_ratio < 0.7 else "NEUTRAL")
+
+        # ─── Composite Score via scoring.py ────────────────────
+        score = calculate_technical_score(
+            price=closes[0], sma20=sma20, sma50=sma50,
+            rsi=rsi, macd_hist=macd_hist, adx=adx,
+            bb_pct_b=bb_pct_b, vol_ratio=vol_ratio,
+        )
+
+        # ─── Signal from score ─────────────────────────────────
+        if score > 0.15:
+            signal = "BULLISH"
+        elif score < -0.15:
+            signal = "BEARISH"
         else:
-            trend, signal = "SIDEWAYS", "NEUTRAL"
+            signal = "NEUTRAL"
 
-        # Support / Resistance from recent extremes
+        trend = "UP" if score > 0.1 else ("DOWN" if score < -0.1 else "SIDEWAYS")
+        momentum = "STRONG" if abs(score) > 0.35 else ("WEAK" if abs(score) < 0.1 else "MODERATE")
+
+        # ─── Support / Resistance ──────────────────────────────
         support = round(min(closes[:20]) if len(closes) >= 20 else min(closes), 2)
         resistance = round(max(closes[:20]) if len(closes) >= 20 else max(closes), 2)
 
-        # Volume analysis
-        avg_vol = sum(volumes) / len(volumes) if volumes else 0
-        recent_vol = sum(volumes[:3]) / min(3, len(volumes)) if volumes else 0
-        vol_signal = "ACCUMULATION" if recent_vol > avg_vol * 1.3 else (
-            "DISTRIBUTION" if recent_vol < avg_vol * 0.7 else "NEUTRAL"
-        )
-
-        # Momentum
-        if len(closes) >= 5:
-            pct_5d = ((closes[0] - closes[4]) / closes[4] * 100) if closes[4] else 0
-        else:
-            pct_5d = 0
-        momentum = "STRONG" if abs(pct_5d) > 5 else ("WEAK" if abs(pct_5d) < 1 else "FADING")
+        # ─── ATR for stop/target ───────────────────────────────
+        atr = calculate_atr(ohlcv)
+        confidence = round(min(0.4 + abs(score) * 0.8 + min(len(closes) / 100, 0.2), 0.92), 2)
 
         return {
             "signal": signal,
-            "confidence": round(0.5 + min(abs(avg_recent - avg_older) / (avg_older or 1) * 5, 0.4), 2),
-            "patterns": [f"{trend} trend over {len(closes)} bars"],
+            "confidence": confidence,
+            "score": score,
+            "patterns": [f"{trend} trend, RSI={rsi:.0f}, ADX={adx:.0f}"],
             "support_levels": [support],
             "resistance_levels": [resistance],
-            "indicators": {"trend": trend, "momentum": momentum, "volume_signal": vol_signal},
-            "summary": f"{signal} bias. {trend} trend with {momentum.lower()} momentum. Volume: {vol_signal.lower()}."
+            "indicators": {
+                "trend": trend, "momentum": momentum, "volume_signal": vol_signal,
+                "rsi": round(rsi, 1), "macd_hist": round(macd_hist, 4),
+                "adx": round(adx, 1), "bb_pct_b": round(bb_pct_b, 3),
+                "sma20": round(sma20, 2), "sma50": round(sma50, 2),
+                "vol_ratio": round(vol_ratio, 2), "atr": round(atr, 4),
+            },
+            "summary": f"{signal} bias (score={score:+.3f}). RSI={rsi:.0f}, MACD hist={macd_hist:+.4f}, ADX={adx:.0f}. Volume: {vol_signal.lower()}."
         }
 
 
