@@ -389,14 +389,26 @@ async def _scrape_yahoo_finance(ticker: str) -> Optional[dict]:
                         "scraped_at": datetime.now(timezone.utc).isoformat(),
                     }
 
-        # Fallback: parse visible price element
-        price_el = soup.select_one('[data-testid="qsp-price"]') or soup.select_one(
-            'fin-streamer[data-field="regularMarketPrice"]'
-        )
+        # Fallback: parse visible price element, ensuring it matches the requested ticker
+        # to avoid accidentally grabbing index prices (e.g. S&P 500) from the header tape.
+        ticker_upper = ticker.upper()
+        price_el = soup.select_one(f'[data-testid="qsp-price"][data-symbol="{ticker_upper}"]') or \
+                   soup.select_one(f'fin-streamer[data-field="regularMarketPrice"][data-symbol="{ticker_upper}"]')
+        
+        if not price_el:
+            # Try without exact data-symbol if we are reasonably sure we are on the right page
+            title = soup.title.string if soup.title else ""
+            if ticker_upper in title:
+                price_el = soup.select_one('[data-testid="qsp-price"]') or \
+                           soup.select_one('fin-streamer[data-field="regularMarketPrice"]')
+
         if price_el:
             price_text = price_el.get("value") or price_el.get_text(strip=True)
-            price = float(price_text.replace(",", ""))
-            return {"price": price, "source": "yahoo_scrape_html", "ticker": ticker}
+            try:
+                price = float(price_text.replace(",", ""))
+                return {"price": price, "source": "yahoo_scrape_html", "ticker": ticker}
+            except ValueError:
+                pass
 
         return None
     except Exception as e:
@@ -421,6 +433,25 @@ async def _scrape_marketwatch(ticker: str) -> Optional[dict]:
         if r.status_code != 200:
             return None
         soup = BeautifulSoup(r.text, "html.parser")
+        
+        # Verify we are actually on a quote page for this ticker by checking the title
+        title = (soup.title.string or "").upper()
+        ticker_upper = ticker.upper().split(".")[0] # MarketWatch might drop the exchange suffix in title
+        
+        if "SEARCH -" in title:
+            return None
+            
+        if ticker_upper not in title:
+            return None
+            
+        # Basic check to avoid accidentally scraping a foreign stock with the same short ticker
+        # (e.g., SQ returning a Thai stock instead of US Block Inc)
+        if "." not in ticker and "-USD" not in ticker:
+            if "(U.S." not in title and "UNITED STATES" not in title and "(US" not in title:
+                # If we requested a plain ticker without dots, we expect a US stock.
+                # If MarketWatch resolved it to a different country, reject it.
+                return None
+
         price_el = soup.select_one(".intraday__price .value") or soup.select_one(
             'bg-quote[field="Last"]'
         )
