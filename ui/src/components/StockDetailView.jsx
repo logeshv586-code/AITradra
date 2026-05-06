@@ -166,6 +166,12 @@ export default function StockDetailView({ ticker }) {
     () => normalizeBars(chartPayload?.ohlcv || stockData?.ohlcv_history || priceData.ohlcv || []),
     [chartPayload, stockData, priceData],
   );
+  
+  // Calculate price and change based on chart data if primary priceData is empty
+  const lastChartPrice = chartData.length > 0 ? chartData[chartData.length - 1].c : 0;
+  const firstChartPrice = chartData.length > 0 ? chartData[0].o : 0;
+  const chartChange = firstChartPrice ? ((lastChartPrice - firstChartPrice) / firstChartPrice) * 100 : 0;
+
   const news = stockData?.news || intelligence.top_headlines || [];
   const direction = intelligence.prediction_direction || intelligence.consensus || "SIDEWAYS";
   const confidence = toNumber(intelligence.confidence_score ?? intelligence.confidence);
@@ -180,8 +186,8 @@ export default function StockDetailView({ ticker }) {
   const sections = intelligence.sections || {};
   const providerLabel = modelRouter.last_provider_used || modelRouter.active_provider || "adaptive";
 
-  const price = toNumber(priceData.px);
-  const change = toNumber(priceData.pct_chg ?? priceData.chg);
+  const price = toNumber(priceData.px) || lastChartPrice;
+  const change = (toNumber(priceData.pct_chg ?? priceData.chg)) || chartChange;
   const isUp = change >= 0;
   const signalTone =
     direction === "UP"
@@ -273,8 +279,8 @@ export default function StockDetailView({ ticker }) {
               {[
                 { label: "P/E", value: priceData.pe ? Number(priceData.pe).toFixed(1) : "n/a" },
                 { label: "Avg Vol", value: formatCompactNumber(priceData.avg_volume) },
-                { label: "Open", value: priceData.open ? `$${toNumber(priceData.open).toFixed(2)}` : "n/a" },
-                { label: "Close", value: priceData.close ? `$${toNumber(priceData.close).toFixed(2)}` : "n/a" },
+                { label: "Open", value: priceData.open ? `$${toNumber(priceData.open).toFixed(2)}` : (firstChartPrice ? `$${firstChartPrice.toFixed(2)}` : "n/a") },
+                { label: "Close", value: priceData.close ? `$${toNumber(priceData.close).toFixed(2)}` : (lastChartPrice ? `$${lastChartPrice.toFixed(2)}` : "n/a") },
                 { label: "Signal", value: recommendation },
                 { label: "Risk", value: riskLevel },
                 { label: "Move", value: `${expectedMove.toFixed(2)}%` },
