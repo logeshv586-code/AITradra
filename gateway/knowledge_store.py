@@ -345,7 +345,7 @@ class KnowledgeStore:
                       content: str, confidence: float = 0.0, source_urls: list[str] = None):
         """Store an agent-generated insight."""
         conn = self._get_conn()
-        conn.execute("""
+        cur = conn.execute("""
             INSERT INTO agent_insights (ticker, agent_name, insight_type, content, confidence, source_urls)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (ticker, agent_name, insight_type, content, confidence,
@@ -356,7 +356,7 @@ class KnowledgeStore:
         mr = _get_market_rag()
         if mr:
             try:
-                insight_id = conn.lastrowid
+                insight_id = cur.lastrowid
                 mr.index_insight(insight_id, ticker, content, {"agent": agent_name, "type": insight_type})
             except Exception as e:
                 logger.debug(f"MarketRAG insight indexing skipped: {e}")

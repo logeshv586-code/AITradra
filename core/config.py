@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     # Model Assignments (NIM)
     SENTIMENT_MODEL: str = "mistralai/mistral-small-4-119b-2603"
     REASONING_MODEL: str = "nvidia/nemotron-3-super-120b-a12b"
-    ANALYSIS_MODEL: str = "moonshotai/kimi-k2.5"
+    ANALYSIS_MODEL: str = "meta/llama3-70b-instruct"
     GENERAL_MODEL: str = "minimaxai/minimax-m2.5"
 
     # Local LLM Fallbacks (Store filenames in .env, resolved to absolute at runtime)
