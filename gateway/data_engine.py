@@ -50,43 +50,8 @@ class DataEngine:
             # Return cached data immediately, even if slightly stale, unless force-scrape requested
             return {**data, "source_used": "cache", "freshness_minutes": 0, "is_estimated": False}
 
-        # 2. Check knowledge store for recent OHLCV
-        try:
-            from gateway.knowledge_store import knowledge_store
-            ohlcv = knowledge_store.get_ohlcv_history(ticker, days=100)
-            if ohlcv and len(ohlcv) > 0:
-                latest = ohlcv[0]
-                px = float(latest.get("close", 0))
-                if px > 0:
-                    prev_close = float(ohlcv[1]["close"]) if len(ohlcv) > 1 else px
-                    chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
-
-                    res = {
-                        "px": round(px, 2),
-                        "chg": round(chg, 2),
-                        "pct_chg": round(chg, 2),
-                        "open": float(latest.get("open", px)),
-                        "high": float(latest.get("high", px)),
-                        "low": float(latest.get("low", px)),
-                        "close": px,
-                        "volume": int(latest.get("volume", 0)),
-                        "avg_volume": 0,
-                        "mktcap": latest.get("market_cap", 0),
-                        "pe": latest.get("pe_ratio", 0),
-                        "week52_high": max(float(r.get("high", 0)) for r in ohlcv[:252]) if len(ohlcv) > 10 else px * 1.3,
-                        "week52_low": min(float(r.get("low", px)) for r in ohlcv[:252] if float(r.get("low", 0)) > 0) if len(ohlcv) > 10 else px * 0.7,
-                        "ts": latest.get("date", datetime.now().isoformat()),
-                        "ohlcv": [{"t": r.get("date"), "o": r.get("open"), "h": r.get("high"),
-                                   "l": r.get("low"), "c": r.get("close"), "v": r.get("volume")}
-                                  for r in ohlcv[:30]],
-                    }
-                    cache.set(ticker, "price", res, "knowledge_store")
-                    return {**res, "source_used": "knowledge_store", "freshness_minutes": 0, "is_estimated": False}
-        except Exception as e:
-            logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
-
-        # 3. If we allow scraping (or data is completely missing and this is a priority request)
-        if allow_scrape or (not ohlcv and ticker in settings.DEFAULT_WATCHLIST):
+        # 2. If allow_scrape is True, try to get live data FIRST
+        if allow_scrape or (ticker in settings.DEFAULT_WATCHLIST):
             try:
                 from agents.collector_agent import fetch_ticker
                 # Use 1mo period to ensure charts are populated on first hit
@@ -130,6 +95,41 @@ class DataEngine:
                     return {**res, "source_used": source, "freshness_minutes": 0, "is_estimated": False}
             except Exception as e:
                 logger.warning(f"Collector fetch failed for {ticker}: {e}")
+
+        # 3. Check knowledge store for recent OHLCV as a fallback (or if scrape is disabled)
+        try:
+            from gateway.knowledge_store import knowledge_store
+            ohlcv = knowledge_store.get_ohlcv_history(ticker, days=100)
+            if ohlcv and len(ohlcv) > 0:
+                latest = ohlcv[0]
+                px = float(latest.get("close", 0))
+                if px > 0:
+                    prev_close = float(ohlcv[1]["close"]) if len(ohlcv) > 1 else px
+                    chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
+
+                    res = {
+                        "px": round(px, 2),
+                        "chg": round(chg, 2),
+                        "pct_chg": round(chg, 2),
+                        "open": float(latest.get("open", px)),
+                        "high": float(latest.get("high", px)),
+                        "low": float(latest.get("low", px)),
+                        "close": px,
+                        "volume": int(latest.get("volume", 0)),
+                        "avg_volume": 0,
+                        "mktcap": latest.get("market_cap", 0),
+                        "pe": latest.get("pe_ratio", 0),
+                        "week52_high": max(float(r.get("high", 0)) for r in ohlcv[:252]) if len(ohlcv) > 10 else px * 1.3,
+                        "week52_low": min(float(r.get("low", px)) for r in ohlcv[:252] if float(r.get("low", 0)) > 0) if len(ohlcv) > 10 else px * 0.7,
+                        "ts": latest.get("date", datetime.now().isoformat()),
+                        "ohlcv": [{"t": r.get("date"), "o": r.get("open"), "h": r.get("high"),
+                                   "l": r.get("low"), "c": r.get("close"), "v": r.get("volume")}
+                                  for r in ohlcv[:30]],
+                    }
+                    cache.set(ticker, "price", res, "knowledge_store")
+                    return {**res, "source_used": "knowledge_store", "freshness_minutes": 0, "is_estimated": False}
+        except Exception as e:
+            logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
 
         # 4. Return stale cache if available (last chance before fallback)
         if data:

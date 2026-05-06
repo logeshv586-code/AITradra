@@ -1,8 +1,8 @@
 {
   "initialized": true,
-  "total_balance": 100000.0,
+  "total_balance": 103541.12,
   "available_cash": 55739.490000000005,
-  "invested_amount": 44260.509999999995,
+  "invested_amount": 47801.63,
   "positions": [
     {
       "ticker": "AMZN",
@@ -13,16 +13,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 53.6,
+        "confidence_score": 52.6,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-05-06T21:34:50.614252"
+        "updated_at": "2026-05-06T22:08:14.071723"
       },
       "timestamp": "2026-04-18T12:53:31.181858",
-      "current_price": 245.71,
-      "current_value": 4177.07,
-      "profit_loss": 0.0,
-      "profit_loss_pct": 0.0
+      "current_price": 275.65,
+      "current_value": 4686.049999999999,
+      "profit_loss": 508.97999999999956,
+      "profit_loss_pct": 12.19
     },
     {
       "ticker": "QQQ",
@@ -31,18 +31,18 @@
       "invested_value": 31863.5,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "AVOID",
-        "prediction_direction": "DOWN",
-        "confidence_score": 59.2,
+        "recommendation": "HOLD",
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 49.2,
         "risk_level": "LOW",
         "primary_driver": "technical",
-        "updated_at": "2026-05-06T21:28:55.235821"
+        "updated_at": "2026-05-06T22:03:23.092455"
       },
       "timestamp": "2026-04-18T12:54:08.277797",
-      "current_price": 637.27,
-      "current_value": 31863.5,
-      "profit_loss": 0.0,
-      "profit_loss_pct": 0.0
+      "current_price": 692.31,
+      "current_value": 34615.5,
+      "profit_loss": 2752.0,
+      "profit_loss_pct": 8.64
     },
     {
       "ticker": "MS",
@@ -53,16 +53,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 54.0,
+        "confidence_score": 52.3,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-05-06T21:40:34.424724"
+        "updated_at": "2026-05-06T21:56:37.438810"
       },
       "timestamp": "2026-04-18T12:54:15.876940",
-      "current_price": 188.88,
-      "current_value": 2833.2,
-      "profit_loss": 0.0,
-      "profit_loss_pct": 0.0
+      "current_price": 193.3,
+      "current_value": 2899.5,
+      "profit_loss": 66.30000000000018,
+      "profit_loss_pct": 2.34
     },
     {
       "ticker": "TD",
@@ -73,16 +73,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 53.5,
+        "confidence_score": 51.6,
         "risk_level": "LOW",
         "primary_driver": "technical",
-        "updated_at": "2026-05-06T21:28:23.105222"
+        "updated_at": "2026-05-06T22:02:42.958677"
       },
       "timestamp": "2026-04-18T23:25:34.519567",
-      "current_price": 103.91,
-      "current_value": 1039.1,
-      "profit_loss": 0.0,
-      "profit_loss_pct": 0.0
+      "current_price": 108.42,
+      "current_value": 1084.2,
+      "profit_loss": 45.100000000000136,
+      "profit_loss_pct": 4.34
     },
     {
       "ticker": "NVDA",
@@ -91,18 +91,18 @@
       "invested_value": 4347.64,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "AVOID",
-        "prediction_direction": "DOWN",
-        "confidence_score": 58.8,
+        "recommendation": "HOLD",
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 50.8,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-05-06T21:34:57.118252"
+        "updated_at": "2026-05-06T22:08:21.072658"
       },
       "timestamp": "2026-04-19T18:11:55.482382",
-      "current_price": 197.62,
-      "current_value": 4347.64,
-      "profit_loss": 0.0,
-      "profit_loss_pct": 0.0
+      "current_price": 205.29,
+      "current_value": 4516.38,
+      "profit_loss": 168.73999999999978,
+      "profit_loss_pct": 3.88
     }
   ],
   "history": [
@@ -231,6 +231,6 @@
     "correct_predictions": 0,
     "accuracy_score": 0.0
   },
-  "total_profit_loss": 0.0,
-  "profit_loss_percentage": 0.0
+  "total_profit_loss": 3541.12,
+  "profit_loss_percentage": 3.54
 }
