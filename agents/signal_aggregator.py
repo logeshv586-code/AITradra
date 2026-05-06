@@ -85,9 +85,18 @@ class SignalAggregatorAgent(BaseAgent):
 
     async def act(self, context: AgentContext) -> AgentContext:
         ticker = context.ticker
-        ohlcv = context.observations.get("history", [])
+        # OHLCV comes from metadata.ohlcv_data (Orchestrator) or observations.history (direct)
+        ohlcv = (
+            context.metadata.get("ohlcv_data")
+            or context.observations.get("history")
+            or []
+        )
         sentiment = context.observations.get("sentiment_result", {})
-        spec_outputs = context.observations.get("specialist_outputs", {})
+        spec_outputs = (
+            context.observations.get("specialist_outputs")
+            or context.metadata.get("specialist_outputs")
+            or {}
+        )
 
         # ─── 1. Extract Normalized Scores ──────────────────────
         tech_score = _extract_score(spec_outputs.get("technical", {}))

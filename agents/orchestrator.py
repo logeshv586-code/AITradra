@@ -258,13 +258,26 @@ class MythicOrchestrator:
                 risk_res = await self.risk_manager.run(decision_ctx)
                 specialist_outputs["risk_manager"] = risk_res.result
             else:
-                # Minimal Decision Layer for QUICK mode
-                specialist_outputs["signal_aggregator"] = {
-                    "signal": gathered_data.get("price_data", {}).get("chg", 0) >= 0
-                    and "BULLISH"
-                    or "BEARISH",
-                    "summary": "Quick consensus.",
-                }
+                # QUICK mode: Run real signal aggregation using first-wave outputs
+                quick_agg_ctx = AgentContext(
+                    task=f"Quick signal aggregation for {ticker}",
+                    ticker=ticker,
+                    metadata={"ohlcv_data": gathered_data.get("history", []),
+                              "specialist_outputs": specialist_outputs},
+                    observations={
+                        "specialist_outputs": specialist_outputs,
+                        "news": gathered_data.get("news", []),
+                    },
+                )
+                try:
+                    quick_agg_res = await self.signal_aggregator.run(quick_agg_ctx)
+                    specialist_outputs["signal_aggregator"] = quick_agg_res.result or {
+                        "verdict": "HOLD", "confidence": 50.0, "summary": "Quick consensus."
+                    }
+                except Exception:
+                    specialist_outputs["signal_aggregator"] = {
+                        "verdict": "HOLD", "confidence": 50.0, "summary": "Quick consensus."
+                    }
 
             # ─── Step 5: Run critique/reflection layer ──────────────────────────
             critique_result = {

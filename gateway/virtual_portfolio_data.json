@@ -11,12 +11,12 @@
       "invested_value": 4177.07,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "BUY",
-        "prediction_direction": "UP",
-        "confidence_score": 85.6,
+        "recommendation": "HOLD",
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 53.6,
         "risk_level": "MEDIUM",
-        "primary_driver": "news",
-        "updated_at": "2026-05-03T20:47:10.664749"
+        "primary_driver": "technical",
+        "updated_at": "2026-05-06T21:34:50.614252"
       },
       "timestamp": "2026-04-18T12:53:31.181858",
       "current_price": 245.71,
@@ -31,12 +31,12 @@
       "invested_value": 31863.5,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "BUY",
-        "prediction_direction": "UP",
-        "confidence_score": 76.5,
+        "recommendation": "AVOID",
+        "prediction_direction": "DOWN",
+        "confidence_score": 59.2,
         "risk_level": "LOW",
         "primary_driver": "technical",
-        "updated_at": "2026-05-03T18:03:04.758674"
+        "updated_at": "2026-05-06T21:28:55.235821"
       },
       "timestamp": "2026-04-18T12:54:08.277797",
       "current_price": 637.27,
@@ -51,12 +51,12 @@
       "invested_value": 2833.2,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "BUY",
-        "prediction_direction": "UP",
-        "confidence_score": 88.0,
+        "recommendation": "HOLD",
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 54.0,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-05-03T18:20:19.576418"
+        "updated_at": "2026-05-06T21:40:34.424724"
       },
       "timestamp": "2026-04-18T12:54:15.876940",
       "current_price": 188.88,
@@ -71,12 +71,12 @@
       "invested_value": 1039.1,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "BUY",
-        "prediction_direction": "UP",
-        "confidence_score": 89.8,
+        "recommendation": "HOLD",
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 53.5,
         "risk_level": "LOW",
-        "primary_driver": "news",
-        "updated_at": "2026-05-03T18:01:58.017176"
+        "primary_driver": "technical",
+        "updated_at": "2026-05-06T21:28:23.105222"
       },
       "timestamp": "2026-04-18T23:25:34.519567",
       "current_price": 103.91,
@@ -91,12 +91,12 @@
       "invested_value": 4347.64,
       "prediction": "UP",
       "signal_context": {
-        "recommendation": "BUY",
-        "prediction_direction": "UP",
-        "confidence_score": 76.5,
+        "recommendation": "AVOID",
+        "prediction_direction": "DOWN",
+        "confidence_score": 58.8,
         "risk_level": "MEDIUM",
         "primary_driver": "technical",
-        "updated_at": "2026-05-03T20:47:17.154997"
+        "updated_at": "2026-05-06T21:34:57.118252"
       },
       "timestamp": "2026-04-19T18:11:55.482382",
       "current_price": 197.62,

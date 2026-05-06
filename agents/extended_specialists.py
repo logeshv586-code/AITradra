@@ -127,8 +127,31 @@ class FundamentalSpecialist(_SpecialistBase):
         knowledge = ctx.observations.get("knowledge_results") or ctx.metadata.get("knowledge_results", {})
         price = ctx.metadata.get("price_data", {})
         ic = self._build_insight_ctx(ctx.observations.get("other_insights", []))
-        data_str = json.dumps({"knowledge": knowledge, "price": price}, default=str)[:1500]
-        prompt = f"TICKER: {ctx.ticker}\nData: {data_str}{ic}"
+
+        # Extract only the most trading-relevant fundamental fields
+        fundamental_data = {
+            "ticker": ctx.ticker,
+            "price": price.get("px"),
+            "change_pct": price.get("pct_chg"),
+            "pe_ratio": price.get("pe_ratio") or price.get("pe"),
+            "forward_pe": price.get("forward_pe"),
+            "market_cap": price.get("market_cap") or price.get("mktcap"),
+            "eps": price.get("eps"),
+            "revenue_growth": price.get("revenue_growth"),
+            "profit_margin": price.get("profit_margin"),
+            "debt_equity": price.get("debt_equity"),
+            "roe": price.get("roe"),
+            "dividend_yield": price.get("dividend_yield"),
+            "52w_high": price.get("week52_high"),
+            "52w_low": price.get("week52_low"),
+            "volume_ratio": price.get("volume_ratio"),
+            "sector": price.get("sector"),
+            "knowledge_context": str(knowledge)[:400] if knowledge else None,
+        }
+        # Remove None values for cleaner prompt
+        fundamental_data = {k: v for k, v in fundamental_data.items() if v is not None}
+        data_str = json.dumps(fundamental_data, default=str)
+        prompt = f"TICKER: {ctx.ticker}\nFundamental Data: {data_str}{ic}"
 
         try:
             llm = get_shared_llm()
@@ -145,18 +168,51 @@ class FundamentalSpecialist(_SpecialistBase):
         return ctx
 
     def _fundamental_fallback(self, price: dict) -> dict:
-        pe = price.get("pe_ratio", 0)
-        mc = price.get("market_cap", 0)
-        if pe and pe > 0:
+        pe = price.get("pe_ratio") or price.get("pe", 0)
+        mc = price.get("market_cap") or price.get("mktcap", 0)
+        rev_growth = price.get("revenue_growth", 0)
+        profit_margin = price.get("profit_margin", 0)
+
+        score = 0.0
+        factors = []
+
+        if pe and float(pe) > 0:
+            pe = float(pe)
             if pe < 15:
-                return {"signal": "BULLISH", "confidence": 0.5, "score": 0.3,
-                        "summary": f"Low P/E ({pe}) suggests undervaluation",
-                        "key_factors": [f"P/E: {pe}"]}
+                score += 0.3
+                factors.append(f"Low P/E ({pe:.1f}) — undervaluation")
             elif pe > 35:
-                return {"signal": "BEARISH", "confidence": 0.4, "score": -0.2,
-                        "summary": f"High P/E ({pe}) suggests overvaluation",
-                        "key_factors": [f"P/E: {pe}"]}
-        return self._neutral_fallback("Limited fundamental data")
+                score -= 0.2
+                factors.append(f"High P/E ({pe:.1f}) — overvaluation risk")
+            else:
+                factors.append(f"P/E {pe:.1f} — fair value range")
+
+        if rev_growth and float(rev_growth) > 0.10:
+            score += 0.2
+            factors.append(f"Strong revenue growth ({float(rev_growth):.0%})")
+        elif rev_growth and float(rev_growth) < 0:
+            score -= 0.15
+            factors.append(f"Revenue declining ({float(rev_growth):.0%})")
+
+        if profit_margin and float(profit_margin) > 0.15:
+            score += 0.1
+            factors.append(f"Healthy profit margin ({float(profit_margin):.0%})")
+
+        score = max(min(score, 1.0), -1.0)
+        if score > 0.1:
+            signal = "BULLISH"
+        elif score < -0.1:
+            signal = "BEARISH"
+        else:
+            signal = "NEUTRAL"
+
+        return {
+            "signal": signal,
+            "confidence": round(0.4 + min(len(factors) * 0.1, 0.35), 2),
+            "score": round(score, 3),
+            "summary": f"{signal} fundamentals. " + ". ".join(factors[:2]) if factors else "Limited fundamental data",
+            "key_factors": factors or ["No fundamental data available"],
+        }
 
 
 class SectorSpecialist(_SpecialistBase):

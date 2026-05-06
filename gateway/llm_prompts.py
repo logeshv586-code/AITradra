@@ -3,11 +3,18 @@ import json
 def format_news_for_prompt(news_items: list) -> str:
     lines = []
     for i, item in enumerate(news_items[:8], 1):
-        lines.append(f"{i}. [{item.get('source', 'News')}] {item['headline']}")
-        lines.append(f"   URL: {item['url']}")
-        if item.get('summary'):
-            lines.append(f"   Summary: {item['summary'][:200]}")
-    return "\n".join(lines)
+        if not isinstance(item, dict):
+            continue
+        headline = item.get('headline') or item.get('title') or item.get('txt') or 'Market Update'
+        source = item.get('source', 'News')
+        url = item.get('url', '')
+        summary = item.get('summary', '')
+        lines.append(f"{i}. [{source}] {headline}")
+        if url:
+            lines.append(f"   URL: {url}")
+        if summary:
+            lines.append(f"   Summary: {summary[:200]}")
+    return "\n".join(lines) if lines else "No news available."
 
 def build_price_analysis_prompt(ticker: str, data: dict, market_context: str = "") -> str:
     market_str = f"\nMARKET STATUS:\n{market_context}\n" if market_context else ""
