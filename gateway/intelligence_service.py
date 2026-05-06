@@ -284,8 +284,8 @@ class IntelligenceService:
             price=_safe_float(price_data.get("px")),
             sma20=_safe_float(stats.get("sma20")),
             sma50=_safe_float(stats.get("sma50")),
-            change_5d=_safe_float(stats.get("change_5d")),
-            change_20d=_safe_float(stats.get("change_20d"))
+            rsi=_safe_float(stats.get("rsi14"), 50.0),
+            vol_ratio=_safe_float(stats.get("volume_ratio"), 1.0),
         )
 
         if _safe_float(stats.get("points")) < 5:
@@ -301,6 +301,10 @@ class IntelligenceService:
             social_sentiment=_safe_float(sentiment.get("score")),
             vol_ratio=_safe_float(stats.get("volume_ratio"), 1.0)
         )
+
+        # Map new BUY/SELL/HOLD vocabulary → legacy UP/DOWN/SIDEWAYS for downstream logic
+        _dir_map = {"BUY": "UP", "SELL": "DOWN", "HOLD": "SIDEWAYS"}
+        consensus = {**consensus, "direction": _dir_map.get(consensus["direction"], "SIDEWAYS")}
 
         if consensus["direction"] == "SIDEWAYS":
             directional_bias = 0

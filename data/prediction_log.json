@@ -12,7 +12,20 @@
     "confidence": 0.55,
     "created_at": "2026-05-03T12:40:26.264780+00:00",
     "timestamp": "2026-05-03T12:40:26.264780+00:00",
-    "id": "c8649b04-a73f-4476-8c38-d6ad3c60d65c"
+    "id": "c8649b04-a73f-4476-8c38-d6ad3c60d65c",
+    "actual_price": 175.41,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 175.41,
+      "target_price": 175.41,
+      "actual_price": 175.41,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-05-06T06:09:12.768938+00:00"
+    },
+    "resolved_at": "2026-05-06T06:09:12.775848+00:00"
   },
   {
     "ticker": "RY",
@@ -27,7 +40,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-03T12:40:45.801809+00:00",
     "timestamp": "2026-05-03T12:40:45.801809+00:00",
-    "id": "edeb1ebd-29e9-4209-b241-90b9e466e602"
+    "id": "edeb1ebd-29e9-4209-b241-90b9e466e602",
+    "actual_price": 175.41,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 175.41,
+      "target_price": 170.1477,
+      "actual_price": 175.41,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-05-06T06:09:12.768938+00:00"
+    },
+    "resolved_at": "2026-05-06T06:09:12.779935+00:00"
   },
   {
     "ticker": "RY",
@@ -42,7 +68,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-03T12:41:12.188140+00:00",
     "timestamp": "2026-05-03T12:41:12.188140+00:00",
-    "id": "18756eaa-ed20-4d22-a297-c8040e5072de"
+    "id": "18756eaa-ed20-4d22-a297-c8040e5072de",
+    "actual_price": 175.41,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 175.41,
+      "target_price": 170.1477,
+      "actual_price": 175.41,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-05-06T06:09:12.768938+00:00"
+    },
+    "resolved_at": "2026-05-06T06:09:12.783825+00:00"
   },
   {
     "ticker": "RY",
@@ -57,7 +96,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-03T12:41:25.355586+00:00",
     "timestamp": "2026-05-03T12:41:25.355586+00:00",
-    "id": "ff99b41b-1834-475a-b679-2589a54009d6"
+    "id": "ff99b41b-1834-475a-b679-2589a54009d6",
+    "actual_price": 175.41,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 175.41,
+      "target_price": 170.1477,
+      "actual_price": 175.41,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-05-06T06:09:12.768938+00:00"
+    },
+    "resolved_at": "2026-05-06T06:09:12.787343+00:00"
   },
   {
     "ticker": "RY",
@@ -72,7 +124,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-03T12:41:34.588688+00:00",
     "timestamp": "2026-05-03T12:41:34.588688+00:00",
-    "id": "075cd9d8-7c0b-436a-a5a7-750040dd2eb2"
+    "id": "075cd9d8-7c0b-436a-a5a7-750040dd2eb2",
+    "actual_price": 175.41,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 175.41,
+      "target_price": 170.1477,
+      "actual_price": 175.41,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-05-06T06:09:12.768938+00:00"
+    },
+    "resolved_at": "2026-05-06T06:09:12.790881+00:00"
   },
   {
     "ticker": "RY",
@@ -87,6 +152,19 @@
     "confidence": 0.55,
     "created_at": "2026-05-03T12:41:41.274165+00:00",
     "timestamp": "2026-05-03T12:41:41.274165+00:00",
-    "id": "ef88f07c-da88-4ac4-8174-c5d216a75e6c"
+    "id": "ef88f07c-da88-4ac4-8174-c5d216a75e6c",
+    "actual_price": 175.41,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 175.41,
+      "target_price": 175.41,
+      "actual_price": 175.41,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-05-06T06:09:12.768938+00:00"
+    },
+    "resolved_at": "2026-05-06T06:09:12.793395+00:00"
   }
 ]
