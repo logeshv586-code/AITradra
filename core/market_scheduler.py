@@ -189,6 +189,29 @@ class MarketScheduler:
         except Exception as e:
             logger.error(f"Debate sweep failed: {e}")
 
+    async def run_autopilot_cycle(self):
+        """
+        Paper-trading autopilot cycle. Exits are checked on every run (they
+        must react to price moves); the autopilot internally limits new
+        entries to one batch per day. Skipped entirely when no market is
+        open, because stored prices cannot have changed.
+        """
+        if not self.any_market_open():
+            return
+        try:
+            from agents.paper_autopilot import get_autopilot
+            report = await get_autopilot().run_cycle()
+            actions = report.get("actions_this_cycle", {})
+            n_open, n_close = len(actions.get("entries", [])), len(actions.get("exits", []))
+            if n_open or n_close:
+                logger.info(
+                    f"🤖 Autopilot: {n_open} opened, {n_close} closed — "
+                    f"equity {report['balance']['equity']} "
+                    f"({report['balance']['total_return_pct']:+.2f}%)"
+                )
+        except Exception as e:
+            logger.error(f"Autopilot cycle failed: {e}")
+
     async def run_skill_training_epoch(self):
         """Weekly SkillOpt-style epoch: validate active skill versions, then train."""
         logger.info("🎓 Skill training epoch starting...")

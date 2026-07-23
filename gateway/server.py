@@ -345,6 +345,10 @@ app.include_router(commodity_router)
 from gateway.advanced_intel_router import router as advanced_intel_router
 app.include_router(advanced_intel_router)
 
+# Include Paper Autopilot Router (paper broker only — no live-money path)
+from gateway.autopilot_router import router as autopilot_router
+app.include_router(autopilot_router)
+
 UI_DIST_DIR = (Path(__file__).resolve().parent.parent / settings.UI_DIST_PATH).resolve()
 
 

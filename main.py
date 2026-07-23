@@ -163,6 +163,20 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
+        # Paper-trading autopilot: exits checked every 30 min during market
+        # hours; new entries internally capped at one batch per day. Runs
+        # shortly after price collection so marks are fresh.
+        scheduler.add_job(
+            market_scheduler.run_autopilot_cycle,
+            "interval",
+            minutes=30,
+            id="paper_autopilot",
+            next_run_time=datetime.now() + timedelta(seconds=180),
+            coalesce=True,
+            misfire_grace_time=300,
+            max_instances=1,
+        )
+
         # Daily bull/bear debate sweep over current research suggestions —
         # runs after the deep-research job so it challenges fresh candidates.
         scheduler.add_job(

@@ -160,6 +160,13 @@ class Settings(BaseSettings):
     MAX_DAILY_LOSS_PCT: float = 0.02
     MAX_OPEN_POSITIONS: int = 5
     MIN_SIGNAL_CONFIDENCE: float = 0.70
+
+    # Paper-trading auto-pilot (safe by construction: paper broker only)
+    AUTOPILOT_ENABLED: bool = True
+    AUTOPILOT_STOP_LOSS_PCT: float = 0.05      # exit at -5%
+    AUTOPILOT_TAKE_PROFIT_PCT: float = 0.10    # exit at +10% (2:1 reward/risk)
+    AUTOPILOT_MIN_CONFIDENCE: int = 60         # debate confidence floor for entries
+    AUTOPILOT_MAX_HOLD_DAYS: int = 30          # time-based exit backstop
     MIN_CONSENSUS_AGENTS: int = 3
 
     # External Services (from .env)

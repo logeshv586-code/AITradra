@@ -78,13 +78,29 @@ its edits land in a rejected-edit buffer, never to be re-proposed. Learned
 rules are injected into prompts through the SkillManager with zero extra
 inference cost. Endpoints: `/api/advanced/skills/status`, `POST /api/advanced/skills/epoch`.
 
-### 5. Quantitative Diagnostic Engine
+### 5. Paper-Trading Auto-Pilot — the Profitability Proving Ground
+Hands-free paper trading with zero real-money risk. Every 30 minutes during
+market hours the autopilot: closes positions that hit their **stop loss (-5%)**,
+**take profit (+10%)**, **hold-horizon expiry**, or whose thesis a fresh debate
+flipped to SELL — then (once per day) opens new positions from debate-approved
+BUY verdicts and commodity causal-chain suggestions (which must pass a fresh
+debate first). All risk gates enforced: max open positions, 5% position cap,
+cash reserve, daily-loss circuit breaker. Fills happen at real stored market
+prices — orders without a known price are rejected, never fantasy-filled.
+Every closed trade feeds the reflection-lesson loop, and a daily P&L report
+card (equity, return %, win rate, open book with stops/targets) persists and
+streams via `/api/autopilot/status`, `/api/autopilot/reports`,
+`/api/autopilot/history`, `POST /api/autopilot/cycle`. The autopilot has **no
+code path to a live broker** — going live remains a deliberate manual decision
+after the paper record proves itself.
+
+### 6. Quantitative Diagnostic Engine
 Powered by **Vibe-Trading AI**, the platform executes institutional-grade simulations:
 - **Monte Carlo Simulations**: Runs 10,000 parallel market iterations to visualize the probability distribution of returns.
 - **Bootstrap Validation**: Executes 5,000 sampling tests to verify the statistical significance of identified trends.
 - **Institutional SMC**: Identifies liquidity pools and fair-price imbalances used by top-tier funds.
 
-### 6. Continuous Self-Improvement
+### 7. Continuous Self-Improvement
 The **AccuracyStore** background orchestrator continuously evaluates prediction outcomes against real price action (>24h lag). It grades agents individually, adjusting their "Influence Weight" in the Mythic Pipeline based on their verified real-world accuracy.
 
 ---
