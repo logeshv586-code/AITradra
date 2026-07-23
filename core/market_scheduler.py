@@ -163,6 +163,38 @@ class MarketScheduler:
         except Exception as e:
             logger.error(f"Commodity scan failed: {e}")
 
+    async def run_prime_sweep(self):
+        """
+        Daily unified-intelligence sweep: AitradraPrime analyzes the watchlist
+        plus every DeepResearch candidate, producing ONE verdict per ticker
+        that the UI shows and the paper autopilot trades from. Prime runs the
+        bull/bear debate internally, so this supersedes a separate debate
+        sweep for these tickers.
+        """
+        logger.info("🧠 Prime sweep: unified analysis across watchlist + candidates...")
+        try:
+            from gateway.knowledge_store import knowledge_store
+            from agents.collector_agent import get_watchlist
+            from agents.master_agent import get_master
+
+            tickers = list(dict.fromkeys(
+                [s["ticker"] for s in knowledge_store.get_latest_research_suggestions(limit=5)
+                 if s.get("ticker")]
+                + get_watchlist()[:10]
+            ))
+            master = get_master()
+            for ticker in tickers:
+                try:
+                    v = await master.analyze(ticker)
+                    logger.info(f"🧠 Prime {ticker}: {v.verdict} ({v.confidence}%)")
+                except Exception as e:
+                    logger.warning(f"Prime analysis failed for {ticker}: {e}")
+
+            briefing = await master.daily_briefing(tickers=tickers)
+            logger.info(f"🧠 Prime briefing: {briefing['headline']}")
+        except Exception as e:
+            logger.error(f"Prime sweep failed: {e}")
+
     async def run_debate_sweep(self):
         """
         Daily adversarial review: run a bull/bear debate on every ticker the

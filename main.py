@@ -177,15 +177,17 @@ async def main():
             max_instances=1,
         )
 
-        # Daily bull/bear debate sweep over current research suggestions —
-        # runs after the deep-research job so it challenges fresh candidates.
+        # Daily Prime sweep: AitradraPrime fuses every subsystem into ONE
+        # verdict per ticker (runs the bull/bear debate internally) and
+        # publishes the portfolio briefing. Runs after deep research so it
+        # challenges fresh candidates; the autopilot trades from its output.
         scheduler.add_job(
-            market_scheduler.run_debate_sweep,
+            market_scheduler.run_prime_sweep,
             "cron",
             hour=10,
             minute=30,
             timezone="US/Eastern",
-            id="debate_sweep",
+            id="prime_sweep",
             coalesce=True,
             misfire_grace_time=900,
             max_instances=1,

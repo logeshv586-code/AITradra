@@ -45,6 +45,20 @@ Deep scanning agents that look for outliers and alpha beyond the primary watchli
 
 ## ⚙️ Core Capabilities
 
+### 0. AitradraPrime — One Agent, One Voice
+Every sub-agent and specialist reports INTO Prime; only Prime reports OUT.
+For any ticker it fans out to all five intelligence sources — the specialist
+fleet (votes scaled by each agent's **measured real-world accuracy**), the
+commodity causal-chain layer, a fresh Bull/Bear debate, price momentum, and
+news sentiment — then fuses them into ONE verdict, ONE confidence number, and
+ONE trade plan (entry / stop / target / size / hold horizon), with a component
+breakdown showing how every source voted and any dissent surfaced as a named
+risk. The daily Prime sweep (10:30 ET) analyzes the watchlist + research
+candidates, the paper autopilot trades directly from Prime's verdicts, and the
+portfolio briefing rolls verdicts, paper P&L, commodity watch, and lessons into
+one report. Endpoints: `POST /api/prime/analyze/{ticker}`,
+`/api/prime/verdict/{ticker}`, `/api/prime/briefing`.
+
 ### 1. Mythic Validation Pipeline (MVP)
 Eliminates predictive noise. Before any signal is pushed to the UI, it passes through the "Mythic Consensus" scoring engine:
 - **Technical (40%)**: SMA alignment, Volume ratios, and Momentum.

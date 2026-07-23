@@ -349,6 +349,10 @@ app.include_router(advanced_intel_router)
 from gateway.autopilot_router import router as autopilot_router
 app.include_router(autopilot_router)
 
+# Include AitradraPrime Router (the platform's single unified voice)
+from gateway.prime_router import router as prime_router
+app.include_router(prime_router)
+
 UI_DIST_DIR = (Path(__file__).resolve().parent.parent / settings.UI_DIST_PATH).resolve()
 
 

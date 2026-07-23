@@ -189,15 +189,33 @@ class PaperAutopilot:
     # ── Entry pipeline ───────────────────────────────────────────────────────
 
     def _gather_candidates(self) -> list[dict]:
-        """BUY candidates: debate verdicts + commodity suggestions needing a debate."""
+        """BUY candidates: Prime unified verdicts first, then debates, then commodity."""
         from gateway.knowledge_store import knowledge_store
         candidates: dict[str, dict] = {}
+
+        # 0. AitradraPrime unified verdicts — every subsystem already weighed in
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=36)).isoformat()
+        for snap in knowledge_store.get_all_ticker_intelligence(limit=50):
+            if (snap.get("agent") == "AitradraPrime"
+                    and snap.get("recommendation") == "BUY"
+                    and str(snap.get("generated_at", "")) >= cutoff):
+                conf = int((snap.get("confidence_score") or 0) * 100)
+                if conf >= settings.AUTOPILOT_MIN_CONFIDENCE:
+                    candidates[snap["ticker"]] = {
+                        "ticker": snap["ticker"], "confidence": conf,
+                        "size_pct": snap.get("position_size_pct", 0.0),
+                        "thesis": str(snap.get("primary_driver", ""))[:400],
+                        "source": "prime",
+                        "needs_debate": False,  # Prime already ran the debate
+                    }
 
         # 1. Recent debate BUY verdicts (already adversarially vetted)
         for d in knowledge_store.get_recent_debates(limit=30):
             if (d.get("verdict") == "BUY"
                     and d.get("confidence", 0) >= settings.AUTOPILOT_MIN_CONFIDENCE):
                 t = d["ticker"]
+                if t in candidates and candidates[t]["source"] == "prime":
+                    continue  # Prime's unified verdict already includes the debate
                 if t not in candidates or d["confidence"] > candidates[t]["confidence"]:
                     candidates[t] = {
                         "ticker": t, "confidence": d["confidence"],
