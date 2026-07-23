@@ -132,6 +132,23 @@ class SkillManager:
         """Returns the full content of a specific skill."""
         return self.skills.get(skill_name)
 
+    def get_learned_skill(self, agent_name: str) -> str:
+        """Read the agent's SkillOptimizer-trained rules doc (skills/learned/<agent>.md)."""
+        import re as _re
+        safe = _re.sub(r"[^A-Za-z0-9_-]", "_", agent_name)
+        path = os.path.join(self.skills_dir, "learned", f"{safe}.md")
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    return f.read().strip()[:2500]
+        except Exception as e:
+            logger.debug(f"Learned skill read failed for {agent_name}: {e}")
+        return ""
+
+    def clear_learned_cache(self, agent_name: str):
+        """Invalidate the condensed prompt cache after a learned-skill update."""
+        self._condensed_cache.pop(agent_name, None)
+
     def get_platform_master_skill(self) -> str:
         """Returns the core SKILL.md content which describes the platform architecture."""
         # Prefer the full axiom-trading-intelligence skill if available (most complete)
@@ -183,6 +200,14 @@ class SkillManager:
         # Final trim to budget
         if len(result) > MAX_SKILL_CONTEXT_CHARS:
             result = result[:MAX_SKILL_CONTEXT_CHARS] + "\n..."
+
+        # Append SkillOptimizer-learned rules (trained from real outcomes,
+        # validation-gated). These sit OUTSIDE the char budget by design —
+        # they are the highest-value tokens in the prompt.
+        learned = self.get_learned_skill(agent_name)
+        if learned:
+            result = f"{result}\n\n[LEARNED RULES — trained on scored outcomes]\n{learned}" \
+                if result else f"[LEARNED RULES — trained on scored outcomes]\n{learned}"
 
         self._condensed_cache[agent_name] = result
         if result:

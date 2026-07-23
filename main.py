@@ -163,6 +163,33 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
+        # Daily bull/bear debate sweep over current research suggestions —
+        # runs after the deep-research job so it challenges fresh candidates.
+        scheduler.add_job(
+            market_scheduler.run_debate_sweep,
+            "cron",
+            hour=10,
+            minute=30,
+            timezone="US/Eastern",
+            id="debate_sweep",
+            coalesce=True,
+            misfire_grace_time=900,
+            max_instances=1,
+        )
+
+        # Weekly SkillOpt-style training epoch (validation-gated prompt edits)
+        # in the quiet weekend window.
+        scheduler.add_job(
+            market_scheduler.run_skill_training_epoch,
+            "cron",
+            day_of_week="sat",
+            hour=22,
+            id="skill_training_epoch",
+            coalesce=True,
+            misfire_grace_time=3600,
+            max_instances=1,
+        )
+
         # Commodity causal-chain scan — runs right after news cycles so it
         # sees fresh headlines; internally rate-limits to 1h/6h cadence.
         scheduler.add_job(

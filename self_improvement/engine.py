@@ -177,6 +177,22 @@ class SelfImprovementEngine:
                     accuracy=accuracy,
                 )
 
+                # Reflection: turn the resolved outcome into a reusable lesson
+                # (TradingAgents-style decision log — feeds future debates)
+                try:
+                    from memory.reflection_memory import get_memory as _get_reflection
+                    await _get_reflection().reflect_on_outcome(
+                        ticker=ticker,
+                        source_agent=source_agent,
+                        direction=direction,
+                        accuracy=accuracy,
+                        price_at_prediction=price_at_prediction,
+                        actual_price=actual_price,
+                        context=str(self._prediction_payload(prediction))[:500],
+                    )
+                except Exception as exc:
+                    logger.debug(f"Reflection lesson skipped for {ticker}: {exc}")
+
                 # Track per-agent accuracy
                 if source_agent not in agent_scores:
                     agent_scores[source_agent] = []

@@ -182,6 +182,20 @@ class KnowledgeStore:
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS debate_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                confidence INTEGER DEFAULT 0,
+                winning_side TEXT,
+                key_reason TEXT,
+                mode TEXT,
+                evidence_score REAL DEFAULT 0.0,
+                evidence_count INTEGER DEFAULT 0,
+                record_json TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS ticker_intelligence (
                 ticker TEXT PRIMARY KEY,
                 recommendation TEXT,
@@ -204,6 +218,7 @@ class KnowledgeStore:
             CREATE INDEX IF NOT EXISTS idx_ticker_intelligence_updated ON ticker_intelligence(updated_at);
             CREATE INDEX IF NOT EXISTS idx_commodity_events_created ON commodity_events(created_at);
             CREATE INDEX IF NOT EXISTS idx_commodity_events_commodity ON commodity_events(commodity, created_at);
+            CREATE INDEX IF NOT EXISTS idx_debate_ticker ON debate_records(ticker, created_at DESC);
         """)
         
         # Add columns dynamically if missing (defensive upgrade)
@@ -610,6 +625,50 @@ class KnowledgeStore:
             SELECT * FROM research_suggestions ORDER BY created_at DESC LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+    # ─── DEBATE RECORDS (bull vs bear adversarial research) ───────────────────
+
+    def store_debate_record(self, record: dict) -> int:
+        """Persist a full bull/bear debate result."""
+        conn = self._get_conn()
+        cur = conn.execute("""
+            INSERT INTO debate_records
+                (ticker, verdict, confidence, winning_side, key_reason, mode,
+                 evidence_score, evidence_count, record_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            record.get("ticker"),
+            record.get("verdict"),
+            record.get("confidence", 0),
+            record.get("winning_side"),
+            record.get("key_reason"),
+            record.get("mode"),
+            record.get("evidence_score", 0.0),
+            record.get("evidence_count", 0),
+            json.dumps(record, ensure_ascii=False),
+        ))
+        conn.commit()
+        return cur.lastrowid
+
+    def get_recent_debates(self, ticker: Optional[str] = None, limit: int = 20) -> list[dict]:
+        """Fetch recent debate records, optionally for one ticker."""
+        conn = self._get_conn()
+        if ticker:
+            rows = conn.execute("""
+                SELECT record_json FROM debate_records WHERE ticker = ?
+                ORDER BY created_at DESC LIMIT ?
+            """, (ticker.upper(), limit)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT record_json FROM debate_records ORDER BY created_at DESC LIMIT ?
+            """, (limit,)).fetchall()
+        records = []
+        for r in rows:
+            try:
+                records.append(json.loads(r["record_json"]))
+            except Exception:
+                pass
+        return records
 
     # ─── COMMODITY EVENTS (causal-chain intelligence) ─────────────────────────
 

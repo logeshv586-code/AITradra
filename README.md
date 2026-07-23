@@ -52,13 +52,39 @@ Eliminates predictive noise. Before any signal is pushed to the UI, it passes th
 - **Social (20%)**: Sentiment trending across public financial forums.
 - **Volume Filter**: High-volume "confirmations" apply a 1.2x conviction multiplier.
 
-### 2. Quantitative Diagnostic Engine
+### 2. Adversarial Research Debate (TradingAgents-style)
+No suggestion reaches the user without surviving a structured **Bull vs Bear
+debate**: two researchers argue opposite sides across multiple rounds over the
+platform's collected evidence (specialist insights, commodity impacts, news
+sentiment, price trend, past trade lessons), then a judge issues the verdict.
+A three-stance **risk bench** (aggressive / neutral / conservative) blends a
+position size from the verdict's confidence and evidence quality. Runs daily
+against DeepResearch candidates and on demand via `POST /api/advanced/debate/{ticker}`.
+Falls back to deterministic evidence scoring when the LLM is offline.
+
+### 3. Reflection Memory — the Trade-Lesson Decision Log
+Every resolved prediction becomes a **lesson**: what the call was, whether it
+worked, and what to do differently. Lessons are retrieved before new decisions
+(same-ticker history + cross-ticker failure patterns) and injected into the
+debate evidence pack, so past mistakes argue in the room alongside fresh
+signals. Endpoints: `/api/advanced/lessons`, `/api/advanced/lessons/{ticker}`.
+
+### 4. SkillOptimizer — Train Prompts Like Weights (SkillOpt-style)
+The model stays frozen; each agent's **learned rules document** is the
+trainable state. Weekly epochs: score outcomes → propose ≤3 edits (textual
+learning rate) → apply as a new version → **validation gate** — if the agent's
+windowed accuracy degrades beyond tolerance, the version is rolled back and
+its edits land in a rejected-edit buffer, never to be re-proposed. Learned
+rules are injected into prompts through the SkillManager with zero extra
+inference cost. Endpoints: `/api/advanced/skills/status`, `POST /api/advanced/skills/epoch`.
+
+### 5. Quantitative Diagnostic Engine
 Powered by **Vibe-Trading AI**, the platform executes institutional-grade simulations:
 - **Monte Carlo Simulations**: Runs 10,000 parallel market iterations to visualize the probability distribution of returns.
 - **Bootstrap Validation**: Executes 5,000 sampling tests to verify the statistical significance of identified trends.
 - **Institutional SMC**: Identifies liquidity pools and fair-price imbalances used by top-tier funds.
 
-### 3. Continuous Self-Improvement
+### 6. Continuous Self-Improvement
 The **AccuracyStore** background orchestrator continuously evaluates prediction outcomes against real price action (>24h lag). It grades agents individually, adjusting their "Influence Weight" in the Mythic Pipeline based on their verified real-world accuracy.
 
 ---

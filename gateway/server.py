@@ -341,6 +341,10 @@ app.include_router(market_intel_router)
 from gateway.commodity_router import router as commodity_router
 app.include_router(commodity_router)
 
+# Include Advanced Intelligence Router (debate / lessons / skill optimizer)
+from gateway.advanced_intel_router import router as advanced_intel_router
+app.include_router(advanced_intel_router)
+
 UI_DIST_DIR = (Path(__file__).resolve().parent.parent / settings.UI_DIST_PATH).resolve()
 
 

@@ -163,6 +163,45 @@ class MarketScheduler:
         except Exception as e:
             logger.error(f"Commodity scan failed: {e}")
 
+    async def run_debate_sweep(self):
+        """
+        Daily adversarial review: run a bull/bear debate on every ticker the
+        DeepResearch layer flagged, so no suggestion reaches the user without
+        having survived a structured bear rebuttal.
+        """
+        logger.info("⚖️ Debate sweep: challenging current research suggestions...")
+        try:
+            from gateway.knowledge_store import knowledge_store
+            from agents.debate_engine import get_engine
+
+            suggestions = knowledge_store.get_latest_research_suggestions(limit=5)
+            tickers = list({s["ticker"] for s in suggestions if s.get("ticker")})
+            if not tickers:
+                logger.info("⚖️ Debate sweep: no research suggestions to challenge")
+                return
+            engine = get_engine()
+            for ticker in tickers:
+                result = await engine.run_debate(ticker)
+                logger.info(
+                    f"⚖️ Debate {ticker}: {result.verdict} ({result.confidence}%) "
+                    f"— {result.winning_side} won"
+                )
+        except Exception as e:
+            logger.error(f"Debate sweep failed: {e}")
+
+    async def run_skill_training_epoch(self):
+        """Weekly SkillOpt-style epoch: validate active skill versions, then train."""
+        logger.info("🎓 Skill training epoch starting...")
+        try:
+            from self_improvement.skill_optimizer import get_optimizer
+            results = await get_optimizer().run_epoch()
+            logger.info(
+                f"🎓 Skill epoch complete: {len(results['updated'])} updated, "
+                f"{len(results['validated'])} validated, {len(results['skipped'])} skipped"
+            )
+        except Exception as e:
+            logger.error(f"Skill training epoch failed: {e}")
+
     async def run_mirofish_sync(self):
         """MiroFish 4-hour background cycle: Collect, Simulate, Report."""
         logger.info("🌊 MiroFish: Starting 4-hour World Intelligence cycle...")
