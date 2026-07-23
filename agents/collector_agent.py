@@ -165,6 +165,39 @@ def _normalize_df(df: pd.DataFrame, source: str) -> pd.DataFrame:
     return df[required + ["_source"]]
 
 
+def _persist_to_knowledge_store(ticker: str, df: pd.DataFrame) -> None:
+    """
+    Write fetched OHLCV bars into the SQLite knowledge store BEFORE any
+    downstream consumer (MoveExplainer) runs, so explanation runs always
+    see fresh bars. store_daily_ohlcv() itself fires the MoveExplainer
+    threshold check after persisting, so no separate trigger is needed.
+    """
+    if df is None or df.empty:
+        return
+    try:
+        from gateway.knowledge_store import knowledge_store
+
+        records = []
+        for idx, row in df.iterrows():
+            close = row.get("Close")
+            if close is None or pd.isna(close):
+                continue
+            records.append({
+                "date": str(idx.date()) if hasattr(idx, "date") else str(idx),
+                "open": float(row.get("Open", close) or close),
+                "high": float(row.get("High", close) or close),
+                "low": float(row.get("Low", close) or close),
+                "close": float(close),
+                "volume": int(row.get("Volume", 0) or 0),
+                "mktcap": df.attrs.get("mktcap", 0),
+                "pe": df.attrs.get("pe", 0),
+            })
+        if records:
+            knowledge_store.store_daily_ohlcv(ticker, records)
+    except Exception as e:
+        logger.warning(f"[Collector] Failed to persist OHLCV for {ticker}: {e}")
+
+
 def _period_to_days(period: str) -> int:
     mapping = {
         "1d": 1,
@@ -580,12 +613,9 @@ async def fetch_ticker(
         source = "yfinance"
         logger.info(f"[Collector] {ticker}: {len(df)} OHLCV records (5m) from yfinance")
         _save_cache(ticker, period, df)
-        
-        # Fire internal market_update event for MoveExplainer
-        from agents.move_explainer import on_market_update
-        latest_close = float(df.iloc[-1]["Close"])
-        on_market_update(symbol=ticker, latest_close=latest_close)
-        
+        # Persist bars first — this also fires the MoveExplainer threshold
+        # check with fresh data already in the DB.
+        _persist_to_knowledge_store(ticker, df)
         return df, source
 
     # ── Layer 2: Stooq ───────────────────────────────────────────────────────
@@ -594,6 +624,7 @@ async def fetch_ticker(
         source = "stooq"
         logger.info(f"[Collector] {ticker}: {len(df)} records from stooq")
         _save_cache(ticker, period, df)
+        _persist_to_knowledge_store(ticker, df)
         return df, source
 
     # ── Layer 3: Alpha Vantage ───────────────────────────────────────────────
@@ -602,6 +633,7 @@ async def fetch_ticker(
         source = "alpha_vantage"
         logger.info(f"[Collector] {ticker}: {len(df)} records from alpha_vantage")
         _save_cache(ticker, period, df)
+        _persist_to_knowledge_store(ticker, df)
         return df, source
 
     # ── Layer 4: FRED (macro instruments) ───────────────────────────────────
@@ -610,6 +642,7 @@ async def fetch_ticker(
         source = "fred"
         logger.info(f"[Collector] {ticker}: {len(df)} records from FRED")
         _save_cache(ticker, period, df)
+        _persist_to_knowledge_store(ticker, df)
         return df, source
 
     # ── Layer 5: Web scrape (snapshot only) ─────────────────────────────────

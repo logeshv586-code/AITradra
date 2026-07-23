@@ -30,6 +30,7 @@ class MarketScheduler:
     def __init__(self):
         self._last_news_scrape = None
         self._last_price_update = None
+        self._last_commodity_scan = None
         self._startup_scrape_done = False
         self._running = False
 
@@ -137,6 +138,70 @@ class MarketScheduler:
         except Exception as e:
             logger.error(f"Price collection failed: {e}")
 
+    async def run_commodity_scan(self):
+        """
+        Commodity causal-chain scan — runs after news collection so it sees
+        fresh headlines. Market-aware cadence: hourly while any market is
+        open, every 6 hours otherwise (commodity news flows around the clock).
+        """
+        if self._last_commodity_scan is not None:
+            elapsed = (datetime.now() - self._last_commodity_scan).total_seconds()
+            interval = 3600 if self.any_market_open() else 21600
+            if elapsed < interval:
+                return
+
+        logger.info("🌾 Commodity causal-chain scan starting...")
+        try:
+            from agents.commodity_impact_agent import get_agent
+            events = await get_agent().run_scan(lookback_hours=48)
+            self._last_commodity_scan = datetime.now()
+            if events:
+                top = ", ".join(f"{e['commodity']} {e['direction']}" for e in events[:5])
+                logger.info(f"🌾 Commodity scan: {len(events)} events detected ({top})")
+            else:
+                logger.info("🌾 Commodity scan: no commodity events in recent news")
+        except Exception as e:
+            logger.error(f"Commodity scan failed: {e}")
+
+    async def run_debate_sweep(self):
+        """
+        Daily adversarial review: run a bull/bear debate on every ticker the
+        DeepResearch layer flagged, so no suggestion reaches the user without
+        having survived a structured bear rebuttal.
+        """
+        logger.info("⚖️ Debate sweep: challenging current research suggestions...")
+        try:
+            from gateway.knowledge_store import knowledge_store
+            from agents.debate_engine import get_engine
+
+            suggestions = knowledge_store.get_latest_research_suggestions(limit=5)
+            tickers = list({s["ticker"] for s in suggestions if s.get("ticker")})
+            if not tickers:
+                logger.info("⚖️ Debate sweep: no research suggestions to challenge")
+                return
+            engine = get_engine()
+            for ticker in tickers:
+                result = await engine.run_debate(ticker)
+                logger.info(
+                    f"⚖️ Debate {ticker}: {result.verdict} ({result.confidence}%) "
+                    f"— {result.winning_side} won"
+                )
+        except Exception as e:
+            logger.error(f"Debate sweep failed: {e}")
+
+    async def run_skill_training_epoch(self):
+        """Weekly SkillOpt-style epoch: validate active skill versions, then train."""
+        logger.info("🎓 Skill training epoch starting...")
+        try:
+            from self_improvement.skill_optimizer import get_optimizer
+            results = await get_optimizer().run_epoch()
+            logger.info(
+                f"🎓 Skill epoch complete: {len(results['updated'])} updated, "
+                f"{len(results['validated'])} validated, {len(results['skipped'])} skipped"
+            )
+        except Exception as e:
+            logger.error(f"Skill training epoch failed: {e}")
+
     async def run_mirofish_sync(self):
         """MiroFish 4-hour background cycle: Collect, Simulate, Report."""
         logger.info("🌊 MiroFish: Starting 4-hour World Intelligence cycle...")
@@ -170,6 +235,7 @@ class MarketScheduler:
             "indian_market": MarketManager.get_market_status("INDIA"),
             "us_market": MarketManager.get_market_status("US"),
             "last_news_scrape": self._last_news_scrape.isoformat() if self._last_news_scrape else None,
+            "last_commodity_scan": self._last_commodity_scan.isoformat() if self._last_commodity_scan else None,
             "last_price_update": self._last_price_update.isoformat() if self._last_price_update else None,
             "startup_catchup_done": self._startup_scrape_done,
             "should_scrape_news_now": self.should_scrape_news(),
