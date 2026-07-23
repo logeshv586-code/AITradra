@@ -49,30 +49,97 @@ class BaseBroker(ABC):
 
 
 class PaperBroker(BaseBroker):
-    """Simulates trades in memory — zero risk. Default broker."""
+    """
+    Simulates trades with REAL market prices — zero risk, honest P&L.
+
+    Paper trading is the profitability proving ground: its numbers are only
+    meaningful if fills happen at actual market prices. Orders therefore fill
+    at the latest stored close for the ticker (limit price as fallback) and
+    are REJECTED when no market price is known — never at a made-up price.
+    Positions carry a cost basis so realized/unrealized P&L and win rate are
+    measured exactly. Trades persist to the knowledge store, so the income
+    record survives restarts.
+    """
+
+    STARTING_CASH = 100_000.0
 
     def __init__(self):
         super().__init__(paper=True)
-        self.cash = 100_000.0
-        self.positions: dict = {}
+        self.cash = self.STARTING_CASH
+        self.positions: dict[str, dict] = {}   # ticker -> {"qty": float, "avg_price": float}
         self.trade_log: list = []
+        self.realized_pnl = 0.0
+        self._restore_state()
+
+    # ── Market data + persistence ────────────────────────────────────────────
+
+    @staticmethod
+    def _market_price(ticker: str) -> Optional[float]:
+        """Latest stored close for the ticker (collector keeps this fresh)."""
+        try:
+            from gateway.knowledge_store import knowledge_store
+            bars = knowledge_store.get_ohlcv_history(ticker, days=7)
+            if bars and bars[0].get("close"):
+                return float(bars[0]["close"])
+        except Exception as e:
+            logger.debug(f"[PaperBroker] Price lookup failed for {ticker}: {e}")
+        return None
+
+    def _restore_state(self):
+        """Rebuild cash/positions/P&L by replaying persisted paper trades."""
+        try:
+            from gateway.knowledge_store import knowledge_store
+            for trade in knowledge_store.get_paper_trades(limit=10_000):
+                self._apply_fill(
+                    trade["ticker"], trade["side"], trade["qty"], trade["fill_price"]
+                )
+                self.trade_log.append(trade)
+            if self.trade_log:
+                logger.info(
+                    f"[PaperBroker] Restored {len(self.trade_log)} trades — "
+                    f"cash={self.cash:.2f} realized_pnl={self.realized_pnl:.2f}"
+                )
+        except Exception as e:
+            logger.debug(f"[PaperBroker] No persisted state restored: {e}")
+
+    def _apply_fill(self, ticker: str, side: str, qty: float, fill_price: float) -> float:
+        """Apply a fill to cash/positions. Returns realized P&L for this fill."""
+        realized = 0.0
+        pos = self.positions.get(ticker, {"qty": 0.0, "avg_price": 0.0})
+        if side == "buy":
+            total_cost = pos["qty"] * pos["avg_price"] + qty * fill_price
+            pos["qty"] += qty
+            pos["avg_price"] = total_cost / pos["qty"] if pos["qty"] else 0.0
+            self.cash -= qty * fill_price
+        else:
+            realized = (fill_price - pos["avg_price"]) * qty
+            pos["qty"] -= qty
+            if pos["qty"] <= 0:
+                pos["avg_price"] = 0.0
+            self.cash += qty * fill_price
+            self.realized_pnl += realized
+        self.positions[ticker] = pos
+        return realized
+
+    # ── Broker interface ─────────────────────────────────────────────────────
 
     async def place_order(self, order: Order) -> dict:
-        # Simulate fill at current "price" (would need market data feed in production)
-        fill_price = order.limit_price or 100.0  # Placeholder
-        cost = fill_price * order.qty
+        fill_price = self._market_price(order.ticker) or order.limit_price
+        if not fill_price or fill_price <= 0:
+            return {
+                "status": "REJECTED",
+                "reason": f"No market price known for {order.ticker} — refusing fantasy fill",
+            }
 
         if order.side == OrderSide.BUY:
-            if cost > self.cash:
+            if fill_price * order.qty > self.cash:
                 return {"status": "REJECTED", "reason": "Insufficient cash"}
-            self.cash -= cost
-            self.positions[order.ticker] = self.positions.get(order.ticker, 0) + order.qty
         else:
-            held = self.positions.get(order.ticker, 0)
+            held = self.positions.get(order.ticker, {}).get("qty", 0.0)
             if order.qty > held:
                 return {"status": "REJECTED", "reason": "Insufficient position"}
-            self.cash += cost
-            self.positions[order.ticker] = held - order.qty
+
+        realized = self._apply_fill(order.ticker, order.side.value, order.qty, fill_price)
 
         trade = {
             "order_id": f"PAPER-{len(self.trade_log)+1}",
@@ -80,19 +147,55 @@ class PaperBroker(BaseBroker):
             "ticker": order.ticker,
             "side": order.side.value,
             "qty": order.qty,
-            "fill_price": fill_price,
+            "fill_price": round(fill_price, 4),
+            "realized_pnl": round(realized, 4),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "broker": "paper",
         }
         self.trade_log.append(trade)
-        logger.info(f"[PaperBroker] {order.side.value} {order.qty} {order.ticker} @ {fill_price}")
+        try:
+            from gateway.knowledge_store import knowledge_store
+            knowledge_store.store_paper_trade(trade)
+        except Exception as e:
+            logger.debug(f"[PaperBroker] Trade persistence skipped: {e}")
+        logger.info(
+            f"[PaperBroker] {order.side.value} {order.qty} {order.ticker} @ {fill_price:.2f}"
+            + (f" (realized {realized:+.2f})" if order.side == OrderSide.SELL else "")
+        )
         return trade
 
     async def get_positions(self) -> list:
-        return [{"ticker": t, "qty": q} for t, q in self.positions.items() if q > 0]
+        out = []
+        for ticker, pos in self.positions.items():
+            if pos["qty"] <= 0:
+                continue
+            mark = self._market_price(ticker) or pos["avg_price"]
+            out.append({
+                "ticker": ticker,
+                "qty": pos["qty"],
+                "avg_price": round(pos["avg_price"], 4),
+                "mark_price": round(mark, 4),
+                "unrealized_pnl": round((mark - pos["avg_price"]) * pos["qty"], 2),
+            })
+        return out
 
     async def get_balance(self) -> dict:
-        return {"cash": self.cash, "positions": len(self.positions), "trade_count": len(self.trade_log)}
+        positions = await self.get_positions()
+        unrealized = sum(p["unrealized_pnl"] for p in positions)
+        equity = self.cash + sum(p["mark_price"] * p["qty"] for p in positions)
+        sells = [t for t in self.trade_log if t.get("side") == "sell"]
+        wins = sum(1 for t in sells if t.get("realized_pnl", 0) > 0)
+        return {
+            "cash": round(self.cash, 2),
+            "equity": round(equity, 2),
+            "total_return_pct": round((equity - self.STARTING_CASH) / self.STARTING_CASH * 100, 3),
+            "realized_pnl": round(self.realized_pnl, 2),
+            "unrealized_pnl": round(unrealized, 2),
+            "positions": len(positions),
+            "trade_count": len(self.trade_log),
+            "closed_trades": len(sells),
+            "win_rate": round(wins / len(sells), 3) if sells else None,
+        }
 
 
 class CCXTBroker(BaseBroker):

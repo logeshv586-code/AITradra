@@ -182,6 +182,18 @@ class KnowledgeStore:
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS paper_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id TEXT,
+                ticker TEXT NOT NULL,
+                side TEXT NOT NULL,
+                qty REAL NOT NULL,
+                fill_price REAL NOT NULL,
+                realized_pnl REAL DEFAULT 0.0,
+                timestamp TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS debate_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticker TEXT NOT NULL,
@@ -625,6 +637,31 @@ class KnowledgeStore:
             SELECT * FROM research_suggestions ORDER BY created_at DESC LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+    # ─── PAPER TRADES (profitability proving ground) ──────────────────────────
+
+    def store_paper_trade(self, trade: dict) -> int:
+        """Persist a paper-broker fill so P&L history survives restarts."""
+        conn = self._get_conn()
+        cur = conn.execute("""
+            INSERT INTO paper_trades (order_id, ticker, side, qty, fill_price, realized_pnl, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            trade.get("order_id"), trade.get("ticker"), trade.get("side"),
+            trade.get("qty"), trade.get("fill_price"),
+            trade.get("realized_pnl", 0.0), trade.get("timestamp"),
+        ))
+        conn.commit()
+        return cur.lastrowid
+
+    def get_paper_trades(self, limit: int = 1000) -> list[dict]:
+        """All paper trades in chronological order (for state replay and reports)."""
+        conn = self._get_conn()
+        rows = conn.execute("""
+            SELECT order_id, ticker, side, qty, fill_price, realized_pnl, timestamp
+            FROM paper_trades ORDER BY id ASC LIMIT ?
+        """, (limit,)).fetchall()
+        return [dict(r) for r in rows]
 
     # ─── DEBATE RECORDS (bull vs bear adversarial research) ───────────────────
 
