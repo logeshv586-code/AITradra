@@ -176,7 +176,7 @@ class StrategyGeneratorAgent(BaseAgent):
         try:
             response = await asyncio.wait_for(
                 self.vibe.generate_strategy(
-                    strategy描述=description, language=language, market=market
+                    description=description, language=language, market=market
                 ),
                 timeout=180,
             )

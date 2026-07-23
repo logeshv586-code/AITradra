@@ -337,6 +337,10 @@ app.include_router(mission_control_router)
 # Include Market Intelligence Router
 app.include_router(market_intel_router)
 
+# Include Commodity Causal-Chain Intelligence Router
+from gateway.commodity_router import router as commodity_router
+app.include_router(commodity_router)
+
 UI_DIST_DIR = (Path(__file__).resolve().parent.parent / settings.UI_DIST_PATH).resolve()
 
 

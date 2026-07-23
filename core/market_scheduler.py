@@ -30,6 +30,7 @@ class MarketScheduler:
     def __init__(self):
         self._last_news_scrape = None
         self._last_price_update = None
+        self._last_commodity_scan = None
         self._startup_scrape_done = False
         self._running = False
 
@@ -137,6 +138,31 @@ class MarketScheduler:
         except Exception as e:
             logger.error(f"Price collection failed: {e}")
 
+    async def run_commodity_scan(self):
+        """
+        Commodity causal-chain scan — runs after news collection so it sees
+        fresh headlines. Market-aware cadence: hourly while any market is
+        open, every 6 hours otherwise (commodity news flows around the clock).
+        """
+        if self._last_commodity_scan is not None:
+            elapsed = (datetime.now() - self._last_commodity_scan).total_seconds()
+            interval = 3600 if self.any_market_open() else 21600
+            if elapsed < interval:
+                return
+
+        logger.info("🌾 Commodity causal-chain scan starting...")
+        try:
+            from agents.commodity_impact_agent import get_agent
+            events = await get_agent().run_scan(lookback_hours=48)
+            self._last_commodity_scan = datetime.now()
+            if events:
+                top = ", ".join(f"{e['commodity']} {e['direction']}" for e in events[:5])
+                logger.info(f"🌾 Commodity scan: {len(events)} events detected ({top})")
+            else:
+                logger.info("🌾 Commodity scan: no commodity events in recent news")
+        except Exception as e:
+            logger.error(f"Commodity scan failed: {e}")
+
     async def run_mirofish_sync(self):
         """MiroFish 4-hour background cycle: Collect, Simulate, Report."""
         logger.info("🌊 MiroFish: Starting 4-hour World Intelligence cycle...")
@@ -170,6 +196,7 @@ class MarketScheduler:
             "indian_market": MarketManager.get_market_status("INDIA"),
             "us_market": MarketManager.get_market_status("US"),
             "last_news_scrape": self._last_news_scrape.isoformat() if self._last_news_scrape else None,
+            "last_commodity_scan": self._last_commodity_scan.isoformat() if self._last_commodity_scan else None,
             "last_price_update": self._last_price_update.isoformat() if self._last_price_update else None,
             "startup_catchup_done": self._startup_scrape_done,
             "should_scrape_news_now": self.should_scrape_news(),

@@ -572,10 +572,14 @@ class MoveExplainerAgent:
         articles = fetch_recent_news(self._conn, symbol, NEWS_LOOKBACK_HOURS)
         log.debug("Fetched %d articles for %s", len(articles), symbol)
 
-        # Enrichment: Knowledge Graph Context
-        from gateway.knowledge_graph_service import knowledge_graph
-        graph_context = knowledge_graph.get_code_context(symbol)
-        log.debug("Knowledge Graph context added for %s", symbol)
+        # Enrichment: Knowledge Graph Context (optional — never block on it)
+        graph_context = ""
+        try:
+            from gateway.knowledge_graph_service import knowledge_graph
+            graph_context = knowledge_graph.get_code_context(symbol)
+            log.debug("Knowledge Graph context added for %s", symbol)
+        except Exception as exc:
+            log.debug("Knowledge Graph unavailable for %s: %s", symbol, exc)
 
         user_prompt = _build_user_prompt(symbol, price_change, bars, articles)
         if graph_context:
@@ -709,7 +713,7 @@ if __name__ == "__main__":
     # ── Inject dummy data if tables are empty (for testing without DataCollector) ──
     conn = agent._conn
     bars_exist = conn.execute(
-        "SELECT COUNT(*) FROM daily_ohlcv WHERE symbol = ?", (symbol,)
+        "SELECT COUNT(*) FROM daily_ohlcv WHERE ticker = ?", (symbol,)
     ).fetchone()[0]
 
     if bars_exist == 0:
@@ -721,14 +725,14 @@ if __name__ == "__main__":
             ts    = (now - timedelta(minutes=5 * (OHLCV_BARS_CONTEXT + 1 - i))).isoformat()
             close = round(base + random.uniform(-2, 2), 2)
             conn.execute("""
-                INSERT OR IGNORE INTO daily_ohlcv (symbol, ts, open, high, low, close, volume)
+                INSERT OR IGNORE INTO daily_ohlcv (ticker, date, open, high, low, close, volume)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (symbol, ts, base, close + 0.5, close - 0.5, close, random.randint(1_000_000, 5_000_000)))
             base = close
         # Make the last bar a big move so explanation triggers
         big_close = round(base * 1.035, 2)  # +3.5%
         conn.execute("""
-            INSERT OR IGNORE INTO daily_ohlcv (symbol, ts, open, high, low, close, volume)
+            INSERT OR IGNORE INTO daily_ohlcv (ticker, date, open, high, low, close, volume)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (symbol, now.isoformat(), base, big_close + 1, base - 0.5, big_close, 8_000_000))
         conn.commit()
@@ -742,7 +746,7 @@ if __name__ == "__main__":
         for h in headlines:
             published = (now - timedelta(hours=2)).isoformat()
             conn.execute("""
-                INSERT INTO news_articles (symbol, headline, source, sentiment_score, published_at)
+                INSERT INTO news_articles (ticker, headline, source, sentiment_score, published_at)
                 VALUES (?, ?, 'TestSource', 0.75, ?)
             """, (symbol, h, published))
         conn.commit()

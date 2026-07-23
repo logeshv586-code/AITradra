@@ -100,12 +100,7 @@ class AccuracyStoreAgent(BaseAgent):
             
             # Update the research suggestion with real performance
             # In Phase 1, we replace the backtest perf_1m with real 24h performance
-            conn = knowledge_store._get_conn()
-            conn.execute(
-                "UPDATE research_suggestions SET perf_1m = ? WHERE id = ?",
-                (audit["actual_return"], audit["id"])
-            )
-            conn.commit()
+            knowledge_store.update_suggestion_performance(audit["id"], audit["actual_return"])
             
         # Update global Accuracy metric for Orchestrator
         accuracy_rate = (success_count / len(results)) if results else 1.0

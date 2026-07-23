@@ -167,6 +167,21 @@ class KnowledgeStore:
                 created_at TEXT DEFAULT (datetime('now'))
             );
 
+            CREATE TABLE IF NOT EXISTS commodity_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                commodity TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                cause_type TEXT,
+                cause_detail TEXT,
+                confidence REAL DEFAULT 0.0,
+                headlines_json TEXT,
+                impacts_json TEXT,
+                suggestions_json TEXT,
+                llm_narrative TEXT,
+                detected_at TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+
             CREATE TABLE IF NOT EXISTS ticker_intelligence (
                 ticker TEXT PRIMARY KEY,
                 recommendation TEXT,
@@ -187,6 +202,8 @@ class KnowledgeStore:
             CREATE INDEX IF NOT EXISTS idx_insights_ticker ON agent_insights(ticker, created_at);
             CREATE INDEX IF NOT EXISTS idx_episodes_session ON agent_episodes(session_id);
             CREATE INDEX IF NOT EXISTS idx_ticker_intelligence_updated ON ticker_intelligence(updated_at);
+            CREATE INDEX IF NOT EXISTS idx_commodity_events_created ON commodity_events(created_at);
+            CREATE INDEX IF NOT EXISTS idx_commodity_events_commodity ON commodity_events(commodity, created_at);
         """)
         
         # Add columns dynamically if missing (defensive upgrade)
@@ -297,6 +314,19 @@ class KnowledgeStore:
             ORDER BY created_at DESC
             LIMIT ?
         """, (ticker, f"%{ticker}%", cutoff, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_recent_headlines(self, hours: int = 48, limit: int = 500) -> list[dict]:
+        """Get ALL recent headlines across tickers (for cross-market scans)."""
+        conn = self._get_conn()
+        cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        rows = conn.execute("""
+            SELECT ticker, headline, summary, url, source, published_at, sentiment_score
+            FROM news_articles
+            WHERE created_at >= ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (cutoff, limit)).fetchall()
         return [dict(r) for r in rows]
 
     def get_unindexed_news(self, limit: int = 100) -> list[dict]:
@@ -564,6 +594,15 @@ class KnowledgeStore:
         """, (ticker, score, signal, reasoning, json.dumps(breakdown), perf_1m))
         conn.commit()
 
+    def update_suggestion_performance(self, suggestion_id: int, perf_1m: float):
+        """Update a research suggestion's realized performance (used by AccuracyStore)."""
+        conn = self._get_conn()
+        conn.execute(
+            "UPDATE research_suggestions SET perf_1m = ? WHERE id = ?",
+            (perf_1m, suggestion_id)
+        )
+        conn.commit()
+
     def get_latest_research_suggestions(self, limit: int = 5) -> list[dict]:
         """Fetch latest deep research suggestions."""
         conn = self._get_conn()
@@ -571,6 +610,52 @@ class KnowledgeStore:
             SELECT * FROM research_suggestions ORDER BY created_at DESC LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
+
+    # ─── COMMODITY EVENTS (causal-chain intelligence) ─────────────────────────
+
+    def store_commodity_event(self, event: dict) -> int:
+        """Persist a detected commodity event with its causal chain and suggestions."""
+        conn = self._get_conn()
+        cur = conn.execute("""
+            INSERT INTO commodity_events
+                (commodity, direction, cause_type, cause_detail, confidence,
+                 headlines_json, impacts_json, suggestions_json, llm_narrative, detected_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            event.get("commodity"),
+            event.get("direction"),
+            event.get("cause_type"),
+            event.get("cause_detail"),
+            event.get("confidence", 0.0),
+            json.dumps(event.get("headlines", []), ensure_ascii=False),
+            json.dumps(event.get("impacts", []), ensure_ascii=False),
+            json.dumps(event.get("suggestions", []), ensure_ascii=False),
+            event.get("llm_narrative", ""),
+            event.get("detected_at"),
+        ))
+        conn.commit()
+        return cur.lastrowid
+
+    def get_recent_commodity_events(self, hours: int = 72, limit: int = 50) -> list[dict]:
+        """Fetch recent commodity events, newest and highest-confidence first."""
+        conn = self._get_conn()
+        cutoff = (datetime.now() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
+        rows = conn.execute("""
+            SELECT * FROM commodity_events
+            WHERE created_at >= ?
+            ORDER BY created_at DESC, confidence DESC
+            LIMIT ?
+        """, (cutoff, limit)).fetchall()
+        events = []
+        for r in rows:
+            d = dict(r)
+            for key in ("headlines_json", "impacts_json", "suggestions_json"):
+                try:
+                    d[key.replace("_json", "")] = json.loads(d.pop(key) or "[]")
+                except Exception:
+                    d[key.replace("_json", "")] = []
+            events.append(d)
+        return events
 
     # ───────────────────────────────────────────────────────────────────────
     # Ticker Intelligence

@@ -163,6 +163,19 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
+        # Commodity causal-chain scan — runs right after news cycles so it
+        # sees fresh headlines; internally rate-limits to 1h/6h cadence.
+        scheduler.add_job(
+            market_scheduler.run_commodity_scan,
+            "interval",
+            minutes=30,
+            id="commodity_scan",
+            next_run_time=datetime.now() + timedelta(seconds=90),
+            coalesce=True,
+            misfire_grace_time=300,
+            max_instances=1,
+        )
+
         scheduler.add_job(
             market_scheduler.run_mirofish_sync,
             "interval",

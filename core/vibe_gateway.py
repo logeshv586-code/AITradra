@@ -142,24 +142,24 @@ class VibeGateway:
         return await self._run_vibe_command(args, timeout=300)
 
     async def generate_strategy(
-        self, strategy描述: str, language: str = "pine", market: str = "crypto"
+        self, description: str, language: str = "pine", market: str = "crypto"
     ) -> Dict[str, Any]:
         """Generate trading strategy code from natural language.
 
         Args:
-            strategy描述: Natural language strategy description
+            description: Natural language strategy description
             language: Target language (pine, mql5, python, quantconnect)
             market: Target market type
 
         Returns:
             Generated code with comments and configuration
         """
-        logger.info(f"Generating {language} strategy: {strategy描述[:50]}...")
+        logger.info(f"Generating {language} strategy: {description[:50]}...")
 
         args = [
             "generate",
             "--description",
-            strategy描述,
+            description,
             "--language",
             language,
             "--market",

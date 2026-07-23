@@ -31,6 +31,15 @@ Deep scanning agents that look for outliers and alpha beyond the primary watchli
 - **MarketRAG**: Retrieval-augmented generation over market historical archives.
 - **NewsIntel / MCPNews**: Deep NLP analysis of global headlines and alternative data.
 - **DeepResearch**: Long-form synthesis of sector trends and macro-economic shifts.
+- **CommodityImpact**: Real-world causal-chain research — detects commodity price
+  events in the news (vegetables, grains, crude, metals…), classifies the root
+  cause (flood, drought, export ban, demand surge, supply shock, logistics),
+  maps the event to the listed companies it affects (producers benefit, input-cost
+  consumers get squeezed), and emits BUY/SELL/WATCH suggestions with entry timing,
+  hold horizon, and explicit exit rules. Endpoints: `/api/commodity/events`,
+  `/api/commodity/suggestions`, `/api/commodity/exposure/{ticker}`,
+  `POST /api/commodity/scan`. Runs automatically on a market-aware schedule
+  (hourly while markets are open, 6-hourly otherwise).
 
 ---
 
