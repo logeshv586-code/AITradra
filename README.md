@@ -8,9 +8,14 @@
   <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
 </p>
 
-> An autonomous, multi-agent AI framework designed for institutional-grade market analysis. AITradra observes global markets, filters noise through rigorous quantitative validation (Mythic Pipeline), and continuously improves its predictive logic via a 27-agent swarm.
+**A 27-agent AI swarm that watches global markets, argues both sides of every trade in an adversarial Bull-vs-Bear debate, and learns from its own track record — before a single signal reaches you.**
 
-**AITradra is open source and actively looking for contributors** — quant researchers, ML/LLM engineers, frontend developers, and anyone curious about multi-agent trading intelligence are all welcome. See [Contributing](#-contributing) below to get started.
+<p align="center">
+  <!-- Replace with a real screen recording (docs/assets/demo.gif) once the dashboard is captured. -->
+  <img src="docs/assets/demo-placeholder.svg" alt="AITradra dashboard demo (placeholder — GIF coming soon)" width="100%">
+</p>
+
+Open source and looking for contributors — quant researchers, ML/LLM engineers, and frontend devs welcome. Jump to [Contributing](#-contributing).
 
 ---
 
