@@ -180,7 +180,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:00:19.835834+00:00",
     "timestamp": "2026-05-06T19:00:19.835834+00:00",
-    "id": "a3a0dcc9-d623-43e9-b4df-94508e1920ee"
+    "id": "a3a0dcc9-d623-43e9-b4df-94508e1920ee",
+    "actual_price": 0.11,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BULLISH",
+      "raw_direction": "BULLISH",
+      "price_at_prediction": 0.11,
+      "target_price": 0.1133,
+      "actual_price": 0.11,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:09:20.104306+00:00"
   },
   {
     "ticker": "DOGE-USD",
@@ -195,7 +208,20 @@
     "confidence": 0.55,
     "created_at": "2026-05-06T19:00:23.988781+00:00",
     "timestamp": "2026-05-06T19:00:23.988781+00:00",
-    "id": "982912e9-afe7-442e-87e3-f84442dbbec8"
+    "id": "982912e9-afe7-442e-87e3-f84442dbbec8",
+    "actual_price": 0.07,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 0.11,
+      "target_price": 0.11,
+      "actual_price": 0.07,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:30:46.575285+00:00"
   },
   {
     "ticker": "DOGE-USD",
@@ -210,7 +236,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:02:00.487645+00:00",
     "timestamp": "2026-05-06T19:02:00.488158+00:00",
-    "id": "8b56ecd3-7ecd-4503-a271-5538ced812ca"
+    "id": "8b56ecd3-7ecd-4503-a271-5538ced812ca",
+    "actual_price": 0.07,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 0.11,
+      "target_price": 0.1067,
+      "actual_price": 0.07,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:36:16.873767+00:00"
   },
   {
     "ticker": "TSM",
@@ -225,7 +264,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:05:08.730387+00:00",
     "timestamp": "2026-05-06T19:05:08.730387+00:00",
-    "id": "1e08849a-3dca-4836-880e-f914b987a0f4"
+    "id": "1e08849a-3dca-4836-880e-f914b987a0f4",
+    "actual_price": 405.74,
+    "accuracy_score": 0.8596,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 416.48,
+      "target_price": 403.9856,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:08.627325+00:00"
   },
   {
     "ticker": "DOGE-USD",
@@ -240,7 +292,20 @@
     "confidence": 0.15,
     "created_at": "2026-05-06T19:05:40.747211+00:00",
     "timestamp": "2026-05-06T19:05:40.747211+00:00",
-    "id": "c0b26001-3ced-43c1-b774-dcc53a1cc239"
+    "id": "c0b26001-3ced-43c1-b774-dcc53a1cc239",
+    "actual_price": 0.07,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 0.11,
+      "target_price": 0.11,
+      "actual_price": 0.07,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:08.911964+00:00"
   },
   {
     "ticker": "TSM",
@@ -255,7 +320,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:05:54.988926+00:00",
     "timestamp": "2026-05-06T19:05:54.988926+00:00",
-    "id": "c0dd47ea-19a2-4517-9fc2-1d2332cfcba2"
+    "id": "c0dd47ea-19a2-4517-9fc2-1d2332cfcba2",
+    "actual_price": 405.74,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "BULLISH",
+      "raw_direction": "BULLISH",
+      "price_at_prediction": 416.48,
+      "target_price": 428.9744,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:09.234202+00:00"
   },
   {
     "ticker": "TSM",
@@ -270,7 +348,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:05:56.488941+00:00",
     "timestamp": "2026-05-06T19:05:56.488941+00:00",
-    "id": "2250c05d-d721-4d81-8a56-9d1d72064f36"
+    "id": "2250c05d-d721-4d81-8a56-9d1d72064f36",
+    "actual_price": 405.74,
+    "accuracy_score": 0.8596,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 416.48,
+      "target_price": 403.9856,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:09.524692+00:00"
   },
   {
     "ticker": "TSM",
@@ -285,7 +376,20 @@
     "confidence": 0.55,
     "created_at": "2026-05-06T19:05:59.124539+00:00",
     "timestamp": "2026-05-06T19:05:59.124539+00:00",
-    "id": "e517e937-d330-4e11-a0d0-ed1b51741122"
+    "id": "e517e937-d330-4e11-a0d0-ed1b51741122",
+    "actual_price": 405.74,
+    "accuracy_score": 0.1404,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 416.48,
+      "target_price": 416.48,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:10.091020+00:00"
   },
   {
     "ticker": "TSM",
@@ -300,7 +404,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:06:40.394726+00:00",
     "timestamp": "2026-05-06T19:06:40.394726+00:00",
-    "id": "f1d202b8-85f9-4103-b9f5-c7c82c8b1119"
+    "id": "f1d202b8-85f9-4103-b9f5-c7c82c8b1119",
+    "actual_price": 405.74,
+    "accuracy_score": 0.8596,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 416.48,
+      "target_price": 403.9856,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:10.403033+00:00"
   },
   {
     "ticker": "DOGE-USD",
@@ -315,7 +432,20 @@
     "confidence": 0.55,
     "created_at": "2026-05-06T19:06:42.275967+00:00",
     "timestamp": "2026-05-06T19:06:42.275967+00:00",
-    "id": "c43bdd90-8afa-4631-b7de-70757dd013de"
+    "id": "c43bdd90-8afa-4631-b7de-70757dd013de",
+    "actual_price": 0.07,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 0.11,
+      "target_price": 0.11,
+      "actual_price": 0.07,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:10.750978+00:00"
   },
   {
     "ticker": "TSM",
@@ -330,7 +460,20 @@
     "confidence": 0.35,
     "created_at": "2026-05-06T19:12:31.910557+00:00",
     "timestamp": "2026-05-06T19:12:31.910557+00:00",
-    "id": "263409b3-f58f-47b1-8b70-9ada16473281"
+    "id": "263409b3-f58f-47b1-8b70-9ada16473281",
+    "actual_price": 405.74,
+    "accuracy_score": 0.8596,
+    "outcome": {
+      "direction": "BEARISH",
+      "raw_direction": "BEARISH",
+      "price_at_prediction": 416.48,
+      "target_price": 403.9856,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:11.084303+00:00"
   },
   {
     "ticker": "TSM",
@@ -345,6 +488,109 @@
     "confidence": 0.15,
     "created_at": "2026-05-06T19:12:36.256368+00:00",
     "timestamp": "2026-05-06T19:12:36.256368+00:00",
-    "id": "6228d53a-8962-45ec-ac43-e308a3c4b1fa"
+    "id": "6228d53a-8962-45ec-ac43-e308a3c4b1fa",
+    "actual_price": 405.74,
+    "accuracy_score": 0.1404,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 416.48,
+      "target_price": 416.48,
+      "actual_price": 405.74,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-24T14:09:20.093172+00:00"
+    },
+    "resolved_at": "2026-07-24T14:37:11.448174+00:00"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 327.47
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-24T16:08:12.788401+00:00",
+    "timestamp": "2026-07-24T16:08:12.788401+00:00",
+    "id": "88017ce5-7d2f-460f-816c-216084454add"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 327.47
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-24T16:08:14.780792+00:00",
+    "timestamp": "2026-07-24T16:08:14.780792+00:00",
+    "id": "d3214aa9-b935-450e-bfa0-e2133dfaea76"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 327.47
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-24T18:17:47.039787+00:00",
+    "timestamp": "2026-07-24T18:17:47.039787+00:00",
+    "id": "d63b62cf-1c76-48e4-b208-416b6a78d6b9"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 327.47
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-24T18:18:04.662181+00:00",
+    "timestamp": "2026-07-24T18:18:04.662181+00:00",
+    "id": "5f83af9c-7a98-45f9-ba29-4df5ef7f1f60"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 327.47
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-24T18:18:54.603297+00:00",
+    "timestamp": "2026-07-24T18:18:54.603297+00:00",
+    "id": "db25348e-e73b-4872-9e37-bc1fad619fe3"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 327.47
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-24T18:18:58.092016+00:00",
+    "timestamp": "2026-07-24T18:18:58.092016+00:00",
+    "id": "fbc171c0-186b-4a79-8afe-132472e138b5"
   }
 ]

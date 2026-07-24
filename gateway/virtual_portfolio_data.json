@@ -1,8 +1,8 @@
 {
   "initialized": true,
-  "total_balance": 103541.12,
+  "total_balance": 104142.20000000001,
   "available_cash": 58778.54000000001,
-  "invested_amount": 44762.579999999994,
+  "invested_amount": 45363.66,
   "positions": [
     {
       "ticker": "QQQ",
@@ -13,16 +13,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 48.0,
-        "risk_level": "LOW",
+        "confidence_score": 49.2,
+        "risk_level": "HIGH",
         "primary_driver": "technical",
-        "updated_at": "2026-05-07T00:22:19.495086"
+        "updated_at": "2026-07-24T23:38:06.304112"
       },
       "timestamp": "2026-04-18T12:54:08.277797",
-      "current_price": 692.31,
-      "current_value": 34615.5,
-      "profit_loss": 2752.0,
-      "profit_loss_pct": 8.64
+      "current_price": 686.15,
+      "current_value": 34307.5,
+      "profit_loss": 2444.0,
+      "profit_loss_pct": 7.67
     },
     {
       "ticker": "MS",
@@ -33,16 +33,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 53.3,
-        "risk_level": "MEDIUM",
+        "confidence_score": 56.0,
+        "risk_level": "HIGH",
         "primary_driver": "technical",
-        "updated_at": "2026-05-07T00:14:23.597341"
+        "updated_at": "2026-07-24T23:28:49.602917"
       },
       "timestamp": "2026-04-18T12:54:15.876940",
-      "current_price": 193.3,
-      "current_value": 2899.5,
-      "profit_loss": 66.30000000000018,
-      "profit_loss_pct": 2.34
+      "current_price": 214.04,
+      "current_value": 3210.6,
+      "profit_loss": 377.4000000000001,
+      "profit_loss_pct": 13.32
     },
     {
       "ticker": "TD",
@@ -53,16 +53,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 51.6,
-        "risk_level": "LOW",
+        "confidence_score": 57.2,
+        "risk_level": "HIGH",
         "primary_driver": "technical",
-        "updated_at": "2026-05-07T00:21:24.415096"
+        "updated_at": "2026-07-24T23:37:35.755441"
       },
       "timestamp": "2026-04-18T23:25:34.519567",
-      "current_price": 108.42,
-      "current_value": 1084.2,
-      "profit_loss": 45.100000000000136,
-      "profit_loss_pct": 4.34
+      "current_price": 119.44,
+      "current_value": 1194.4,
+      "profit_loss": 155.30000000000018,
+      "profit_loss_pct": 14.95
     },
     {
       "ticker": "NVDA",
@@ -73,16 +73,16 @@
       "signal_context": {
         "recommendation": "HOLD",
         "prediction_direction": "SIDEWAYS",
-        "confidence_score": 52.0,
-        "risk_level": "MEDIUM",
+        "confidence_score": 49.6,
+        "risk_level": "HIGH",
         "primary_driver": "technical",
-        "updated_at": "2026-05-07T00:09:32.958683"
+        "updated_at": "2026-07-24T23:25:29.541368"
       },
       "timestamp": "2026-04-19T18:11:55.482382",
-      "current_price": 205.29,
-      "current_value": 4516.38,
-      "profit_loss": 168.73999999999978,
-      "profit_loss_pct": 3.88
+      "current_price": 207.02,
+      "current_value": 4554.4400000000005,
+      "profit_loss": 206.80000000000018,
+      "profit_loss_pct": 4.76
     },
     {
       "ticker": "AMD",
@@ -92,17 +92,17 @@
       "prediction": "UP",
       "signal_context": {
         "recommendation": "HOLD",
-        "prediction_direction": "UP",
-        "confidence_score": 71.0,
+        "prediction_direction": "SIDEWAYS",
+        "confidence_score": 53.4,
         "risk_level": "HIGH",
-        "primary_driver": "news",
-        "updated_at": "2026-05-07T00:10:23.532056"
+        "primary_driver": "technical",
+        "updated_at": "2026-07-24T23:25:53.075133"
       },
       "timestamp": "2026-05-07T00:31:35.146514",
-      "current_price": 411.75,
-      "current_value": 1647.0,
-      "profit_loss": 0.0,
-      "profit_loss_pct": 0.0
+      "current_price": 524.18,
+      "current_value": 2096.72,
+      "profit_loss": 449.7199999999998,
+      "profit_loss_pct": 27.31
     }
   ],
   "history": [
@@ -266,6 +266,6 @@
     "correct_predictions": 1,
     "accuracy_score": 33.33333333333333
   },
-  "total_profit_loss": 3032.1400000000003,
-  "profit_loss_percentage": 3.02
+  "total_profit_loss": 3633.2200000000003,
+  "profit_loss_percentage": 3.61
 }
