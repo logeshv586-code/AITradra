@@ -598,6 +598,12 @@ class LLMClient:
         """
         # Extract ticker from prompt
         ticker_match = re.search(r"TICKER:\s*(\S+)", prompt, re.IGNORECASE)
+        if not ticker_match:
+            # Also catch tickers mentioned inline: $AAPL, BTC-USD, RELIANCE.NS …
+            ticker_match = re.search(r"\$([A-Z]{1,6})\b", prompt) or re.search(
+                r"\b([A-Z]{2,10}(?:[-.][A-Z]{1,4})?)\b(?=.*\b(?:price|stock|buy|sell|analy|move|trad)\w*)",
+                prompt,
+            )
         ticker = ticker_match.group(1) if ticker_match else "Unknown"
 
         # Extract any specialist data already in the prompt
@@ -605,7 +611,33 @@ class LLMClient:
         has_news = "NEWS" in prompt
         has_rag = "RAG KNOWLEDGE" in prompt
 
+        # ── Expert path: with stored bars we answer like a desk trader, not a
+        # loading screen. Real levels, ATR targets, named setup, trade plan.
+        expert = None
+        if ticker != "Unknown":
+            try:
+                from gateway.knowledge_store import knowledge_store
+                from core.quant_engine import expert_view
+                bars = knowledge_store.get_ohlcv_history(ticker.upper(), days=365)
+                if bars and len(bars) >= 20:
+                    expert = expert_view(bars)
+            except Exception:
+                expert = None
+
         if expect_json:
+            if expert:
+                dir_map = {"UP": "BULLISH", "DOWN": "BEARISH", "SIDEWAYS": "NEUTRAL"}
+                return {
+                    "signal": dir_map.get(expert["direction"], "NEUTRAL"),
+                    "confidence": round(expert["conviction"] / 100.0, 2),
+                    "summary": expert["commentary"],
+                    "risk_level": "HIGH" if expert["regime"] == "VOLATILE_CHOP" else "MEDIUM",
+                    "var_pct": round(max(expert["indicators"].get("atr_pct", 2.0) * 1.65, 1.0), 2),
+                    "macro_outlook": "NEUTRAL",
+                    "sentiment_score": 0.0,
+                    "setup": expert["setup"],
+                    "trade_plan": expert["trade_plan"],
+                }
             return {
                 "signal": "NEUTRAL",
                 "confidence": 0.35,
@@ -615,6 +647,16 @@ class LLMClient:
                 "macro_outlook": "NEUTRAL",
                 "sentiment_score": 0.0,
             }
+
+        if expert:
+            headlines = []
+            try:
+                from gateway.knowledge_store import knowledge_store
+                headlines = knowledge_store.get_news_for_ticker(ticker.upper(), limit=3, days=3)
+            except Exception:
+                pass
+            from core.quant_engine import desk_note
+            return desk_note(ticker.upper(), expert, headlines=headlines)
 
         sections = []
         sections.append(f"AXIOM MYTHIC — MULTI-AGENT INTELLIGENCE REPORT")

@@ -608,9 +608,34 @@ Be extremely specific. Use professional financial tone. Keep under 400 words."""
         macro = specialists.get("macro", {})
         consensus = critique.get("revised_consensus", "NEUTRAL")
 
+        # Expert quantitative read — real levels and a trade plan even offline
+        expert_block = ""
+        if ticker:
+            try:
+                from gateway.knowledge_store import knowledge_store
+                from core.quant_engine import expert_view
+                bars = knowledge_store.get_ohlcv_history(str(ticker).upper(), days=365)
+                if bars and len(bars) >= 20:
+                    view = expert_view(bars)
+                    plan = view["trade_plan"]
+                    expert_block = (
+                        f"\n📐 Desk Read — {view['setup'].replace('_', ' ').title()}"
+                        f" ({view['regime'].replace('_', ' ').title()})\n"
+                        f"{view['commentary']}\n"
+                    )
+                    if plan.get("stop") is not None:
+                        expert_block += (
+                            f"Plan: entry {plan['entry']} | stop {plan['stop']} | "
+                            f"T1 {plan['target1']} | T2 {plan['target2']}"
+                            + (f" | R:R {plan['risk_reward']}:1\n" if plan.get("risk_reward") else "\n")
+                        )
+            except Exception:
+                expert_block = ""
+
         return f"""🧠 AXIOM MYTHIC — MULTI-AGENT INTELLIGENCE
 
 📊 Consensus: {consensus} (Confidence: {confidence:.0%})
+{expert_block}
 
 📈 Technical Analysis
 {tech.get("summary", "No technical data available.")}

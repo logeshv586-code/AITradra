@@ -59,6 +59,18 @@ portfolio briefing rolls verdicts, paper P&L, commodity watch, and lessons into
 one report. Endpoints: `POST /api/prime/analyze/{ticker}`,
 `/api/prime/verdict/{ticker}`, `/api/prime/briefing`.
 
+### 0.5 QuantEngine — Expert-Grade Answers, LLM or Not
+Every answer path is grounded in professional technical analysis computed from
+stored OHLCV: ATR(14) expected moves, RSI/MACD momentum state, SMA20/50 trend
+regime, swing-pivot support/resistance clustering, volume confirmation, and
+**named setups** (pullback-in-uptrend, breakout watch, bear-rally fade, range
+trade…). Predictions always carry a distinct ATR/level-based target, stop, and
+risk:reward — never "target = current price". When the LLM is offline, chat
+answers become **desk notes**: call, conviction, regime, key levels, full trade
+plan, and position-sizing discipline. Powers the Predictions table, stock
+cards' adaptive plans, chat fallback, orchestrator synthesis, and Prime
+narratives.
+
 ### 1. Mythic Validation Pipeline (MVP)
 Eliminates predictive noise. Before any signal is pushed to the UI, it passes through the "Mythic Consensus" scoring engine:
 - **Technical (40%)**: SMA alignment, Volume ratios, and Momentum.

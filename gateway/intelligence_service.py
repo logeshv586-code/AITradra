@@ -276,7 +276,7 @@ class IntelligenceService:
         raw_score = (positive_hits - negative_hits) * 0.18
         return round(max(min(raw_score, 0.9), -0.9), 2)
 
-    def _derive_prediction(self, ticker: str, price_data: dict, stats: dict, news_score: float, sentiment: dict) -> dict:
+    def _derive_prediction(self, ticker: str, price_data: dict, stats: dict, news_score: float, sentiment: dict, expert: dict | None = None) -> dict:
         # Use shared scoring logic
         day_change = _safe_float(price_data.get("pct_chg"), _safe_float(price_data.get("chg")))
         range_position = self._range_position(price_data)
@@ -351,6 +351,25 @@ class IntelligenceService:
         volatility = _safe_float(stats.get("annualized_volatility"))
         expected_move = round(min(max(abs(consensus["score"]) * 5.2 + abs(day_change) * 0.8 + volatility / 18.0, 0.75), 12.0), 2)
 
+        # ── Expert override: the quant engine breaks lazy SIDEWAYS defaults ──
+        # A desk trader with trend structure, momentum, and volume agreeing
+        # does NOT call the tape "sideways". Adopt the expert read when it has
+        # conviction, and always prefer the ATR-based expected move over the
+        # heuristic blend — that is the number a professional would quote.
+        expert = expert or {}
+        if expert.get("bars_used", 0) >= 20:
+            expert_dir = expert.get("direction", "SIDEWAYS")
+            expert_conv = _safe_float(expert.get("conviction"))
+            if consensus["direction"] == "SIDEWAYS" and expert_dir != "SIDEWAYS" and expert_conv >= 55:
+                consensus = {**consensus, "direction": expert_dir}
+                confidence = max(confidence, expert_conv)
+            elif expert_dir == consensus["direction"] and expert_dir != "SIDEWAYS":
+                confidence = max(confidence, min(expert_conv, 85.0))
+            if _safe_float(expert.get("expected_move_pct")) > 0:
+                expected_move = _safe_float(expert.get("expected_move_pct"))
+            if expert.get("setup") not in (None, "insufficient_data") and abs(news_score) < 0.15:
+                primary_driver = "technical"
+
         return {
             "ticker": ticker,
             "prediction_direction": consensus["direction"],
@@ -358,6 +377,7 @@ class IntelligenceService:
             "expected_move_percent": expected_move,
             "primary_driver": primary_driver,
             "composite_score": consensus["score"],
+            "expert_view": expert,
         }
 
     def _derive_risk(self, ticker: str, stats: dict, price_data: dict) -> dict:
@@ -418,13 +438,22 @@ class IntelligenceService:
         recommendation = "BUY" if invest else "HOLD / AVOID" if prediction["prediction_direction"] != "DOWN" else "AVOID"
         day_change = _safe_float(price_data.get("pct_chg"), _safe_float(price_data.get("chg")))
         range_position = risk["price_range_position"]
+        expert = prediction.get("expert_view") or {}
+        expert_plan = expert.get("trade_plan") or {}
 
         sections = {
             "executive_summary": (
+                f"{ticker}: {expert.get('setup', 'setup forming').replace('_', ' ')} in a "
+                f"{expert.get('regime', 'RANGE_BOUND').replace('_', ' ').lower()} tape — {trend_bias} with "
+                f"{prediction['confidence_score']}% conviction. "
+                f"{expert.get('setup_action', '')}"
+                if expert.get("bars_used", 0) >= 20 else
                 f"{ticker} shows a {trend_bias} setup with {prediction['confidence_score']}% confidence. "
                 f"Backend intelligence is using {stats['points']} historical data points and {len(top_headlines)} recent headlines."
             ),
             "technical": (
+                expert.get("commentary")
+                if expert.get("bars_used", 0) >= 20 else
                 f"Price is {price_data.get('pct_chg', price_data.get('chg', 0)):+.2f}% on the day, "
                 f"{stats['change_5d']:+.2f}% over 5 sessions, and {stats['change_20d']:+.2f}% over 20 sessions. "
                 f"SMA20 {stats['sma20']:.2f} vs SMA50 {stats['sma50']:.2f}; {rsi_text}."
@@ -442,9 +471,19 @@ class IntelligenceService:
                 f"estimated beta {risk['beta']:.2f}, and max drawdown {risk['max_drawdown']:.2f}%."
             ),
             "verdict": (
-                f"Recommendation: {recommendation}. "
-                f"Price is {day_change:+.2f}% on the session, trading at {range_position:.1f}% of its 52-week range, "
-                f"with {headwind} headline flow and {risk['risk_level'].lower()} risk."
+                (
+                    f"Recommendation: {recommendation}. "
+                    f"Setup: {expert.get('setup', '').replace('_', ' ')} — entry {expert_plan.get('entry')}, "
+                    f"stop {expert_plan.get('stop')}, target {expert_plan.get('target1')}"
+                    + (f" ({expert_plan.get('risk_reward')}:1 R:R). " if expert_plan.get("risk_reward") else ". ")
+                    + f"Headline flow is {headwind}; risk {risk['risk_level'].lower()}."
+                )
+                if expert_plan.get("stop") is not None else
+                (
+                    f"Recommendation: {recommendation}. "
+                    f"Price is {day_change:+.2f}% on the session, trading at {range_position:.1f}% of its 52-week range, "
+                    f"with {headwind} headline flow and {risk['risk_level'].lower()} risk."
+                )
             ),
         }
 
@@ -501,20 +540,50 @@ class IntelligenceService:
         confidence = _safe_float(prediction.get("confidence_score"))
         risk_level = risk.get("risk_level", "MEDIUM")
         quality_grade = quality.get("grade", "LOW")
+        expert = prediction.get("expert_view") or {}
+        setup = expert.get("setup", "")
+        plan = expert.get("trade_plan") or {}
+        levels = expert.get("key_levels") or {}
+        sup = levels.get("support") or []
+        res = levels.get("resistance") or []
 
-        if quality_grade == "LOW":
+        # Setup-driven plans: each chart state gets ITS OWN playbook, the way
+        # a desk runs it — not one recycled "capital preservation" card.
+        if expert.get("bars_used", 0) >= 20 and setup and setup != "insufficient_data":
+            mode = setup
+            next_actions = [expert.get("setup_action", "")]
+            if setup in ("pullback_in_uptrend", "range_buy_zone") and plan.get("entry"):
+                next_actions += [
+                    f"stage entries near {plan['entry']} with the stop at {plan['stop']}",
+                    f"first profit target {plan['target1']} ({plan.get('risk_reward')}:1 R:R)",
+                ]
+            elif setup in ("momentum_continuation", "breakout_watch"):
+                trigger = res[0]["level"] if res else plan.get("target1")
+                next_actions += [
+                    f"confirmation trigger: a volume close above {trigger}",
+                    f"trail stops under {sup[0]['level'] if sup else plan.get('stop')}",
+                ]
+            elif setup in ("breakdown_risk", "bear_rally_fade", "overbought_extension"):
+                next_actions += [
+                    "no fresh long exposure until the setup resets",
+                    f"defensive line in the sand: {plan.get('stop') or (res[0]['level'] if res else 'prior swing')}",
+                ]
+            elif setup in ("range_trade", "range_sell_zone", "volatile_chop"):
+                next_actions += [
+                    f"trade only the edges: support {sup[0]['level'] if sup else 'n/a'} / "
+                    f"resistance {res[0]['level'] if res else 'n/a'}",
+                    "size down — chop conditions punish full-size conviction",
+                ]
+            else:
+                next_actions += ["re-score after the next price update"]
+            if quality_grade == "LOW":
+                next_actions.append("data quality is LOW — refresh OHLCV/news before sizing up")
+        elif quality_grade == "LOW":
             mode = "collect_more_evidence"
             next_actions = [
                 "refresh price and OHLCV cache",
                 "expand recent news evidence",
                 "avoid decisive sizing until data quality improves",
-            ]
-        elif risk_level == "HIGH" and direction != "UP":
-            mode = "capital_preservation"
-            next_actions = [
-                "tighten risk limits",
-                "seek downside confirmation",
-                "prefer watch or trim actions over new exposure",
             ]
         elif direction == "UP" and confidence >= 60 and risk_level != "HIGH":
             mode = "opportunity_seeking"
@@ -666,6 +735,11 @@ class IntelligenceService:
 
         history = self.store.get_ohlcv_history(ticker, days=365 * 5)
         stats = self._compute_stats(history, price_data)
+
+        # Professional technical read: ATR targets, levels, regime, named setup
+        from core.quant_engine import expert_view
+        expert = expert_view(history or price_data.get("ohlcv", []), _safe_float(price_data.get("px")))
+
         news_score, top_headlines = self._summarize_news(ticker, news)
         sentiment = {
             "score": round(_safe_float(sentiment_raw.get("score")), 2),
@@ -674,7 +748,7 @@ class IntelligenceService:
             "top_headlines": top_headlines,
         }
 
-        prediction = self._derive_prediction(ticker, price_data, stats, news_score, sentiment)
+        prediction = self._derive_prediction(ticker, price_data, stats, news_score, sentiment, expert)
         risk = self._derive_risk(ticker, stats, price_data)
         built = self._build_sections(ticker, price_data, stats, news_score, top_headlines, sentiment, prediction, risk)
         intelligence_profile = self._build_intelligence_profile(
@@ -711,6 +785,7 @@ class IntelligenceService:
             "risk_level": risk["risk_level"],
             "primary_driver": prediction["primary_driver"],
             "reasoning_summary": built["sections"]["verdict"],
+            "expert_view": prediction.get("expert_view", {}),
             "price_data": price_data,
             "historical_stats": stats,
             "risk": risk,
@@ -861,6 +936,20 @@ class IntelligenceService:
         direction = snapshot.get("prediction_direction", "SIDEWAYS")
         expected_move = _safe_float(snapshot.get("expected_move_percent"))
         multiplier = 1 + (expected_move / 100.0) * (1 if direction == "UP" else -1 if direction == "DOWN" else 0)
+
+        # Expert target: use the ATR/level-based trade plan, never px itself.
+        # Even a SIDEWAYS call quotes the range edge it expects price to test —
+        # "target = current price" is not analysis.
+        expert = snapshot.get("expert_view") or {}
+        plan = expert.get("trade_plan") or {}
+        target = _safe_float(plan.get("target1"))
+        if target <= 0 or abs(target - px) < px * 0.001:
+            target = round(px * multiplier, 2)
+        if abs(target - px) < px * 0.004 and expected_move > 0:
+            # Last resort: quote the ATR expected-move edge in the bias direction
+            bias_sign = 1 if expert.get("bias") == "bullish" else -1 if expert.get("bias") == "bearish" else 1
+            target = round(px * (1 + bias_sign * expected_move / 100.0), 2)
+
         sector = snapshot.get("sector", "Global Equity")
         profile = snapshot.get("intelligence_profile", {})
         quality = profile.get("data_quality", {}) if isinstance(profile, dict) else {}
@@ -870,7 +959,12 @@ class IntelligenceService:
             "ticker": snapshot["ticker"],
             "name": snapshot.get("name", snapshot["ticker"]),
             "current_price": px,
-            "predicted_price": round(px * multiplier, 2),
+            "predicted_price": round(target, 2),
+            "stop_price": plan.get("stop"),
+            "target_2": plan.get("target2"),
+            "risk_reward": plan.get("risk_reward"),
+            "setup": expert.get("setup"),
+            "regime": expert.get("regime"),
             "prediction_direction": direction,
             "confidence_score": round(_safe_float(snapshot.get("confidence_score")), 1),
             "expected_move_percent": round(expected_move, 2),

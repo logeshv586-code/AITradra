@@ -299,12 +299,24 @@ class MasterAgent:
         return risks[:4]
 
     async def _narrative(self, v: UnifiedVerdict, use_llm: bool) -> str:
+        # Expert chart context makes even the offline narrative desk-grade
+        expert_line = ""
+        try:
+            from gateway.knowledge_store import knowledge_store
+            from core.quant_engine import expert_view
+            bars = knowledge_store.get_ohlcv_history(v.ticker, days=365)
+            if bars and len(bars) >= 20:
+                ev = expert_view(bars)
+                expert_line = f" Chart: {ev['commentary']}"
+        except Exception:
+            pass
         fallback = (
             f"{v.ticker}: {v.verdict} at {v.confidence}% confidence. "
             f"Primary driver — {v.primary_driver}. "
             + (f"Plan: size {v.position_size_pct}% of portfolio, stop {v.stop_price}, "
                f"target {v.target_price}. " if v.verdict != "HOLD" else "No position warranted. ")
             + (f"Key risk: {v.risks[0]}" if v.risks else "No major dissent among sources.")
+            + expert_line
         )
         if not use_llm:
             return fallback
