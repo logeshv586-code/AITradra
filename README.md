@@ -1,6 +1,32 @@
 # 🧠 AITradra — High-Conviction Market Intelligence Platform
 
+<p align="center">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg">
+  <img alt="Python" src="https://img.shields.io/badge/python-3.12+-3776AB?logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/frontend-React%2019-61DAFB?logo=react&logoColor=black">
+  <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
+</p>
+
 > An autonomous, multi-agent AI framework designed for institutional-grade market analysis. AITradra observes global markets, filters noise through rigorous quantitative validation (Mythic Pipeline), and continuously improves its predictive logic via a 27-agent swarm.
+
+**AITradra is open source and actively looking for contributors** — quant researchers, ML/LLM engineers, frontend developers, and anyone curious about multi-agent trading intelligence are all welcome. See [Contributing](#-contributing) below to get started.
+
+---
+
+## 📚 Table of Contents
+
+- [Intelligence Architecture](#️-intelligence-architecture-the-27-agent-swarm)
+- [Core Capabilities](#️-core-capabilities)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Quick Start](#-quick-start)
+- [Configuration](#-configuration)
+- [Testing](#-testing)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
 
 ## 🏗️ Intelligence Architecture (The 27-Agent Swarm)
 
@@ -91,17 +117,113 @@ The **AccuracyStore** background orchestrator continuously evaluates prediction 
 
 ## 🧪 Tech Stack
 
-- **Frontend**: React 19, Vite 8, Tailwind CSS v4, Lucide, Recharts.
+- **Frontend**: React 19, Vite 8, Tailwind CSS v4, Lucide, Recharts, react-three-fiber.
 - **Backend**: FastAPI (Python 3.12), APScheduler, Uvicorn.
-- **AI Infrastructure**: LM Studio (Local Inference @ port 1234), NVIDIA NIM (Cloud Scaling).
-- **Data & Quant**: Pandas-TA, NumPy, Scikit-learn (Simulations).
-- **Memory**: Qdrant (Vector Store), SQLite (Accuracy Leaderboard), JSON Persistence.
+- **AI Infrastructure**: LM Studio (Local Inference @ port 1234), NVIDIA NIM (Cloud Scaling), OpenAI-compatible providers (OpenRouter, Groq, Together, etc.).
+- **Orchestration**: LangGraph, CrewAI, LangChain.
+- **Data & Quant**: Pandas-TA, NumPy, Scikit-learn, vectorbt, backtrader, pyportfolioopt.
+- **Memory**: Chroma / Qdrant (Vector Store), SQLite (Accuracy Leaderboard), JSON Persistence.
+
+## 🗂 Project Structure
+
+```
+AITradra/
+├── agents/          # The 27-agent swarm (tiered specialists, legacy agents)
+├── autoresearch/     # DeepResearch & discovery agents
+├── brokers/          # Broker/exchange integrations
+├── core/             # Mythic pipeline, orchestration, shared domain logic
+├── gateway/           # Market data blob storage, scrapers, RAG index
+├── ingestion/         # Data collectors and preprocessing
+├── llm/               # LLM provider adapters (NVIDIA NIM, OpenAI-compatible, local)
+├── mcp/               # MCP tool integrations
+├── memory/            # Semantic + structured (reflection/lesson) memory
+├── scheduler/         # APScheduler jobs (news, price, RAG reindex)
+├── scrapers/          # News & alternative data scrapers
+├── self_improvement/  # AccuracyStore & SkillOptimizer
+├── skills/             # Agent "learned rules" documents
+├── tests/              # Pytest suite
+├── ui/                 # React 19 + Vite frontend
+├── main.py             # FastAPI entrypoint / API gateway
+├── market_rag.py        # Retrieval-augmented generation over market history
+└── docker-compose.yml   # Multi-service local deployment
+```
 
 ## 🚀 Quick Start
 
-1. **Backend**: `python main.py` (Starts 27-agent heartbeat and API Gateway).
-2. **Frontend**: `cd ui && npm run dev`.
-3. **Local LLM**: Load a reasoning model in LM Studio (1234) for private inference.
+### Prerequisites
+- Python 3.12+
+- Node.js 18+ (for the frontend)
+- (Optional) [LM Studio](https://lmstudio.ai/) for private local inference, or an NVIDIA NIM / OpenAI-compatible API key
+
+### 1. Clone & configure
+```bash
+git clone https://github.com/logeshv586-code/AITradra.git
+cd AITradra
+cp .env.example .env   # fill in your API keys / provider config
+```
+
+### 2. Backend
+```bash
+python -m venv venv && source venv/bin/activate   # or venv\Scripts\activate on Windows
+pip install -r requirements.txt
+python main.py   # starts the 27-agent heartbeat and API Gateway on :8000
+```
+
+### 3. Frontend
+```bash
+cd ui
+npm install
+npm run dev
+```
+
+### 4. (Optional) Docker
+```bash
+docker-compose up --build
+```
+
+## ⚙️ Configuration
+
+All runtime configuration is driven by environment variables — see [`.env.example`](./.env.example) for the full list, including:
+
+- **LLM provider**: `LLM_PROVIDER` (`nvidia_nim`, `openai_compatible`, or local models via LM Studio/Ollama).
+- **Risk controls**: `PAPER_TRADE_MODE`, `MAX_POSITION_PCT`, `MAX_DAILY_LOSS_PCT`, `MAX_OPEN_POSITIONS`, `MIN_SIGNAL_CONFIDENCE`, `MIN_CONSENSUS_AGENTS`.
+- **Scheduler cadence**: `NEWS_FETCH_INTERVAL_MIN`, `PRICE_FETCH_INTERVAL_MIN`, `RAG_REINDEX_INTERVAL_MIN`.
+
+The platform defaults to **paper-trade mode** — no live orders are placed unless you explicitly configure a broker and disable `PAPER_TRADE_MODE`.
+
+## 🧪 Testing
+
+```bash
+pytest tests/
+```
+
+Covers the Mythic validation pipeline, advanced intelligence (debate/lessons/skills), commodity-impact engine, mission control, sentiment, and API performance.
+
+---
+
+## 🤝 Contributing
+
+We'd love your help making AITradra better! Whether it's a new specialist agent, a bug fix, better test coverage, docs, or UI polish — all contributions are welcome.
+
+1. **Fork** the repository and create your branch from `main`:
+   `git checkout -b feature/my-improvement`
+2. **Set up** the project locally using the [Quick Start](#-quick-start) above.
+3. **Make your changes** — keep commits focused and write clear messages.
+4. **Test** your changes: `pytest tests/` (backend) and `npm run lint` (frontend).
+5. **Open a Pull Request** describing what you changed and why. Link any related issues.
+
+### Good places to start
+- 🐛 Check open [Issues](https://github.com/logeshv586-code/AITradra/issues) for bugs and feature requests.
+- 🧠 Add or refine a specialist agent in `agents/`.
+- 📊 Improve the Mythic Validation Pipeline scoring in `core/`.
+- 🎨 Polish the React dashboard in `ui/`.
+- 📝 Improve documentation — architecture notes live in `docs/`.
+
+If you're planning a larger change, please open an issue first to discuss the approach. For anything unclear, feel free to open a discussion or draft PR — new contributors are always welcome.
+
+## 📄 License
+
+Released under the [MIT License](./LICENSE).
 
 ---
 
