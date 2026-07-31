@@ -1,15 +1,18 @@
 from crewai import Agent, Task, Crew, Process
-from crewai.llms.base_llm import BaseLLM
+from crewai.llm import LLM
 from typing import Dict, Any
 import asyncio
 
 
-class AxiomCrewLLM(BaseLLM):
+class AxiomCrewLLM(LLM):
     """CrewAI-native adapter around the project's async LLM client."""
+
+    def __new__(cls, *args, **kwargs):
+        return super().__new__(cls, "axiom/mythic")
 
     def __init__(self, axiom_client: Any):
         self.axiom_client = axiom_client
-        super().__init__(model="axiom/mythic", temperature=0.2, provider="axiom")
+        super().__init__("axiom/mythic", temperature=0.2)
 
     def _messages_to_prompt(self, messages: Any) -> str:
         if isinstance(messages, str):

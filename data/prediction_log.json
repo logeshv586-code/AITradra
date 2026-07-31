@@ -516,7 +516,20 @@
     "confidence": 0.55,
     "created_at": "2026-07-24T16:08:12.788401+00:00",
     "timestamp": "2026-07-24T16:08:12.788401+00:00",
-    "id": "88017ce5-7d2f-460f-816c-216084454add"
+    "id": "88017ce5-7d2f-460f-816c-216084454add",
+    "actual_price": 327.47,
+    "accuracy_score": 1.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 327.47,
+      "target_price": 327.47,
+      "actual_price": 327.47,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-31T16:20:55.532152+00:00"
+    },
+    "resolved_at": "2026-07-31T16:20:55.538152+00:00"
   },
   {
     "ticker": "AAPL",
@@ -531,7 +544,20 @@
     "confidence": 0.55,
     "created_at": "2026-07-24T16:08:14.780792+00:00",
     "timestamp": "2026-07-24T16:08:14.780792+00:00",
-    "id": "d3214aa9-b935-450e-bfa0-e2133dfaea76"
+    "id": "d3214aa9-b935-450e-bfa0-e2133dfaea76",
+    "actual_price": 301.29,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 327.47,
+      "target_price": 327.47,
+      "actual_price": 301.29,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-31T16:20:55.532152+00:00"
+    },
+    "resolved_at": "2026-07-31T16:45:56.492889+00:00"
   },
   {
     "ticker": "AAPL",
@@ -546,7 +572,20 @@
     "confidence": 0.55,
     "created_at": "2026-07-24T18:17:47.039787+00:00",
     "timestamp": "2026-07-24T18:17:47.039787+00:00",
-    "id": "d63b62cf-1c76-48e4-b208-416b6a78d6b9"
+    "id": "d63b62cf-1c76-48e4-b208-416b6a78d6b9",
+    "actual_price": 301.29,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 327.47,
+      "target_price": 327.47,
+      "actual_price": 301.29,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-31T16:20:55.532152+00:00"
+    },
+    "resolved_at": "2026-07-31T16:55:56.826798+00:00"
   },
   {
     "ticker": "AAPL",
@@ -561,7 +600,20 @@
     "confidence": 0.55,
     "created_at": "2026-07-24T18:18:04.662181+00:00",
     "timestamp": "2026-07-24T18:18:04.662181+00:00",
-    "id": "5f83af9c-7a98-45f9-ba29-4df5ef7f1f60"
+    "id": "5f83af9c-7a98-45f9-ba29-4df5ef7f1f60",
+    "actual_price": 301.29,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 327.47,
+      "target_price": 327.47,
+      "actual_price": 301.29,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-31T16:20:55.532152+00:00"
+    },
+    "resolved_at": "2026-07-31T16:57:13.744689+00:00"
   },
   {
     "ticker": "AAPL",
@@ -576,7 +628,20 @@
     "confidence": 0.55,
     "created_at": "2026-07-24T18:18:54.603297+00:00",
     "timestamp": "2026-07-24T18:18:54.603297+00:00",
-    "id": "db25348e-e73b-4872-9e37-bc1fad619fe3"
+    "id": "db25348e-e73b-4872-9e37-bc1fad619fe3",
+    "actual_price": 301.29,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 327.47,
+      "target_price": 327.47,
+      "actual_price": 301.29,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-31T16:20:55.532152+00:00"
+    },
+    "resolved_at": "2026-07-31T16:58:33.811020+00:00"
   },
   {
     "ticker": "AAPL",
@@ -591,6 +656,79 @@
     "confidence": 0.55,
     "created_at": "2026-07-24T18:18:58.092016+00:00",
     "timestamp": "2026-07-24T18:18:58.092016+00:00",
-    "id": "fbc171c0-186b-4a79-8afe-132472e138b5"
+    "id": "fbc171c0-186b-4a79-8afe-132472e138b5",
+    "actual_price": 301.29,
+    "accuracy_score": 0.0,
+    "outcome": {
+      "direction": "NEUTRAL",
+      "raw_direction": "NEUTRAL",
+      "price_at_prediction": 327.47,
+      "target_price": 327.47,
+      "actual_price": 301.29,
+      "price_source": "cache",
+      "source_agent": "unknown",
+      "scored_at": "2026-07-31T16:20:55.532152+00:00"
+    },
+    "resolved_at": "2026-07-31T16:58:34.647915+00:00"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 301.29
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-31T17:46:55.569338+00:00",
+    "timestamp": "2026-07-31T17:46:55.569338+00:00",
+    "id": "f674718c-8eac-448e-b3a5-6b7c41642118"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 301.29
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-31T17:47:44.139697+00:00",
+    "timestamp": "2026-07-31T17:47:44.139697+00:00",
+    "id": "bae1203b-c73c-4fd0-ab7a-52b3a1ac2bb3"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 301.29
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-31T17:47:44.416926+00:00",
+    "timestamp": "2026-07-31T17:47:44.416926+00:00",
+    "id": "111e1413-a831-4f77-9ab5-92b806848cc1"
+  },
+  {
+    "ticker": "AAPL",
+    "prediction": {
+      "final_decision": "NEUTRAL",
+      "consensus": "NEUTRAL",
+      "confidence": 0.55,
+      "source_used": "cache",
+      "price_at_prediction": 301.29
+    },
+    "reasoning": "AXIOM MYTHIC \u2014 MULTI-AGENT INTELLIGENCE REPORT\nConsensus: NEUTRAL (Confidence: 35%)\n\nMarket intelligence for AAPL is being aggregated.\nThe AI model is loading. Specialist agents have computed data-driven signals.\n\nConfidence: 35% (LLM synthesis pending \u2014 using data-only signals)",
+    "confidence": 0.55,
+    "created_at": "2026-07-31T17:47:44.501809+00:00",
+    "timestamp": "2026-07-31T17:47:44.501809+00:00",
+    "id": "d522ceb2-eff7-404e-a402-3f4ab5948b1f"
   }
 ]
