@@ -8,11 +8,17 @@
   <img alt="PRs Welcome" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg">
 </p>
 
-**A 27-agent AI swarm that watches global markets, argues both sides of every trade in an adversarial Bull-vs-Bear debate, and learns from its own track record — before a single signal reaches you.**
+**A 27-agent AI swarm that watches global markets, argues both sides of every trade in an adversarial Bull-vs-Bear debate, and learns from its own track record — before a single signal reaches your dashboard.**
 
 <p align="center">
   <!-- Replace with a real screen recording (docs/assets/demo.gif) once the dashboard is captured. -->
   <img src="docs/assets/demo-placeholder.svg" alt="AITradra dashboard demo (placeholder — GIF coming soon)" width="100%">
+</p>
+
+<!-- Demo Video -->
+
+<p align="center">
+  <iframe width="560" height="315" src="https://www.youtube.com/embed/j91tv_Xn3AI?si=6SsImEv7LpQ8QHxz" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 </p>
 
 Open source and looking for contributors — quant researchers, ML/LLM engineers, and frontend devs welcome. Jump to [Contributing](#-contributing).
@@ -116,7 +122,7 @@ Powered by **Vibe-Trading AI**, the platform executes institutional-grade simula
 - **Institutional SMC**: Identifies liquidity pools and fair-price imbalances used by top-tier funds.
 
 ### 6. Continuous Self-Improvement
-The **AccuracyStore** background orchestrator continuously evaluates prediction outcomes against real price action (>24h lag). It grades agents individually, adjusting their "Influence Weight" in the Mythic Pipeline based on their verified real-world accuracy.
+The **AccuracyStore** background orchestrator continuously evaluates prediction outcomes against real price action (>24h lag). It grades agents individually, adjusting their "Influence Weight" in the ensemble.
 
 ---
 
