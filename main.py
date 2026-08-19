@@ -59,44 +59,41 @@ async def _agent_heartbeat():
 
 async def main():
     logger.info("Starting AXIOM V4 open-source intelligence stack")
-    
-    # Windows-specific: Clear port 8000 if already in use to prevent WinError 10048
+
     if sys.platform == "win32":
         try:
             import subprocess
+
             port = settings.PORT
-            cmd = f'netstat -ano | findstr :{port}'
+            cmd = f"netstat -ano | findstr :{port}"
             output = subprocess.check_output(cmd, shell=True).decode()
             if output:
-                for line in output.strip().split('\n'):
-                    if 'LISTENING' in line:
+                for line in output.strip().split("\n"):
+                    if "LISTENING" in line:
                         pid = line.strip().split()[-1]
                         logger.info(f"Clearing zombie process on port {port} (PID: {pid})...")
-                        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+                        subprocess.run(
+                            f"taskkill /F /PID {pid}", shell=True, capture_output=True
+                        )
         except Exception:
-            pass # Port might be free, which is fine
+            pass
 
     logger.info("MythicOrchestrator initialized")
     logger.info("Scheduler boot sequence started")
-
-    # Initialize agent heartbeat - all agents show ONLINE immediately
     await _agent_heartbeat()
 
-    # Skip automatic GGUF warming to save memory/CPU on startup.
-    # Analysis will load models on-demand if local inference is requested.
-    # asyncio.create_task(_warm_local_llm())
     asyncio.create_task(_warm_mem0())
-    
-    # Initialize Agentic Knowledge Base (MarketRAG)
+
     async def _warm_market_rag():
         try:
             from agents.market_rag import get_agent
+
             rag = get_agent()
             counts = rag.index_all_unindexed()
             logger.info(f"MarketRAG boot indexing complete: {counts}")
         except Exception as e:
             logger.warning(f"MarketRAG boot indexing failed: {e}")
-            
+
     asyncio.create_task(_warm_market_rag())
 
     if not scheduler.running:
@@ -105,26 +102,37 @@ async def main():
         from gateway.intelligence_service import intelligence_service
         from core.market_scheduler import market_scheduler
 
-        from gateway.hyperliquid_service import hyperliquid_trading_service
-
         logger.info("Configuring smart market-aware scheduler...")
 
-        # Schedule Hyperliquid Trading Cycle
-        scheduler.add_job(
-            hyperliquid_trading_service.run_cycle,
-            "interval",
-            minutes=5,  # Should ideally match settings.HYPERLIQUID_INTERVAL but default to 5m
-            id="hyperliquid_trading",
-            next_run_time=datetime.now() + timedelta(seconds=60),
-            coalesce=True,
-            misfire_grace_time=120,
-            max_instances=1,
-        )
+        # Autonomous order execution is deliberately opt-in. Turning on the API,
+        # dashboard, news jobs, or research agents can never start trading by itself.
+        if settings.AUTOTRADE_ENABLED:
+            from core.trading_safety import get_execution_status
+            from gateway.hyperliquid_service import hyperliquid_trading_service
 
-        # One-time startup catch-up is now backgrounded to avoid delaying API availability.
+            execution = get_execution_status(settings)
+            scheduler.add_job(
+                hyperliquid_trading_service.run_cycle,
+                "interval",
+                minutes=max(1, settings.TRADING_CYCLE_MINUTES),
+                id="hyperliquid_trading",
+                next_run_time=datetime.now() + timedelta(seconds=60),
+                coalesce=True,
+                misfire_grace_time=120,
+                max_instances=1,
+            )
+            logger.warning(
+                "Autonomous trading scheduler enabled in %s mode. Live allowed=%s",
+                execution["mode"],
+                execution["live_execution_allowed"],
+            )
+        else:
+            logger.info(
+                "Autonomous trading is OFF. Analysis, chat, paper portfolio, and research remain available."
+            )
+
         asyncio.create_task(market_scheduler.startup_catchup())
 
-        # Phase 1: Heavy lifting in background - Delayed for 30s to allow server to stabilize
         scheduler.add_job(
             intelligence_service.warm_watchlist_intelligence,
             "interval",
@@ -135,7 +143,6 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
-
         scheduler.add_job(
             market_scheduler.run_scheduled_news_collection,
             "interval",
@@ -163,8 +170,6 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
-        # Daily bull/bear debate sweep over current research suggestions —
-        # runs after the deep-research job so it challenges fresh candidates.
         scheduler.add_job(
             market_scheduler.run_debate_sweep,
             "cron",
@@ -176,9 +181,6 @@ async def main():
             misfire_grace_time=900,
             max_instances=1,
         )
-
-        # Weekly SkillOpt-style training epoch (validation-gated prompt edits)
-        # in the quiet weekend window.
         scheduler.add_job(
             market_scheduler.run_skill_training_epoch,
             "cron",
@@ -189,9 +191,6 @@ async def main():
             misfire_grace_time=3600,
             max_instances=1,
         )
-
-        # Commodity causal-chain scan — runs right after news cycles so it
-        # sees fresh headlines; internally rate-limits to 1h/6h cadence.
         scheduler.add_job(
             market_scheduler.run_commodity_scan,
             "interval",
@@ -202,7 +201,6 @@ async def main():
             misfire_grace_time=300,
             max_instances=1,
         )
-
         scheduler.add_job(
             market_scheduler.run_mirofish_sync,
             "interval",
@@ -230,7 +228,6 @@ async def main():
 
         scheduler.start()
         logger.info("Background scheduler started.")
-        logger.info("Scheduler running")
 
     logger.info("Launching AXIOM Gateway API on %s:%s", settings.HOST, settings.PORT)
 

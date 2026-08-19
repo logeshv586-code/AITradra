@@ -52,6 +52,12 @@ data/blobs/
 *.shm
 *.wal
 
+# Trading runtime state — local/persistent, never source-controlled
+data/paper_hyperliquid.json
+data/trading_daily_equity.json
+data/strategy_validation.json
+gateway/virtual_portfolio_data.json
+
 # Model weights
 *.gguf
 *.bin

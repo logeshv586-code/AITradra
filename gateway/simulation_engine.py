@@ -1,74 +1,104 @@
+"""Customer-facing paper portfolio using live references plus configurable friction."""
+
 import os
 import json
 import asyncio
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict, Optional
+
+from core.config import settings
 from core.logger import get_logger
 from gateway.knowledge_store import knowledge_store
 
 logger = get_logger(__name__)
-
 DATA_FILE = os.path.join(os.path.dirname(__file__), "virtual_portfolio_data.json")
+
 
 class SimulationEngine:
     def __init__(self, data_engine):
         self.data_engine = data_engine
         self.state = self._load_state()
 
-    def _load_state(self) -> Dict:
-        if os.path.exists(DATA_FILE):
-            try:
-                with open(DATA_FILE, "r") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Failed to load virtual portfolio: {e}")
-        
+    def _empty_state(self) -> Dict:
         return {
             "initialized": False,
+            "initial_balance": 0.0,
             "total_balance": 0.0,
             "available_cash": 0.0,
             "invested_amount": 0.0,
             "positions": [],
             "history": [],
             "daily_profit_history": [],
-            "accuracy_metrics": {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 100.0}
+            "fees_paid": 0.0,
+            "realized_profit_loss": 0.0,
+            "accuracy_metrics": {
+                "total_trades": 0,
+                "correct_predictions": 0,
+                "accuracy_score": 0.0,
+            },
+            "execution_assumptions": {
+                "slippage_bps": settings.PAPER_SLIPPAGE_BPS,
+                "fee_bps": settings.PAPER_FEE_BPS,
+            },
         }
+
+    def _load_state(self) -> Dict:
+        if os.path.exists(DATA_FILE):
+            try:
+                with open(DATA_FILE, "r", encoding="utf-8") as handle:
+                    state = json.load(handle)
+                state.setdefault("initial_balance", state.get("total_balance", 0.0))
+                state.setdefault("daily_profit_history", [])
+                state.setdefault("fees_paid", 0.0)
+                state.setdefault("realized_profit_loss", 0.0)
+                state.setdefault(
+                    "execution_assumptions",
+                    {
+                        "slippage_bps": settings.PAPER_SLIPPAGE_BPS,
+                        "fee_bps": settings.PAPER_FEE_BPS,
+                    },
+                )
+                return state
+            except Exception as exc:
+                logger.error(f"Failed to load virtual portfolio: {exc}")
+        return self._empty_state()
 
     def _save_state(self):
         try:
-            with open(DATA_FILE, "w") as f:
-                json.dump(self.state, f, indent=2)
-        except Exception as e:
-            logger.error(f"Failed to save virtual portfolio: {e}")
+            with open(DATA_FILE, "w", encoding="utf-8") as handle:
+                json.dump(self.state, handle, indent=2)
+        except Exception as exc:
+            logger.error(f"Failed to save virtual portfolio: {exc}")
 
     def _get_snapshot(self, ticker: str) -> Optional[Dict]:
         try:
             return knowledge_store.get_ticker_intelligence(ticker.upper())
-        except Exception as e:
-            logger.warning(f"Failed to load intelligence snapshot for {ticker}: {e}")
+        except Exception as exc:
+            logger.warning(f"Failed to load intelligence snapshot for {ticker}: {exc}")
             return None
 
     async def _get_live_price(self, ticker: str) -> float:
-        """Fetch live price using the data engine with yfinance/collector fallback.
-        
-        Priority:
-          1. data_engine.get_price_data (hits cache -> knowledge store -> yfinance -> scrape)
-          2. intelligence snapshot (px from knowledge store)
-          3. Returns 0 only if everything fails
-        """
-        # 1. Try data engine (async, hits yfinance/collector if needed)
         try:
-            price_data = await self.data_engine.get_price_data(ticker.upper(), allow_scrape=True)
-            px = float(price_data.get("px", 0) or 0)
-            if px > 0:
-                return px
-        except Exception as e:
-            logger.warning(f"Data engine price fetch failed for {ticker}: {e}")
+            price_data = await self.data_engine.get_price_data(
+                ticker.upper(), allow_scrape=True
+            )
+            price = float(price_data.get("px", 0) or 0)
+            if price > 0:
+                return price
+        except Exception as exc:
+            logger.warning(f"Data engine price fetch failed for {ticker}: {exc}")
 
-        # 2. Fallback to intelligence snapshot
         snapshot = self._get_snapshot(ticker)
-        price = ((snapshot or {}).get("price_data") or {}).get("px", 0)
-        return float(price or 0)
+        return float(((snapshot or {}).get("price_data") or {}).get("px", 0) or 0)
+
+    @staticmethod
+    def _fill_price(reference_price: float, side: str) -> float:
+        slippage = settings.PAPER_SLIPPAGE_BPS / 10_000
+        return reference_price * (1 + slippage if side == "BUY" else 1 - slippage)
+
+    @staticmethod
+    def _fee(notional: float) -> float:
+        return notional * settings.PAPER_FEE_BPS / 10_000
 
     def _get_signal_context(self, ticker: str) -> Dict:
         snapshot = self._get_snapshot(ticker) or {}
@@ -82,15 +112,17 @@ class SimulationEngine:
         }
 
     def initialize_account(self, initial_balance: float):
-        self.state = {
-            "initialized": True,
-            "total_balance": initial_balance,
-            "available_cash": initial_balance,
-            "invested_amount": 0.0,
-            "positions": [],
-            "history": [],
-            "accuracy_metrics": {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 0.0}
-        }
+        if initial_balance <= 0:
+            raise ValueError("Starting balance must be greater than zero")
+        self.state = self._empty_state()
+        self.state.update(
+            {
+                "initialized": True,
+                "initial_balance": float(initial_balance),
+                "total_balance": float(initial_balance),
+                "available_cash": float(initial_balance),
+            }
+        )
         self._save_state()
         return self.state
 
@@ -113,251 +145,242 @@ class SimulationEngine:
         monte_carlo_volatility: Optional[float] = None,
         confidence_score: Optional[float] = None,
     ):
-        if not self.state["initialized"]:
-            raise ValueError("Simulation not initialized")
+        if not self.state.get("initialized"):
+            raise ValueError("Practice account is not initialized")
+        ticker = str(ticker or "").upper().strip()
+        quantity = float(quantity or 0)
+        if not ticker:
+            raise ValueError("Enter a ticker symbol")
+        if quantity <= 0:
+            raise ValueError("Shares must be greater than zero")
 
-        price = await self._get_live_price(ticker)
-        if price <= 0:
-            raise ValueError(f"Could not fetch live price for {ticker}")
-
+        reference_price = await self._get_live_price(ticker)
+        if reference_price <= 0:
+            raise ValueError(f"A live market price is not available for {ticker}")
+        fill_price = self._fill_price(reference_price, "BUY")
         signal_context = self._get_signal_context(ticker)
 
-        base_quantity = quantity
+        # AI metadata may reduce a requested practice size but never increases what
+        # the customer typed into the order form.
         scaling_factor = 1.0
+        if confidence_score is not None:
+            confidence = float(confidence_score or 0)
+            scaling_factor = 1.0 if confidence >= 80 else 0.75 if confidence >= 60 else 0.5 if confidence >= 40 else 0.25
+        quantity *= scaling_factor
 
-        if confidence_score is not None and confidence_score > 0:
-            if confidence_score >= 80:
-                scaling_factor = 1.5
-            elif confidence_score >= 60:
-                scaling_factor = 1.0
-            elif confidence_score >= 40:
-                scaling_factor = 0.75
-            else:
-                scaling_factor = 0.5
+        if monte_carlo_volatility is not None and float(monte_carlo_volatility or 0) > 0:
+            volatility = float(monte_carlo_volatility)
+            max_position_pct = max(0.02, min(settings.MAX_POSITION_PCT, 1.0 / (volatility + 1)))
+            max_position_value = self.state["total_balance"] * max_position_pct
+            quantity = min(quantity, max_position_value / fill_price)
 
-        if monte_carlo_volatility is not None and monte_carlo_volatility > 0:
-            max_position_pct = max(0.02, min(0.15, 1.0 / (monte_carlo_volatility + 1)))
-            max_position_value = self.state["available_cash"] * max_position_pct
-            scaled_quantity = base_quantity * scaling_factor
-            scaled_amount = scaled_quantity * price
+        notional = quantity * fill_price
+        fee = self._fee(notional)
+        if notional + fee > self.state["available_cash"]:
+            max_notional = self.state["available_cash"] / (1 + settings.PAPER_FEE_BPS / 10_000)
+            quantity = max_notional / fill_price
+            notional = quantity * fill_price
+            fee = self._fee(notional)
+        if quantity <= 0:
+            raise ValueError("Not enough practice cash for this order")
 
-            if scaled_amount > max_position_value:
-                quantity = max_position_value / price
-                logger.info(
-                    f"Position sized down due to high volatility {monte_carlo_volatility:.2f}: {quantity:.4f} shares"
-                )
-            else:
-                quantity = scaled_quantity
-        else:
-            quantity = base_quantity * scaling_factor
-
-        amount = quantity * price
-
-        if amount > self.state["available_cash"]:
-            quantity = (self.state["available_cash"] * 0.95) / price
-            amount = quantity * price
-            logger.warning(
-                f"Position reduced to fit available cash: {quantity:.4f} shares"
-            )
-
-        existing_pos = next(
-            (p for p in self.state["positions"] if p["ticker"] == ticker), None
+        existing = next(
+            (position for position in self.state["positions"] if position["ticker"] == ticker),
+            None,
         )
-        if existing_pos:
-            total_qty = existing_pos["quantity"] + quantity
-            new_avg_price = (
-                (existing_pos["buy_price"] * existing_pos["quantity"])
-                + (price * quantity)
+        if existing:
+            old_qty = float(existing["quantity"])
+            total_qty = old_qty + quantity
+            existing["buy_price"] = (
+                float(existing["buy_price"]) * old_qty + fill_price * quantity
             ) / total_qty
-            existing_pos["quantity"] = total_qty
-            existing_pos["buy_price"] = new_avg_price
-            existing_pos["invested_value"] = total_qty * new_avg_price
-            existing_pos["prediction"] = (
-                prediction
-                or signal_context["prediction_direction"]
-                or existing_pos.get("prediction")
-            )
-            existing_pos["signal_context"] = signal_context
+            existing["quantity"] = total_qty
+            existing["invested_value"] = total_qty * existing["buy_price"]
+            existing["entry_fee"] = float(existing.get("entry_fee", 0)) + fee
+            existing["prediction"] = prediction or signal_context["prediction_direction"]
+            existing["signal_context"] = signal_context
         else:
             self.state["positions"].append(
                 {
                     "ticker": ticker,
-                    "buy_price": price,
+                    "buy_price": fill_price,
                     "quantity": quantity,
-                    "invested_value": amount,
+                    "invested_value": notional,
+                    "entry_fee": fee,
                     "prediction": prediction or signal_context["prediction_direction"],
                     "signal_context": signal_context,
                     "timestamp": datetime.now().isoformat(),
                 }
             )
 
-        self.state["available_cash"] -= amount
-        self.state["invested_amount"] += amount
-
+        self.state["available_cash"] -= notional + fee
+        self.state["fees_paid"] = float(self.state.get("fees_paid", 0)) + fee
         self.state["history"].append(
             {
                 "type": "BUY",
                 "ticker": ticker,
-                "price": price,
-                "amount": amount,
+                "reference_price": reference_price,
+                "price": fill_price,
+                "amount": notional,
+                "fee": fee,
                 "quantity": quantity,
-                "prediction_at_buy": prediction
-                or signal_context["prediction_direction"],
+                "prediction_at_buy": prediction or signal_context["prediction_direction"],
                 "signal_context": signal_context,
                 "timestamp": datetime.now().isoformat(),
             }
         )
-
         self._save_state()
         return await self.calculate_live_portfolio()
 
     async def sell_stock(self, ticker: str, quantity_to_sell: Optional[float] = None):
-        if not self.state["initialized"]:
-            raise ValueError("Simulation not initialized")
-
-        pos_index = next(
-            (i for i, p in enumerate(self.state["positions"]) if p["ticker"] == ticker),
+        if not self.state.get("initialized"):
+            raise ValueError("Practice account is not initialized")
+        ticker = str(ticker or "").upper().strip()
+        index = next(
+            (i for i, position in enumerate(self.state["positions"]) if position["ticker"] == ticker),
             None,
         )
-        if pos_index is None:
-            raise ValueError(f"No position found for {ticker}")
+        if index is None:
+            raise ValueError(f"No practice position found for {ticker}")
 
-        pos = self.state["positions"][pos_index]
-        orig_prediction = pos.get("prediction")
+        position = self.state["positions"][index]
+        held_qty = float(position["quantity"])
+        requested = held_qty if quantity_to_sell is None else float(quantity_to_sell or 0)
+        if requested <= 0:
+            raise ValueError("Shares to sell must be greater than zero")
+        sell_qty = min(requested, held_qty)
+        fully_closed = sell_qty >= held_qty - 1e-12
 
-        if quantity_to_sell is None or quantity_to_sell >= pos["quantity"]:
-            quantity_to_sell = pos["quantity"]
-            fully_closed = True
-        else:
-            fully_closed = False
+        reference_price = await self._get_live_price(ticker)
+        if reference_price <= 0:
+            reference_price = float(position.get("current_price", position["buy_price"]) or 0)
+        if reference_price <= 0:
+            raise ValueError(f"A market price is not available for {ticker}")
+        fill_price = self._fill_price(reference_price, "SELL")
 
-        current_price = await self._get_live_price(ticker)
-        if current_price <= 0:
-            current_price = pos.get("current_price", pos["buy_price"])
+        sale_value = sell_qty * fill_price
+        exit_fee = self._fee(sale_value)
+        entry_fee_total = float(position.get("entry_fee", 0) or 0)
+        allocated_entry_fee = entry_fee_total * (sell_qty / held_qty)
+        cost = sell_qty * float(position["buy_price"]) + allocated_entry_fee
+        profit_loss = sale_value - exit_fee - cost
 
-        sale_value = quantity_to_sell * current_price
-        profit_loss = sale_value - (quantity_to_sell * pos["buy_price"])
-
-        self.state["accuracy_metrics"]["total_trades"] += 1
-
-        is_correct = False
-        if orig_prediction == "UP" and profit_loss > 0:
-            is_correct = True
-        elif orig_prediction == "DOWN" and profit_loss < 0:
-            is_correct = False
-
+        metrics = self.state.setdefault(
+            "accuracy_metrics",
+            {"total_trades": 0, "correct_predictions": 0, "accuracy_score": 0.0},
+        )
+        metrics["total_trades"] += 1
+        original_prediction = str(position.get("prediction", "SIDEWAYS")).upper()
+        is_correct = (
+            (original_prediction == "UP" and profit_loss > 0)
+            or (original_prediction == "DOWN" and fill_price < float(position["buy_price"]))
+            or (original_prediction in {"SIDEWAYS", "HOLD"} and abs(profit_loss / max(cost, 1e-12)) < 0.01)
+        )
         if is_correct:
-            self.state["accuracy_metrics"]["correct_predictions"] += 1
-
-        total_trades = self.state["accuracy_metrics"]["total_trades"]
-        self.state["accuracy_metrics"]["accuracy_score"] = (
-            (self.state["accuracy_metrics"]["correct_predictions"] / total_trades) * 100
-            if total_trades
-            else 0.0
+            metrics["correct_predictions"] += 1
+        metrics["accuracy_score"] = (
+            metrics["correct_predictions"] / metrics["total_trades"] * 100
         )
 
-        self.state["available_cash"] += sale_value
+        self.state["available_cash"] += sale_value - exit_fee
+        self.state["fees_paid"] = float(self.state.get("fees_paid", 0)) + exit_fee
+        self.state["realized_profit_loss"] = float(
+            self.state.get("realized_profit_loss", 0)
+        ) + profit_loss
 
         if fully_closed:
-            self.state["positions"].pop(pos_index)
+            self.state["positions"].pop(index)
         else:
-            pos["quantity"] -= quantity_to_sell
-            pos["invested_value"] = pos["quantity"] * pos["buy_price"]
-
-        self.state["invested_amount"] = sum(
-            p["invested_value"] for p in self.state["positions"]
-        )
-        
-        # Ensure total balance is recalculated
-        self.state["total_balance"] = self.state["available_cash"] + self.state["invested_amount"]
+            position["quantity"] = held_qty - sell_qty
+            position["invested_value"] = position["quantity"] * position["buy_price"]
+            position["entry_fee"] = max(0.0, entry_fee_total - allocated_entry_fee)
 
         self.state["history"].append(
             {
                 "type": "SELL",
                 "ticker": ticker,
-                "price": current_price,
+                "reference_price": reference_price,
+                "price": fill_price,
                 "amount": sale_value,
-                "quantity": quantity_to_sell,
+                "fee": exit_fee,
+                "quantity": sell_qty,
                 "profit_loss": profit_loss,
-                "profit_loss_pct": round((profit_loss / (quantity_to_sell * pos["buy_price"])) * 100, 2) if pos["buy_price"] > 0 else 0,
+                "profit_loss_pct": round((profit_loss / cost) * 100, 2) if cost > 0 else 0,
                 "signal_context": self._get_signal_context(ticker),
                 "timestamp": datetime.now().isoformat(),
             }
         )
-
         self._save_state()
         return await self.calculate_live_portfolio()
 
     async def calculate_live_portfolio(self):
-        if not self.state["initialized"]:
+        if not self.state.get("initialized"):
             return self.state
 
-        total_invested_current = 0.0
-        total_p_l = 0.0
-
-        # Fetch all live prices concurrently
-        tickers = [pos["ticker"] for pos in self.state["positions"]]
+        tickers = [position["ticker"] for position in self.state["positions"]]
         prices = await asyncio.gather(
-            *[self._get_live_price(t) for t in tickers],
-            return_exceptions=True
+            *[self._get_live_price(ticker) for ticker in tickers],
+            return_exceptions=True,
         )
-        price_map = {}
-        for t, px in zip(tickers, prices):
-            price_map[t] = float(px) if isinstance(px, (int, float)) and px > 0 else 0
+        price_map = {
+            ticker: float(price) if isinstance(price, (int, float)) and price > 0 else 0.0
+            for ticker, price in zip(tickers, prices)
+        }
 
-        for pos in self.state["positions"]:
-            curr_px = price_map.get(pos["ticker"], 0) or pos["buy_price"]
-            signal_context = self._get_signal_context(pos["ticker"])
-
-            pos["current_price"] = curr_px
-            pos["current_value"] = curr_px * pos["quantity"]
-            pos["profit_loss"] = pos["current_value"] - pos["invested_value"]
-            pos["profit_loss_pct"] = (
-                round((pos["profit_loss"] / pos["invested_value"] * 100), 2)
-                if pos["invested_value"]
-                else 0
+        current_positions_value = 0.0
+        unrealized = 0.0
+        for position in self.state["positions"]:
+            current_price = price_map.get(position["ticker"], 0) or float(position["buy_price"])
+            position["current_price"] = current_price
+            position["current_value"] = current_price * float(position["quantity"])
+            position["profit_loss"] = (
+                position["current_value"]
+                - float(position["invested_value"])
+                - float(position.get("entry_fee", 0) or 0)
             )
-            pos["signal_context"] = signal_context
+            position["profit_loss_pct"] = (
+                round(
+                    position["profit_loss"]
+                    / max(float(position["invested_value"]) + float(position.get("entry_fee", 0) or 0), 1e-12)
+                    * 100,
+                    2,
+                )
+            )
+            position["signal_context"] = self._get_signal_context(position["ticker"])
+            current_positions_value += position["current_value"]
+            unrealized += position["profit_loss"]
 
-            total_invested_current += pos["current_value"]
-            total_p_l += pos["profit_loss"]
-
-        self.state["invested_amount"] = total_invested_current
-        self.state["total_balance"] = (
-            self.state["available_cash"] + total_invested_current
-        )
-        self.state["total_profit_loss"] = total_p_l
+        self.state["invested_amount"] = current_positions_value
+        self.state["total_balance"] = self.state["available_cash"] + current_positions_value
+        initial = float(self.state.get("initial_balance", 0) or 0)
+        self.state["total_profit_loss"] = self.state["total_balance"] - initial
+        self.state["unrealized_profit_loss"] = unrealized
         self.state["profit_loss_percentage"] = (
-            round((total_p_l / (self.state["total_balance"] - total_p_l) * 100), 2)
-            if (self.state["total_balance"] - total_p_l) > 0
-            else 0
+            round(self.state["total_profit_loss"] / initial * 100, 2) if initial > 0 else 0.0
         )
-        if self.state["accuracy_metrics"].get("total_trades", 0) == 0:
-            self.state["accuracy_metrics"]["accuracy_score"] = 0.0
-
+        self.state["mode"] = "practice"
+        self.state["uses_real_money"] = False
+        self.state["execution_assumptions"] = {
+            "slippage_bps": settings.PAPER_SLIPPAGE_BPS,
+            "fee_bps": settings.PAPER_FEE_BPS,
+        }
         self._save_state()
         return self.state
 
     def record_daily_snapshot(self):
-        """Record a snapshot of the current portfolio value for historical tracking."""
         if not self.state.get("initialized"):
-            return
-        
-        # Use synchronous price for snapshot (already cached from last calculate_live_portfolio)
+            return None
         snapshot = {
             "date": datetime.now().strftime("%Y-%m-%d"),
             "total_balance": self.state["total_balance"],
             "profit_loss": self.state.get("total_profit_loss", 0),
-            "available_cash": self.state["available_cash"]
+            "available_cash": self.state["available_cash"],
         }
-        
         history = self.state.setdefault("daily_profit_history", [])
-        today = datetime.now().strftime("%Y-%m-%d")
-        existing = next((s for s in history if s["date"] == today), None)
+        existing = next((item for item in history if item["date"] == snapshot["date"]), None)
         if existing:
             existing.update(snapshot)
         else:
             history.append(snapshot)
-        
         self._save_state()
         return snapshot

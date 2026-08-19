@@ -88,18 +88,11 @@ class Settings(BaseSettings):
     OPENAI_COMPATIBLE_API_KEY: str = ""
     OPENAI_COMPATIBLE_MODEL: str = "gpt-4o-mini"
 
-    MOONSHOT_API_KEY: str = (
-        "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"
-    )
-    NEMOTRON_API_KEY: str = (
-        "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"
-    )
-    MINIMAX_API_KEY: str = (
-        "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"
-    )
-    MISTRAL_API_KEY: str = (
-        "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"
-    )
+    # Provider credentials must come from .env / secret management. Never commit keys.
+    MOONSHOT_API_KEY: str = ""
+    NEMOTRON_API_KEY: str = ""
+    MINIMAX_API_KEY: str = ""
+    MISTRAL_API_KEY: str = ""
 
     # Model Assignments (NIM)
     SENTIMENT_MODEL: str = "mistralai/mistral-small-4-119b-2603"
@@ -146,13 +139,9 @@ class Settings(BaseSettings):
     @classmethod
     def resolve_model_path(cls, v: str) -> str:
         """Joins filename from .env with project root to create an absolute path."""
-        # If it's already an absolute path (unlikely in .env but possible), return it
         if Path(v).is_absolute():
             return str(v)
-
-        # Join with BASE_DIR for universal absolute path
-        abs_path = (BASE_DIR / v).resolve()
-        return str(abs_path)
+        return str((BASE_DIR / v).resolve())
 
     # Risk Controls
     PAPER_TRADE_MODE: bool = True
@@ -161,6 +150,28 @@ class Settings(BaseSettings):
     MAX_OPEN_POSITIONS: int = 5
     MIN_SIGNAL_CONFIDENCE: float = 0.70
     MIN_CONSENSUS_AGENTS: int = 3
+
+    # Execution safety — live trading is fail-closed unless every gate is explicit.
+    AUTOTRADE_ENABLED: bool = False
+    LIVE_TRADING_ACK: str = ""
+    REQUIRE_PROTECTIVE_ORDERS: bool = True
+    REQUIRE_STRATEGY_VALIDATION: bool = True
+    ALLOW_POSITION_ADDONS: bool = False
+    TRADING_CYCLE_MINUTES: int = 5
+    LIVE_STRATEGY_ID: str = "hyperliquid-agent-v1"
+
+    # Live-deployment validation thresholds
+    STRATEGY_VALIDATION_MAX_AGE_DAYS: int = 30
+    MIN_BACKTEST_SHARPE: float = 1.0
+    MAX_BACKTEST_DRAWDOWN_PCT: float = 20.0
+    MIN_BACKTEST_WIN_RATE: float = 0.52
+    MIN_BACKTEST_TRADES: int = 30
+    MIN_BACKTEST_PROFIT_FACTOR: float = 1.20
+
+    # Paper execution assumptions
+    PAPER_STARTING_BALANCE: float = 100000.0
+    PAPER_SLIPPAGE_BPS: float = 5.0
+    PAPER_FEE_BPS: float = 4.0
 
     # External Services (from .env)
     UI_BASE_URL: str = "http://localhost:8000"
@@ -175,6 +186,7 @@ class Settings(BaseSettings):
     HYPERLIQUID_VAULT_ADDRESS: Optional[str] = None
     HYPERLIQUID_ASSETS: list[str] = ["BTC", "ETH", "SOL"]
     HYPERLIQUID_INTERVAL: str = "5m"
+    HYPERLIQUID_MAX_SLIPPAGE_PCT: float = 0.01
 
     # Extended Risk Controls
     FORCE_CLOSE_LOSS_PCT: float = 0.20
@@ -185,97 +197,24 @@ class Settings(BaseSettings):
     # Watchlist (Expanded for comprehensive global visibility)
     DEFAULT_WATCHLIST: list[str] = [
         # US Tech & Megacap
-        "AAPL",
-        "GOOGL",
-        "MSFT",
-        "AMZN",
-        "NVDA",
-        "TSLA",
-        "META",
-        "NFLX",
-        "AMD",
-        "INTC",
-        "CRM",
-        "ADBE",
-        "PYPL",
-        "SQ",
-        "UBER",
-        "ABNB",
-        "SPOT",
-        "PLTR",
-        "SNOW",
-        "SHOP",
-        "ORCL",
-        "IBM",
+        "AAPL", "GOOGL", "MSFT", "AMZN", "NVDA", "TSLA", "META", "NFLX",
+        "AMD", "INTC", "CRM", "ADBE", "PYPL", "SQ", "UBER", "ABNB", "SPOT",
+        "PLTR", "SNOW", "SHOP", "ORCL", "IBM",
         # US Finance / Traditional
-        "JPM",
-        "BAC",
-        "WFC",
-        "GS",
-        "MS",
-        "V",
-        "MA",
-        "JNJ",
-        "PFE",
-        "UNH",
-        "PG",
-        "KO",
-        "PEP",
-        "WMT",
-        "TGT",
-        "HD",
-        "XOM",
-        "CVX",
+        "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "JNJ", "PFE", "UNH",
+        "PG", "KO", "PEP", "WMT", "TGT", "HD", "XOM", "CVX",
         # Indian / Asian Equities
-        "RELIANCE.NS",
-        "TCS.NS",
-        "INFY.NS",
-        "HDFCBANK.NS",
-        "ICICIBANK.NS",
-        "SBIN.NS",
-        "BHARTIARTL.NS",
-        "ITC.NS",
-        "TATAMOTORS.NS",
-        "BABA",
-        "TCEHY",
-        "TSM",
-        "SONY",
+        "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
+        "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "TATAMOTORS.NS", "BABA", "TCEHY",
+        "TSM", "SONY",
         # European / Other Internationals
-        "ASML",
-        "NVO",
-        "NVS",
-        "SAP",
-        "SIE.DE",
-        "LVMUY",
-        "NSRGY",
-        "RY",
-        "TD",
-        "BHP",
-        "RIO",
+        "ASML", "NVO", "NVS", "SAP", "SIE.DE", "LVMUY", "NSRGY", "RY", "TD",
+        "BHP", "RIO",
         # Major Indices & ETFs
-        "SPY",
-        "QQQ",
-        "DIA",
-        "IWM",
-        "VTI",
-        "VEA",
-        "VWO",
-        "GLD",
-        "SLV",
-        "USO",
-        "TLT",
+        "SPY", "QQQ", "DIA", "IWM", "VTI", "VEA", "VWO", "GLD", "SLV", "USO", "TLT",
         # Cryptocurrencies
-        "BTC-USD",
-        "ETH-USD",
-        "SOL-USD",
-        "BNB-USD",
-        "XRP-USD",
-        "ADA-USD",
-        "AVAX-USD",
-        "DOGE-USD",
-        "DOT-USD",
-        "LINK-USD",
-        "MATIC-USD",
+        "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD",
+        "AVAX-USD", "DOGE-USD", "DOT-USD", "LINK-USD", "MATIC-USD",
     ]
 
     class Config:

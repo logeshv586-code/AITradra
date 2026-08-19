@@ -1,0 +1,50 @@
+name: Safety CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  trading-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Reject embedded NVIDIA API keys
+        run: |
+          if grep -R --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv -n "nvapi-" core agents gateway brokers ui; then
+            echo "Embedded NVIDIA API key detected. Use environment secrets instead."
+            exit 1
+          fi
+      - name: Install focused test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio pydantic pydantic-settings
+      - name: Compile critical Python modules
+        run: python -m compileall -q core brokers gateway agents
+      - name: Run trading safety regression suite
+        run: python -m pytest -q tests/test_trading_safety.py
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build customer UI
+        run: npm run build

@@ -12,7 +12,12 @@ services:
       - DATABASE_URL=postgresql://axiom:axiom@postgres:5432/axiom
       - QDRANT_URL=http://qdrant:6333
       - MINIO_URL=http://minio:9000
-      - PAPER_TRADING=true
+      # Single authoritative execution mode. Live orders remain disabled unless
+      # the additional live gates are explicitly provided from a secret env file.
+      - PAPER_TRADE_MODE=true
+      - AUTOTRADE_ENABLED=false
+      - REQUIRE_PROTECTIVE_ORDERS=true
+      - REQUIRE_STRATEGY_VALIDATION=true
 
   # ─── Frontend ─────────────────────────────────────────────
   axiom_ui:
