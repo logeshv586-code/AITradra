@@ -17,6 +17,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Reject embedded NVIDIA API keys
+        run: |
+          if grep -R --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv -n "nvapi-" core agents gateway brokers ui; then
+            echo "Embedded NVIDIA API key detected. Use environment secrets instead."
+            exit 1
+          fi
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
