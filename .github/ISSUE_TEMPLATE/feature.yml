@@ -1,0 +1,59 @@
+name: Feature request
+description: Suggest a product, data, AI, broker, or documentation improvement
+title: "feature: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem does this solve?
+      placeholder: A customer wants to...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should AITradra do?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Customer UI
+        - Market data adapter
+        - News/social evidence
+        - AI agent
+        - Prediction evaluation
+        - Risk management
+        - Paper trading
+        - Broker integration
+        - Documentation
+        - Investor/community growth
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will we know this is complete?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety expectations
+      options:
+        - label: This feature keeps paper/practice mode as the default where trading is involved.
+          required: false
+        - label: This feature does not bypass risk gates or live-trading confirmations.
+          required: false
+        - label: This feature preserves data provenance and does not fabricate missing data.
+          required: false
