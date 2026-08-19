@@ -215,6 +215,7 @@ The customer connection panel supports presets for:
 - **Alpha Vantage**
 - **Finnhub**
 - **Twelve Data**
+- **Polygon.io**
 - **NewsAPI**
 - **GNews**
 - **Hyperliquid**
