@@ -148,9 +148,20 @@ class Settings(BaseSettings):
     LIVE_TRADING_ACK: str = ""
     REQUIRE_PROTECTIVE_ORDERS: bool = True
     REQUIRE_STRATEGY_VALIDATION: bool = True
+    REQUIRE_EMPIRICAL_PRECISION_VALIDATION: bool = True
     ALLOW_POSITION_ADDONS: bool = False
     TRADING_CYCLE_MINUTES: int = 5
     LIVE_STRATEGY_ID: str = "hyperliquid-agent-v1"
+
+    # Autonomous live-entry precision gate. These are evidence thresholds, not
+    # promises of future profitability. Paper mode continues collecting outcomes
+    # when the live gate cannot be satisfied.
+    AUTOTRADE_TARGET_PRECISION: float = 0.99
+    AUTOTRADE_MIN_SIGNAL_CONFIDENCE: float = 90.0
+    AUTOTRADE_MIN_EVALUATED_SIGNALS: int = 100
+    AUTOTRADE_MIN_PRECISION_LOWER_BOUND: float = 0.95
+    PRECISION_LOOKBACK_DAYS: int = 90
+    PRECISION_VALIDATION_MAX_AGE_DAYS: int = 30
 
     # Live-deployment validation thresholds
     STRATEGY_VALIDATION_MAX_AGE_DAYS: int = 30
