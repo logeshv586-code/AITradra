@@ -16,6 +16,7 @@ jobs:
       AUTOTRADE_ENABLED: "false"
       MANUAL_LIVE_TRADING_ENABLED: "false"
       LIVE_SMOKE_REPORT: live-smoke-report.json
+      PYTHONPATH: "."
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
