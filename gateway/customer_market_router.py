@@ -76,6 +76,19 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _price_is_actionable(price: dict[str, Any]) -> bool:
+    """Only current, directly usable prices may drive BUY/entry decisions."""
+    source = str(price.get("source_used", "")).lower()
+    stale_source = source in {"none", "knowledge_store", "cache_stale", "stale_cache"}
+    return (
+        _safe_float(price.get("px")) > 0
+        and not stale_source
+        and not bool(price.get("is_stale"))
+        and not bool(price.get("is_estimated"))
+        and not bool(price.get("syncing"))
+    )
+
+
 def _agent_view(name: str, payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {"name": name.replace("_", " ").title(), "signal": "N/A", "summary": str(payload or "")}
@@ -129,6 +142,8 @@ def _why_it_moved(snapshot: dict[str, Any], news: list[dict[str, Any]]) -> dict[
     summary = f"{snapshot.get('ticker', '')} is {direction_word} {abs(change):.2f}% in the latest session. AITradra currently identifies {primary} as the main driver."
     if top_headline:
         summary += f" The freshest related catalyst is “{top_headline.get('headline', '')}”."
+    if not _price_is_actionable(price):
+        summary += " The latest quote is currently cached/stale, so no new trade action should be taken until a fresh price arrives."
     return {"summary": summary, "primary_driver": primary, "drivers": drivers, "confidence": snapshot.get("confidence_score", 0)}
 
 
@@ -139,6 +154,14 @@ def _customer_brief(snapshot: dict[str, Any], news: list[dict[str, Any]], deep_r
     quality = profile.get("data_quality", {}) if isinstance(profile, dict) else {}
     plan = snapshot.get("adaptive_plan", profile.get("adaptive_plan", {}) if isinstance(profile, dict) else {})
     prediction = intelligence_service.to_prediction_record(snapshot)
+    price_actionable = _price_is_actionable(price)
+    if not price_actionable:
+        prediction = {
+            **prediction,
+            "recommendation": "HOLD",
+            "should_invest": False,
+            "reasoning_summary": "Fresh market data is unavailable. The last real observation may be shown for context, but AITradra will not recommend a new entry until a current price is confirmed.",
+        }
     agent_payloads = snapshot.get("agents", {}) if isinstance(snapshot.get("agents"), dict) else {}
     if deep_result and isinstance(deep_result.get("specialist_details"), dict):
         agent_payloads = deep_result["specialist_details"]
@@ -151,7 +174,7 @@ def _customer_brief(snapshot: dict[str, Any], news: list[dict[str, Any]], deep_r
             "current": _safe_float(price.get("px")), "change_pct": _safe_float(price.get("pct_chg", price.get("chg"))),
             "open": _safe_float(price.get("open")), "high": _safe_float(price.get("high")), "low": _safe_float(price.get("low")),
             "volume": _safe_float(price.get("volume")), "source": price.get("source_used", "unknown"),
-            "fresh": not bool(price.get("is_stale") or price.get("is_estimated")),
+            "fresh": price_actionable, "freshness_minutes": price.get("freshness_minutes"),
         },
         "why_it_moved": _why_it_moved(snapshot, news),
         "prediction": {
@@ -159,6 +182,7 @@ def _customer_brief(snapshot: dict[str, Any], news: list[dict[str, Any]], deep_r
             "confidence": prediction.get("confidence_score", 0), "current_price": prediction.get("current_price", 0),
             "target_price": prediction.get("predicted_price", 0), "expected_move_pct": prediction.get("expected_move_percent", 0),
             "primary_driver": prediction.get("primary_driver", "technical"), "reason": prediction.get("reasoning_summary", ""),
+            "actionable": price_actionable,
         },
         "risk": {
             "level": snapshot.get("risk_level", risk.get("risk_level", "MEDIUM")),
@@ -303,11 +327,22 @@ async def daily_market_brief(limit: int = 12):
     snapshots = await intelligence_service.get_watchlist_intelligence(
         tickers=settings.DEFAULT_WATCHLIST[: max(limit * 2, 20)], max_age_minutes=180,
     )
-    predictions = [intelligence_service.to_prediction_record(item) for item in snapshots]
+    predictions = []
+    for snapshot in snapshots:
+        row = intelligence_service.to_prediction_record(snapshot)
+        if not _price_is_actionable(snapshot.get("price_data", {})):
+            row = {**row, "recommendation": "HOLD", "should_invest": False, "actionable": False}
+        else:
+            row = {**row, "actionable": True}
+        predictions.append(row)
     movers = sorted(predictions, key=lambda row: abs(_safe_float(row.get("chg"))), reverse=True)[:limit]
-    opportunities = sorted(predictions, key=lambda row: (row.get("recommendation") == "BUY", _safe_float(row.get("confidence_score"))), reverse=True)[:limit]
+    opportunities = sorted(
+        predictions,
+        key=lambda row: (row.get("actionable") is True, row.get("recommendation") == "BUY", _safe_float(row.get("confidence_score"))),
+        reverse=True,
+    )[:limit]
     return {
-        "summary": f"AITradra is tracking {len(predictions)} assets with public and connected data sources.",
+        "summary": f"AITradra is tracking {len(predictions)} assets with public and connected data sources. New-entry recommendations require a fresh price.",
         "top_movers": movers, "opportunities": opportunities, "history_user": DEFAULT_HISTORY_USER,
     }
 
@@ -351,16 +386,44 @@ async def manual_trading_order(request: ManualOrderRequest):
         raise HTTPException(status_code=400, detail="Stop-loss and take-profit are required for a new real-money position")
 
     research_ticker = request.ticker.upper()
+    normalized = _hl_ticker(request.ticker)
+    leverage = max(1, min(request.leverage, settings.MAX_LEVERAGE))
+    broker = CustomerHyperliquidBroker(connection["secrets"]["private_key"], connection.get("config", {}).get("vault_address"))
+
+    # Explicit risk-reducing exits do not depend on AI/research availability,
+    # current-price collection, daily-loss gates, or entry-sizing limits. They
+    # still require the live safety gate and per-order customer confirmation.
+    if request.reduce_only:
+        order = Order(
+            ticker=normalized,
+            side=OrderSide.BUY if request.side == "buy" else OrderSide.SELL,
+            qty=request.qty,
+            order_type=OrderType.MARKET,
+            leverage=leverage,
+            reduce_only=True,
+            reference_price=None,
+        )
+        result = await broker.place_order(order)
+        customer_runtime.record_history(
+            event_type="live_trade",
+            ticker=research_ticker,
+            title=f"CLOSE {request.qty} {research_ticker}",
+            details={
+                "status": result.get("status"), "broker": "hyperliquid", "order_id": result.get("order_id"),
+                "reduce_only": True, "leverage": leverage,
+            },
+        )
+        return {"order": result, "pre_trade_analysis": None, "daily_pnl_pct": None, "risk_reducing_exit": True}
+
     brief = await _run_customer_research(
         research_ticker,
         ResearchRequest(query=f"Analyze {research_ticker} immediately before a customer considers a {request.side.upper()} trade. Explain current evidence, risks, contradictions and what could invalidate the setup.", mode="DEEP"),
         record_history=False,
     )
     current_price = _safe_float(brief.get("price", {}).get("current"))
-    if current_price <= 0:
-        raise HTTPException(status_code=503, detail="A current market price is required before a real-money order")
+    if current_price <= 0 or not bool(brief.get("price", {}).get("fresh")):
+        raise HTTPException(status_code=503, detail="A fresh current market price is required before a new real-money position")
 
-    broker = CustomerHyperliquidBroker(connection["secrets"]["private_key"], connection.get("config", {}).get("vault_address"))
     balance = await broker.get_balance()
     total_equity = _safe_float(balance.get("total"))
     daily_pnl = DailyEquityTracker(scope=f"manual:{request.connection_id}").update(total_equity)
@@ -368,16 +431,14 @@ async def manual_trading_order(request: ManualOrderRequest):
         raise HTTPException(status_code=403, detail=f"Daily loss stop is active ({daily_pnl * 100:.2f}%)")
 
     positions = await broker.get_positions()
-    normalized = _hl_ticker(request.ticker)
     existing = next((p for p in positions if str(p.get("ticker", "")).upper() == normalized), None)
-    if not request.reduce_only and not existing and len(positions) >= settings.MAX_OPEN_POSITIONS:
+    if not existing and len(positions) >= settings.MAX_OPEN_POSITIONS:
         raise HTTPException(status_code=403, detail="Maximum number of open positions has been reached")
 
-    leverage = max(1, min(request.leverage, settings.MAX_LEVERAGE))
     estimated_notional = current_price * request.qty
     estimated_margin = estimated_notional / leverage
     max_margin = total_equity * settings.MAX_POSITION_PCT
-    if not request.reduce_only and total_equity > 0 and estimated_margin > max_margin:
+    if total_equity > 0 and estimated_margin > max_margin:
         raise HTTPException(status_code=403, detail=f"Order exceeds the {settings.MAX_POSITION_PCT * 100:.1f}% per-position margin limit")
 
     order = Order(
@@ -388,7 +449,7 @@ async def manual_trading_order(request: ManualOrderRequest):
         stop_loss=request.stop_loss,
         take_profit=request.take_profit,
         leverage=leverage,
-        reduce_only=request.reduce_only,
+        reduce_only=False,
         reference_price=current_price,
     )
     result = await broker.place_order(order)
@@ -401,6 +462,7 @@ async def manual_trading_order(request: ManualOrderRequest):
             "stop_loss": request.stop_loss, "take_profit": request.take_profit, "leverage": leverage,
             "ai_recommendation": brief.get("prediction", {}).get("recommendation"),
             "ai_confidence": brief.get("prediction", {}).get("confidence"),
+            "data_actionable": brief.get("prediction", {}).get("actionable"),
         },
     )
     return {"order": result, "pre_trade_analysis": brief, "daily_pnl_pct": daily_pnl * 100}
