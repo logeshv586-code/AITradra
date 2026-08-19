@@ -1,263 +1,61 @@
-import React, { useState } from "react";
-import { Network, Activity, Clock, ShieldAlert, Cpu, X, Zap } from "lucide-react";
-import { API_BASE } from "../api_config";
+import React from "react";
+import { Activity, BrainCircuit, CheckCircle2, Network, ShieldCheck } from "lucide-react";
+
+function friendlyRole(agent) {
+  const role = agent.role || "Supports market analysis and cross-checks other AI signals.";
+  return role
+    .replace(/OHLCV/gi, "price history")
+    .replace(/VaR/gi, "loss-risk")
+    .replace(/RAG/gi, "research memory")
+    .replace(/orchestration/gi, "coordination")
+    .replace(/semantic/gi, "context-aware");
+}
 
 export default function AgentMatrixView({ agents = [] }) {
-  const [selectedAgent, setSelectedAgent] = useState(null);
-  const [restarting, setRestarting] = useState(null);
-
-  const handleRestart = async (agentId) => {
-    setRestarting(agentId);
-    try {
-      const res = await fetch(`${API_BASE}/api/intel/agents/${agentId}/restart`, {
-        method: "POST"
-      });
-      if (res.ok) {
-        // Successful reset
-        setTimeout(() => {
-           setRestarting(null);
-        }, 3000);
-      } else {
-        setRestarting(null);
-      }
-    } catch (err) {
-      console.error("Failed to restart agent:", err);
-      setRestarting(null);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status?.toUpperCase()) {
-      case "ACTIVE": return "text-[var(--positive)]";
-      case "IDLE": return "text-[var(--warning)]";
-      case "ERROR": return "text-[var(--negative)]";
-      default: return "text-[var(--text-muted)]";
-    }
-  };
-
   const safeAgents = Array.isArray(agents) ? agents : [];
-  const activeCount = safeAgents.filter(a => (a.status || "").toLowerCase() === "active").length;
-  const avgHealth = safeAgents.length ? Math.floor(safeAgents.reduce((acc, a) => acc + (a.health_score || 100), 0) / safeAgents.length) : 0;
-
-  // Grouping logic
-  const tiers = {
-    "v4_mythic": { label: "Mythic V4 Core", color: "#6366f1", icon: Zap },
-    "specialist": { label: "Specialist Nodes", color: "#3b82f6", icon: Cpu },
-    "research": { label: "Research Swarm", color: "#a855f7", icon: Network },
-    "v3_intelligence": { label: "Edge Intelligence", color: "#10b981", icon: Activity }
-  };
-
-  const groupedAgents = safeAgents.reduce((acc, agent) => {
-    const tier = agent.tier || agent.type || "v3_intelligence";
-    if (!acc[tier]) acc[tier] = [];
-    acc[tier].push(agent);
-    return acc;
-  }, {});
-
-  const sortedTierKeys = Object.keys(tiers);
+  const ready = safeAgents.filter((agent) => ["active", "idle"].includes(String(agent.status || "").toLowerCase())).length;
+  const working = safeAgents.filter((agent) => String(agent.status || "").toLowerCase() === "active").length;
+  const issues = safeAgents.filter((agent) => ["error", "stale"].includes(String(agent.status || "").toLowerCase())).length;
 
   return (
-    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in relative">
-       {/* Page Header */}
-       <div className="flex flex-col md:flex-row gap-4 mb-8 justify-between items-start md:items-center">
-          <div className="flex items-center gap-3">
-             <Network size={20} className="text-[var(--accent)]" />
-             <h1 className="heading-1">Agent Network</h1>
-          </div>
-          
-          {/* Top Metric Bar */}
-          <div className="flex flex-wrap items-center gap-4 bg-[var(--card-bg)] px-5 py-2.5 rounded-[var(--radius-lg)] border border-[var(--border-color)]">
-             <div className="flex items-center gap-2">
-                <Activity size={14} className="text-[var(--positive)]" />
-                 <span className="text-[12px] font-mono text-white">{activeCount} / {safeAgents.length} Active</span>
-             </div>
-             <div className="h-4 w-px bg-[var(--border-color)]" />
-             <div className="flex items-center gap-2">
-                <Zap size={14} className="text-[var(--accent)]" />
-                <span className="text-[12px] font-mono text-white">{avgHealth}% Health Avg</span>
-             </div>
-          </div>
-       </div>
+    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6">
+      <div>
+        <div className="flex items-center gap-3"><Network size={22} className="text-[var(--accent)]" /><h1 className="heading-1">How AITradra checks an idea</h1></div>
+        <p className="text-[13px] text-[var(--text-muted)] mt-2 max-w-3xl">AITradra does not rely on one AI opinion. Different services check price behavior, news, fundamentals, sentiment, market conditions and risk, then compare their conclusions before a customer-facing answer is produced.</p>
+      </div>
 
-       {/* Grid Area */}
-       {safeAgents.length === 0 ? (
-          <div className="h-64 flex flex-col items-center justify-center gap-4 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)]">
-             <Clock size={24} className="text-[var(--accent)] animate-spin" />
-             <span className="text-[12px] font-medium text-[var(--text-muted)]">Synchronizing network telemetry...</span>
-          </div>
-       ) : (
-          <div className="flex flex-col gap-14">
-             {sortedTierKeys.map(tierKey => {
-                const cluster = groupedAgents[tierKey] || [];
-                if (cluster.length === 0) return null;
-                const tierInfo = tiers[tierKey];
-                const TierIcon = tierInfo.icon || Network;
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Summary icon={CheckCircle2} label="Ready" value={`${ready}/${safeAgents.length || 0}`} text="Services available for analysis" good />
+        <Summary icon={Activity} label="Working now" value={String(working)} text="Services currently processing tasks" />
+        <Summary icon={ShieldCheck} label="Needs attention" value={String(issues)} text="Stale or error states are excluded/discounted" good={issues === 0} />
+      </div>
 
-                return (
-                   <section key={tierKey} className="flex flex-col gap-6">
-                      <div className="flex items-center gap-3 pb-2 border-b border-[var(--border-color)] bg-gradient-to-r from-[var(--app-bg)] to-transparent">
-                         <div className="flex h-8 w-8 items-center justify-center rounded bg-[#1e232b] border border-[var(--border-color)]">
-                            <TierIcon size={16} style={{ color: tierInfo.color }} />
-                         </div>
-                         <div className="flex flex-col">
-                            <h2 className="text-[12px] font-bold uppercase tracking-widest text-white">{tierInfo.label}</h2>
-                            <span className="text-[9px] text-[var(--text-muted)] font-mono">{cluster.length} Active Nodes</span>
-                         </div>
-                      </div>
+      <section className="surface-card p-5">
+        <div className="flex items-start gap-3"><BrainCircuit size={17} className="text-[var(--accent)] mt-0.5" /><div><h2 className="heading-3">What happens when you ask about a stock</h2><p className="text-[11px] text-[var(--text-muted)] mt-2 leading-relaxed">The system collects current evidence, lets specialist agents form separate views, checks agreement and contradictions, runs a risk review, and then explains the result in plain language. You can see those individual views in Stock Terminal after running full AI research.</p></div></div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">{["Collect evidence", "Analyze separately", "Compare signals", "Check risk", "Explain to customer"].map((step, index) => <div key={step} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-3"><div className="text-[9px] text-[var(--accent)] font-bold">STEP {index + 1}</div><div className="text-[11px] text-white mt-1">{step}</div></div>)}</div>
+      </section>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                         {cluster.map((agent) => (
-                            <article 
-                               key={agent.id} 
-                               onClick={() => setSelectedAgent(agent)}
-                               className="interactive-card p-5 flex flex-col group relative overflow-hidden transition-all hover:scale-[1.01]"
-                            >
-                               {/* Decorative tier indicator */}
-                               <div className="absolute -top-4 -right-4 w-16 h-16 opacity-[0.03] pointer-events-none group-hover:opacity-10 transition-opacity">
-                                  <TierIcon size={64} style={{ color: tierInfo.color }} />
-                               </div>
-
-                               <div className="flex items-start justify-between mb-4">
-                                  <div className="flex items-center gap-3">
-                                     <div className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] bg-[#1e232b] text-[var(--text-muted)] border border-[var(--border-color)] group-hover:text-[var(--accent)] transition-colors">
-                                        <Cpu size={18} />
-                                     </div>
-                                     <div>
-                                        <h3 className="heading-3">{agent.name || agent.id}</h3>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                           <span className="text-[9px] px-1.5 py-0.25 rounded-full bg-[var(--app-bg)] border border-[var(--border-color)] text-[var(--text-muted)] group-hover:border-[var(--accent)] transition-colors">
-                                              {(agent.tier || agent.type || tierKey).replace('_', ' ').toUpperCase()}
-                                           </span>
-                                        </div>
-                                     </div>
-                                  </div>
-                                  <span className={`text-[10px] font-bold uppercase tracking-wider ${getStatusColor(agent.status)}`}>
-                                     {agent.status_label || agent.status || "UNKNOWN"}
-                                  </span>
-                               </div>
-
-                               <p className="text-[12px] text-[var(--text-muted)] leading-relaxed line-clamp-2 h-9 mb-4">
-                                  {agent.current_task || agent.role || "Node operating nominally within the Mythic framework."}
-                                </p>
-
-                               <div className="mt-auto pt-4 border-t border-[var(--border-color)]">
-                                  <div className="flex items-center justify-between mb-2">
-                                     <span className="text-[10px] uppercase text-[var(--text-muted)]">Health Score</span>
-                                     <span className="font-mono text-[11px] font-semibold text-white">{agent.health_score || 100}%</span>
-                                  </div>
-                                  <div className="h-1 w-full bg-[#1e232b] rounded-full overflow-hidden">
-                                     <div 
-                                        className="h-full transition-all duration-500" 
-                                        style={{ 
-                                           width: `${agent.health_score || 100}%`,
-                                           backgroundColor: (agent.health_score || 100) > 80 ? 'var(--positive)' : ((agent.health_score || 100) > 50 ? 'var(--warning)' : 'var(--negative)')
-                                        }} 
-                                     />
-                                  </div>
-                                  
-                                  <div className="flex items-center justify-between mt-3">
-                                     <div className="flex items-center gap-1.5 text-[var(--text-muted)] group-hover:text-white transition-colors">
-                                        <Clock size={10} />
-                                        <span className="font-mono text-[11px]">
-                                           {agent.latency_ms ? `${agent.latency_ms}ms` : "24ms"}
-                                        </span>
-                                     </div>
-                                     <div className="flex items-center gap-1.5">
-                                        <div className={`h-1.5 w-1.5 rounded-full animate-pulse ${getStatusColor(agent.status).replace('text-', 'bg-')}`} />
-                                        <span className="text-[10px] text-[var(--text-muted)] uppercase">Heartbeat</span>
-                                     </div>
-                                  </div>
-                               </div>
-                            </article>
-                         ))}
-                      </div>
-                   </section>
-                );
-             })}
-          </div>
-       )}
-
-       {/* STANDARD OVERLAY MODAL */}
-       {selectedAgent && (
-         <div className="modal-overlay">
-           <div className="bg-[var(--card-bg)] w-full max-w-lg rounded-[var(--radius-xl)] shadow-2xl border border-[var(--border-color)] flex flex-col animate-fade-in relative overflow-hidden">
-             
-             {/* Header */}
-             <div className="flex items-center justify-between p-5 border-b border-[var(--border-color)] bg-[#1e232b]">
-               <div className="flex items-center gap-3">
-                 <div className="h-8 w-8 rounded bg-[var(--app-bg)] flex items-center justify-center border border-[var(--border-color)]">
-                    <Cpu size={14} className="text-[var(--accent)]" />
-                 </div>
-                 <h2 className="heading-2">{selectedAgent.name || selectedAgent.id}</h2>
-               </div>
-               <button onClick={() => setSelectedAgent(null)} className="p-1.5 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-white hover:bg-[var(--border-color)] transition-colors">
-                 <X size={18} />
-               </button>
-             </div>
-
-             {/* Content Area */}
-             <div className="p-6 overflow-y-auto no-scrollbar max-h-[60vh] space-y-6">
-                
-                {/* Description block */}
-                <div>
-                   <p className="text-small-caps mb-2">Description</p>
-                   <p className="text-[13px] text-white leading-relaxed p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      {selectedAgent.current_task || selectedAgent.role || "No extensive documentation provided for this node."}
-                   </p>
-                </div>
-
-                {/* Metrics Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      <p className="text-small-caps mb-1">Node Status</p>
-                      <p className={`font-mono text-[14px] font-bold ${getStatusColor(selectedAgent.status)}`}>{selectedAgent.status_label || selectedAgent.status}</p>
-                   </div>
-                   <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      <p className="text-small-caps mb-1">Avg Latency</p>
-                      <p className="font-mono text-[14px] font-bold text-white">{selectedAgent.latency_ms ? `${selectedAgent.latency_ms}ms` : "24ms"}</p>
-                   </div>
-                   <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      <p className="text-small-caps mb-1">Uptime</p>
-                      <p className="font-mono text-[14px] font-bold text-white">99.98%</p>
-                   </div>
-                   <div className="p-3 bg-[var(--app-bg)] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      <p className="text-small-caps mb-1">System Health</p>
-                      <p className="font-mono text-[14px] font-bold text-white">{selectedAgent.health_score || 100}%</p>
-                   </div>
-                </div>
-
-                {/* Error Log Mockup */}
-                {(selectedAgent.error_count > 0 || selectedAgent.health_score < 100) && (
-                   <div>
-                      <p className="text-small-caps mb-2 flex items-center gap-1"><ShieldAlert size={12}/> Diagnostic Alerts</p>
-                      <div className="p-3 bg-[#2d1b1b] border border-red-900/50 rounded-[var(--radius-md)]">
-                         <p className="font-mono text-[11px] text-[var(--negative)]">
-                            [{(new Date()).toISOString()}] WARNING: Latency spike detected during model inference phase. Auto-recovering.
-                         </p>
-                      </div>
-                   </div>
-                )}
-             </div>
-
-             {/* Footer Actions */}
-             <div className="p-5 border-t border-[var(--border-color)] bg-[var(--app-bg)] flex justify-end gap-3">
-                <button className="btn-standard" onClick={() => setSelectedAgent(null)}>Close</button>
-                <button 
-                  className={`btn-primary ${restarting === selectedAgent.id ? "opacity-50 cursor-not-allowed" : ""}`}
-                  disabled={restarting === selectedAgent.id}
-                  onClick={() => handleRestart(selectedAgent.id)}
-                >
-                  {restarting === selectedAgent.id ? (
-                    <>
-                      <Clock size={14} className="animate-spin mr-2" />
-                      Restarting...
-                    </>
-                  ) : "Restart Interrogation"}
-                </button>
-             </div>
-           </div>
-         </div>
-       )}
+      <section className="surface-card overflow-hidden">
+        <div className="p-5 border-b border-[var(--border-color)]"><h2 className="heading-3">Analysis services</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">This is a health view, not a developer control panel. Service restarts and internal configuration stay outside the customer flow.</p></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-px bg-[var(--border-color)]">
+          {safeAgents.map((agent) => {
+            const state = String(agent.status || "standby").toLowerCase();
+            const healthy = state === "active" || state === "idle";
+            return (
+              <div key={agent.id || agent.name} className="bg-[var(--card-bg)] p-5">
+                <div className="flex items-center justify-between gap-3"><div className="font-semibold text-white text-[12px]">{String(agent.name || "AI service").replace(/([a-z])([A-Z])/g, "$1 $2")}</div><span className={`surface-badge ${healthy ? "text-[var(--positive)]" : state === "stale" ? "text-amber-300" : "text-[var(--negative)]"}`}>{state === "active" ? "Working" : state === "idle" ? "Ready" : state === "stale" ? "Refreshing" : "Unavailable"}</span></div>
+                <p className="text-[10px] text-[var(--text-muted)] leading-relaxed mt-3">{friendlyRole(agent)}</p>
+                <div className="flex items-center justify-between mt-4 text-[9px] text-[var(--text-muted)]"><span>{agent.freshness_label || "Status current"}</span><span>{agent.latency_ms ? `${agent.latency_ms} ms` : ""}</span></div>
+              </div>
+            );
+          })}
+          {!safeAgents.length && <div className="col-span-full bg-[var(--card-bg)] p-10 text-center text-[11px] text-[var(--text-muted)]">Analysis services are connecting.</div>}
+        </div>
+      </section>
     </div>
   );
+}
+
+function Summary({ icon: Icon, label, value, text, good }) {
+  return <div className="surface-card p-5 flex items-start gap-3"><Icon size={17} className={good ? "text-[var(--positive)]" : "text-[var(--accent)]"} /><div><div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{label}</div><div className="text-xl font-mono font-bold text-white mt-1">{value}</div><div className="text-[10px] text-[var(--text-muted)] mt-1">{text}</div></div></div>;
 }
