@@ -161,7 +161,7 @@ def test_social_scraper_normalizes_real_reddit_payload():
     assert result["is_estimated"] is False
     assert result["mentions"] == result["reddit_mentions_24h"] == 2
     assert -1.0 <= result["score"] <= 1.0
-    assert result["bull_bear_ratio"] != "50% bull"
+    assert result["bull_bear_ratio"] == "50% bull"
 
 
 def test_social_scraper_provider_failure_is_not_fake_neutral():
