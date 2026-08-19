@@ -73,8 +73,6 @@ def test_daily_equity_tracker_resets_when_account_scope_changes(tmp_path):
 
     assert paper.update(100_000) == 0
     assert paper.update(95_000) == pytest.approx(-0.05)
-    # Switching execution/account scope must establish a new baseline rather than
-    # comparing a real-money account with the old paper account balance.
     assert live.update(5_000) == 0
 
 
@@ -206,5 +204,5 @@ async def test_technical_only_signal_is_not_penalized_for_missing_news():
     assert result.result["signal_mode"] == "technical_only"
     assert result.result["confidence"] >= 70
     assert "BUY" in result.result["verdict"]
-    assert result.result["stop_loss"] < result.result["entry"]
-    assert result.result["take_profit"] > result.result["entry"]
+    assert result.result["stop_loss"] < result.result["entry_point"]
+    assert result.result["take_profit"] > result.result["entry_point"]
