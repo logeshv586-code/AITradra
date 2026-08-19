@@ -58,7 +58,6 @@ class ApiAgent:
                 return {**blob, "status": "active"}
             except Exception as e:
                 from fastapi import HTTPException
-
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.router.get("/api/history/{ticker}")
@@ -151,16 +150,11 @@ class ApiAgent:
             """Return a secret-free, customer-friendly execution readiness summary."""
             execution = get_execution_status(settings)
             validations = {
-                ticker: strategy_validation_store.check(
-                    ticker, settings.LIVE_STRATEGY_ID
-                )
+                ticker: strategy_validation_store.check(ticker, settings.LIVE_STRATEGY_ID)
                 for ticker in settings.HYPERLIQUID_ASSETS
             }
-            validation_ready = all(
-                item.get("eligible", False) for item in validations.values()
-            ) if validations else False
+            validation_ready = all(item.get("eligible", False) for item in validations.values()) if validations else False
             live_ready = execution["live_execution_allowed"] and validation_ready
-
             return {
                 "mode": "live" if execution["live_execution_allowed"] else "practice",
                 "uses_real_money": execution["live_execution_allowed"],
@@ -198,3 +192,9 @@ class ApiAgent:
 
 agent_instance = ApiAgent()
 router = agent_instance.router
+
+# Mount customer-facing research, data-connection, history and manual trading APIs
+# through the already-loaded V3 router. This avoids touching the global FastAPI
+# shell and keeps existing routes/navigation unchanged.
+from gateway.customer_market_router import router as customer_market_router
+router.include_router(customer_market_router)
