@@ -17,14 +17,43 @@ const IntelligenceStatusView = lazy(() => import("./components/IntelligenceStatu
 import Logo from "./components/Logo";
 import AskBar from "./components/AskBar";
 
-import { MessageSquareText, Search, Activity, Cpu, Globe2, Layout, X, Bell, LayoutDashboard, Shield, TrendingUp, Presentation, Network, Clock, DollarSign, Loader2 } from "lucide-react";
+import {
+  MessageSquareText,
+  Activity,
+  Cpu,
+  Globe2,
+  Layout,
+  X,
+  Bell,
+  LayoutDashboard,
+  Shield,
+  TrendingUp,
+  Presentation,
+  Network,
+  Clock,
+  DollarSign,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { API_BASE } from "./api_config";
+
+const CRYPTO_ALIASES = {
+  BITCOIN: "BTC-USD",
+  BTC: "BTC-USD",
+  ETHEREUM: "ETH-USD",
+  ETH: "ETH-USD",
+  SOLANA: "SOL-USD",
+  SOL: "SOL-USD",
+};
+
+const BROAD_MARKET_PATTERN = /\b(market pulse|market today|today'?s market|global market|overall market|macro|top opportunities|top stocks|top crypto|gainers|losers|breakout candidates|what is moving the market)\b/i;
+const CONTEXTUAL_ASSET_PATTERN = /\b(this stock|this crypto|this asset|selected stock|selected asset|current stock|current asset|should i buy it|should i sell it)\b/i;
 
 function LazyFallback() {
   return (
     <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--app-bg)] w-full animate-fade-in">
       <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
-      <span className="text-[12px] font-medium text-[var(--text-muted)]">Loading module...</span>
+      <span className="text-[12px] font-medium text-[var(--text-muted)]">Loading market tools…</span>
     </div>
   );
 }
@@ -54,20 +83,30 @@ function SidebarItem({ icon, label, active, onClick, count }) {
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error };
+  static getDerivedStateFromError() {
+    return { hasError: true };
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-10 bg-black text-red-500 font-mono text-xs">
-          <h1>React Error:</h1>
-          <pre>{this.state.error?.toString()}</pre>
-          <pre>{this.state.error?.stack}</pre>
+        <div className="min-h-screen bg-[var(--app-bg)] text-white flex items-center justify-center p-6">
+          <div className="surface-card max-w-md w-full p-8 text-center">
+            <Shield size={28} className="mx-auto text-[var(--accent)] mb-4" />
+            <h1 className="heading-2">This screen needs a refresh</h1>
+            <p className="text-[13px] text-[var(--text-muted)] mt-3 leading-relaxed">
+              Your market data is safe. Refresh the app to reconnect this view.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary mt-6 mx-auto"
+            >
+              <RefreshCw size={14} /> Refresh app
+            </button>
+          </div>
         </div>
       );
     }
@@ -83,58 +122,69 @@ function AppContent() {
   const [liveStocks, setLiveStocks] = useState([]);
   const [selectedTicker, setSelectedTicker] = useState(null);
   const [intelligenceStatus, setIntelligenceStatus] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const [globalTime, setGlobalTime] = useState(new Date().toLocaleTimeString());
 
-
-  // Background loops
   useEffect(() => {
     const fetchSys = async () => {
       try {
-        const [a, s, g, i] = await Promise.all([
+        const [agentsResponse, watchlistResponse, globeResponse, intelligenceResponse] = await Promise.all([
           fetch(`${API_BASE}/api/agents/status`),
           fetch(`${API_BASE}/api/market/watchlist`),
           fetch(`${API_BASE}/api/market/globe-data`),
-          fetch(`${API_BASE}/api/intelligence/status`)
+          fetch(`${API_BASE}/api/intelligence/status`),
         ]);
-        if(a.ok) {
-           const sysAgents = await a.json();
-           const agentsArray = Array.isArray(sysAgents) ? sysAgents : (sysAgents.agents || sysAgents.data || []);
-           setAgentsStatus(agentsArray);
+
+        if (agentsResponse.ok) {
+          const sysAgents = await agentsResponse.json();
+          const agentsArray = Array.isArray(sysAgents)
+            ? sysAgents
+            : sysAgents.agents || sysAgents.data || [];
+          setAgentsStatus(agentsArray);
         }
+
         let hasWatchlistPayload = false;
-        if(s.ok) {
-           const sysData = await s.json();
-           const stocksArray = Array.isArray(sysData) ? sysData : (sysData.stocks || sysData.data || []);
-           if (stocksArray.length > 0) {
-              hasWatchlistPayload = true;
-              setLiveStocks(stocksArray);
-              
-              // Only set a default ticker if none is currently selected 
-              // (avoids overwriting a manual click from the globe during startup)
-              setSelectedTicker(prev => {
-                if (prev) return prev;
-                const first = stocksArray[0].id || stocksArray[0].ticker;
-                return first ? String(first).toUpperCase() : null;
-              });
-            }
+        if (watchlistResponse.ok) {
+          const sysData = await watchlistResponse.json();
+          const stocksArray = Array.isArray(sysData)
+            ? sysData
+            : sysData.stocks || sysData.data || [];
+          if (stocksArray.length > 0) {
+            hasWatchlistPayload = true;
+            setLiveStocks(stocksArray);
+            setSelectedTicker((previous) => {
+              if (previous) return previous;
+              const first = stocksArray[0].id || stocksArray[0].ticker;
+              return first ? String(first).toUpperCase() : null;
+            });
+          }
         }
-        if(!hasWatchlistPayload && g.ok) {
-           const globeData = await g.json();
-           const globeStocks = Array.isArray(globeData) ? globeData : (globeData.value || globeData.data || []);
-           setLiveStocks(globeStocks);
+
+        if (!hasWatchlistPayload && globeResponse.ok) {
+          const globeData = await globeResponse.json();
+          const globeStocks = Array.isArray(globeData)
+            ? globeData
+            : globeData.value || globeData.data || [];
+          setLiveStocks(globeStocks);
         }
-        if(i.ok) {
-           setIntelligenceStatus(await i.json());
+
+        if (intelligenceResponse.ok) {
+          setIntelligenceStatus(await intelligenceResponse.json());
         }
-      } catch (err) {
-        console.error("Live data fetch failed:", err);
+      } catch (error) {
+        console.error("Live data fetch failed:", error);
       }
     };
+
     fetchSys();
-    const sid = setInterval(fetchSys, 15000);
-    const tid = setInterval(() => setGlobalTime(new Date().toLocaleTimeString()), 1000);
-    return () => { clearInterval(sid); clearInterval(tid); };
+    const statusTimer = setInterval(fetchSys, 15000);
+    const timeTimer = setInterval(
+      () => setGlobalTime(new Date().toLocaleTimeString()),
+      1000
+    );
+    return () => {
+      clearInterval(statusTimer);
+      clearInterval(timeTimer);
+    };
   }, []);
 
   const handleStockSelect = (ticker) => {
@@ -152,47 +202,104 @@ function AppContent() {
     setActiveView("Stock Terminal");
   };
 
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
-    const query = searchQuery.trim().toUpperCase();
-    if (!query) return;
-    const matched = liveStocks.find((stock) => {
-      const ticker = String(stock.id || stock.ticker || "").toUpperCase();
-      const name = String(stock.name || "").toUpperCase();
-      return ticker === query || ticker.startsWith(query) || name.includes(query);
-    });
-    handleStockSelect(matched?.id || matched?.ticker || query);
-    setSearchQuery("");
+  const findExplicitTicker = (text) => {
+    const upper = String(text || "").toUpperCase();
+    const cashtag = upper.match(/\$([A-Z]{1,10}(?:\.[A-Z]{1,3})?)/);
+    if (cashtag) return cashtag[1];
+
+    for (const [alias, ticker] of Object.entries(CRYPTO_ALIASES)) {
+      if (new RegExp(`\\b${alias}\\b`, "i").test(upper)) return ticker;
+    }
+
+    const known = liveStocks
+      .map((stock) => String(stock.id || stock.ticker || "").toUpperCase())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+    return known.find((ticker) => {
+      const escaped = ticker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(^|[^A-Z0-9.])${escaped}([^A-Z0-9.]|$)`, "i").test(upper);
+    }) || "";
   };
 
+  const resolveChatTicker = (text, requestedTicker = null) => {
+    const explicit = findExplicitTicker(text);
+    if (explicit) return explicit;
+    if (BROAD_MARKET_PATTERN.test(text)) return "";
+    if (requestedTicker) return String(requestedTicker).toUpperCase();
+    if (selectedTicker && (activeView === "Stock Terminal" || CONTEXTUAL_ASSET_PATTERN.test(text))) {
+      return selectedTicker;
+    }
+    return "";
+  };
+
+  const chooseResearchMode = (text) =>
+    /\b(deep|detailed|compare|comparison|full analysis|why exactly|bull.*bear|risk analysis)\b/i.test(text)
+      ? "DEEP"
+      : "QUICK";
+
   const handleChat = async (text, ticker = null) => {
-    const newMsg = { role: "user", text };
-    setChatMessages(prev => [...prev, newMsg]);
+    const cleanText = String(text || "").trim();
+    if (!cleanText) return;
+
+    const contextTicker = resolveChatTicker(cleanText, ticker);
+    const researchMode = chooseResearchMode(cleanText);
+    const history = chatMessages.slice(-8).map((message) => ({
+      role: message.role === "ai" ? "assistant" : "user",
+      content: message.text,
+    }));
+
+    setChatMessages((previous) => [...previous, { role: "user", text: cleanText }]);
     setIsChatOpen(true);
-    
+
     try {
-      const payload = { message: text, ticker: ticker || selectedTicker || "" };
-      const res = await fetch(`${API_BASE}/api/chat`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+      const response = await fetch(`${API_BASE}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: cleanText,
+          ticker: contextTicker,
+          research_mode: researchMode,
+          history,
+        }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setChatMessages(prev => [...prev, {
+
+      if (!response.ok) {
+        throw new Error(`Market assistant returned ${response.status}`);
+      }
+
+      const data = await response.json();
+      const answer = data.response || data.output;
+      if (!answer) throw new Error("No answer was returned");
+
+      setChatMessages((previous) => [
+        ...previous,
+        {
           role: "ai",
-          text: data.response || data.output,
-          sources: data.sources_used || [],
+          text: answer,
+          sources: Array.isArray(data.sources_used) ? data.sources_used : [],
           priceData: data.price_data || null,
           meta: {
-            provider: data.llm_provider,
             confidence: data.confidence,
             pipelineMs: data.pipeline_ms,
             source: data.source,
-          }
-        }]);
-      }
-    } catch {
-      setChatMessages(prev => [...prev, { role: "ai", text: "Connection to Axiom.AI expert system failed." }]);
+            contextTicker: data.ticker || contextTicker || null,
+            researchMode: data.research_mode || researchMode,
+          },
+        },
+      ]);
+    } catch (error) {
+      setChatMessages((previous) => [
+        ...previous,
+        {
+          role: "ai",
+          text:
+            "I couldn’t complete that market check right now. Your question is still here—please retry after the data connection recovers.",
+          meta: {
+            error: "Market data or AI service temporarily unavailable",
+            contextTicker: contextTicker || null,
+          },
+        },
+      ]);
     }
   };
 
@@ -226,10 +333,8 @@ function AppContent() {
       ]
     }
   ];
-  const providerLabel =
-    intelligenceStatus?.model_router?.last_provider_used ||
-    intelligenceStatus?.model_router?.active_provider ||
-    "adaptive";
+
+  const marketIntelligenceOnline = Boolean(intelligenceStatus);
 
   return (
     <div className="flex h-screen w-full bg-[var(--app-bg)] text-[var(--text-main)] overflow-hidden font-sans">
@@ -299,113 +404,134 @@ function AppContent() {
 
       {/* ── MAIN CONTENT AREA ── */}
       <main className="flex-1 flex flex-col min-w-0 relative">
-        
-        {/* Top Header */}
         <header className="h-16 flex-shrink-0 flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--app-bg)] z-10">
-           
-           {/* Left: View Title & Status */}
-           <div className="flex items-center gap-4 hidden sm:flex">
-              <h2 className="heading-2">{activeView}</h2>
-              <div className="h-4 w-px bg-[var(--border-color)]" />
-              <div className="flex items-center gap-2">
-                 <div className="h-2 w-2 rounded-full bg-[var(--positive)]" />
-                 <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">{providerLabel} online</span>
-              </div>
-           </div>
-
-           {/* Mobile header view */}
-           <div className="flex sm:hidden items-center gap-2">
-               <h2 className="heading-3">{activeView}</h2>
-           </div>
-
-           {/* Right: Actions (Responsive spaced) */}
-           <div className="flex items-center gap-3 sm:gap-4 ml-auto flex-1 justify-center max-w-xl">
-              <AskBar onResult={(res) => console.log("Ask result:", res)} />
-           </div>
-
-           <div className="flex items-center gap-3 sm:gap-4 ml-auto">
-
-              {/* Time - hidden on mobile */}
-              <div className="hidden lg:flex items-center gap-2 text-[var(--text-muted)]">
-                 <Clock size={14} />
-                 <span className="text-[12px] font-mono">{globalTime}</span>
-              </div>
-
-              <div className="hidden sm:block h-4 w-px bg-[var(--border-color)]" />
-
-              {/* Notifications */}
-              <button className="h-8 w-8 flex items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[#1e232b] hover:text-white transition">
-                 <Bell size={16} />
-              </button>
-
-              {/* Chat Toggle Button */}
-              <button 
-                 onClick={() => setIsChatOpen(!isChatOpen)}
-                 className={`btn-standard h-8 px-3 ${isChatOpen ? 'bg-[#1e232b] text-white border-slate-600' : ''}`}
-              >
-                 <MessageSquareText size={14} />
-                 <span className="hidden sm:inline">AI Chat</span>
-              </button>
-           </div>
-        </header>
-
-        {/* Live Ticker Bar (Placed below header, span full width of main) */}
-        <div className="flex-shrink-0 bg-[#0c0e12] border-b border-[var(--border-color)] w-full overflow-hidden">
-           <Suspense fallback={null}>
-             <LiveTickerBar stocks={liveStocks} onSelect={handleStockSelect} />
-           </Suspense>
-        </div>
-
-        {/* Dynamic View Rendering Area */}
-        <section className="flex-1 overflow-hidden relative">
-          <div className="absolute inset-0 z-0">
-             <Suspense fallback={<LazyFallback />}>
-               {activeView === "World Map" && <Globe3D stocks={liveStocks} onStockSelect={handleStockSelect} />}
-             </Suspense>
+          <div className="flex items-center gap-4 hidden sm:flex">
+            <h2 className="heading-2">{activeView}</h2>
+            <div className="h-4 w-px bg-[var(--border-color)]" />
+            <div className="flex items-center gap-2">
+              <div
+                className={`h-2 w-2 rounded-full ${
+                  marketIntelligenceOnline ? "bg-[var(--positive)]" : "bg-amber-400"
+                }`}
+              />
+              <span className="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">
+                {marketIntelligenceOnline ? "Market intelligence online" : "Connecting market intelligence"}
+              </span>
+            </div>
           </div>
 
-          <div className={`absolute inset-0 z-10 overflow-y-auto no-scrollbar pointer-events-auto transition-opacity duration-300 ${activeView === "World Map" ? "pointer-events-none opacity-0" : "opacity-100 bg-[var(--app-bg)]"}`}>
+          <div className="flex sm:hidden items-center gap-2">
+            <h2 className="heading-3">{activeView}</h2>
+          </div>
+
+          <div className="flex items-center gap-3 sm:gap-4 ml-auto flex-1 justify-center max-w-xl">
+            <AskBar onAsk={(text) => handleChat(text)} />
+          </div>
+
+          <div className="flex items-center gap-3 sm:gap-4 ml-auto">
+            <div className="hidden lg:flex items-center gap-2 text-[var(--text-muted)]">
+              <Clock size={14} />
+              <span className="text-[12px] font-mono">{globalTime}</span>
+            </div>
+            <div className="hidden sm:block h-4 w-px bg-[var(--border-color)]" />
+            <button
+              className="h-8 w-8 flex items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[#1e232b] hover:text-white transition"
+              aria-label="Notifications"
+            >
+              <Bell size={16} />
+            </button>
+            <button
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              className={`btn-standard h-8 px-3 ${
+                isChatOpen ? "bg-[#1e232b] text-white border-slate-600" : ""
+              }`}
+            >
+              <MessageSquareText size={14} />
+              <span className="hidden sm:inline">AI Chat</span>
+            </button>
+          </div>
+        </header>
+
+        <div className="flex-shrink-0 bg-[#0c0e12] border-b border-[var(--border-color)] w-full overflow-hidden">
+          <Suspense fallback={null}>
+            <LiveTickerBar stocks={liveStocks} onSelect={handleStockSelect} />
+          </Suspense>
+        </div>
+
+        <section className="flex-1 overflow-hidden relative">
+          <div className="absolute inset-0 z-0">
             <Suspense fallback={<LazyFallback />}>
-            {activeView === "Predictions" && <PredictionTableView onSelect={handleStockSelect} />}
-            {activeView === "Stock Terminal" && <StockDetailView ticker={selectedTicker} />}
-            {activeView === "Agent Network" && <AgentMatrixView agents={agentsStatus} />}
-            {activeView === "Intelligence" && <TrendingStocksView stocks={liveStocks} onSelect={handleStockSelect} />}
-            {activeView === "Intelligence Status" && <IntelligenceStatusView />}
-            {activeView === "Risk Dynamics" && <RiskAnalysisView />}
-            {activeView === "Mission Control" && <MissionControlDashboard agentsStatus={agentsStatus} />}
-            {activeView === "Portfolio" && <PortfolioInsightsView />}
-            {activeView === "Paper Trading" && <VirtualPortfolioView />}
-            {activeView === "News Evidence" && <NewsEvidenceView />}
-            {activeView === "Network Pulse" && <IntelligenceStatusView />}
-            {activeView === "AI Expert Chat" && <ChatPanel messages={chatMessages} onSend={(text) => handleChat(text, selectedTicker)} fullView={true} intelligenceStatus={intelligenceStatus} />}
+              {activeView === "World Map" && (
+                <Globe3D stocks={liveStocks} onStockSelect={handleStockSelect} />
+              )}
+            </Suspense>
+          </div>
+
+          <div
+            className={`absolute inset-0 z-10 overflow-y-auto no-scrollbar pointer-events-auto transition-opacity duration-300 ${
+              activeView === "World Map"
+                ? "pointer-events-none opacity-0"
+                : "opacity-100 bg-[var(--app-bg)]"
+            }`}
+          >
+            <Suspense fallback={<LazyFallback />}>
+              {activeView === "Predictions" && <PredictionTableView onSelect={handleStockSelect} />}
+              {activeView === "Stock Terminal" && <StockDetailView ticker={selectedTicker} />}
+              {activeView === "Agent Network" && <AgentMatrixView agents={agentsStatus} />}
+              {activeView === "Intelligence" && (
+                <TrendingStocksView stocks={liveStocks} onSelect={handleStockSelect} />
+              )}
+              {activeView === "Intelligence Status" && <IntelligenceStatusView />}
+              {activeView === "Risk Dynamics" && <RiskAnalysisView />}
+              {activeView === "Mission Control" && (
+                <MissionControlDashboard agentsStatus={agentsStatus} />
+              )}
+              {activeView === "Portfolio" && <PortfolioInsightsView />}
+              {activeView === "Paper Trading" && <VirtualPortfolioView />}
+              {activeView === "News Evidence" && <NewsEvidenceView />}
+              {activeView === "Network Pulse" && <IntelligenceStatusView />}
+              {activeView === "AI Expert Chat" && (
+                <ChatPanel
+                  messages={chatMessages}
+                  onSend={(text) => handleChat(text)}
+                  fullView={true}
+                  intelligenceStatus={intelligenceStatus}
+                />
+              )}
             </Suspense>
           </div>
         </section>
       </main>
 
-      {/* ── SLIDE OUT CHAT DRAWER ── */}
       {isChatOpen && activeView !== "AI Expert Chat" && (
         <>
           <div className="drawer-overlay" onClick={() => setIsChatOpen(false)} />
           <div className="drawer-panel flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] bg-[var(--card-bg)]">
               <div className="flex items-center gap-2">
-                 <div className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-                 <h3 className="heading-3">MYTHIC Chat</h3>
+                <div className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                <h3 className="heading-3">AITradra Assistant</h3>
               </div>
-              <button onClick={() => setIsChatOpen(false)} className="text-[var(--text-muted)] hover:text-white transition">
+              <button
+                onClick={() => setIsChatOpen(false)}
+                className="text-[var(--text-muted)] hover:text-white transition"
+                aria-label="Close chat"
+              >
                 <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-hidden">
               <Suspense fallback={<LazyFallback />}>
-                <ChatPanel messages={chatMessages} onSend={(t) => handleChat(t, selectedTicker)} intelligenceStatus={intelligenceStatus} />
+                <ChatPanel
+                  messages={chatMessages}
+                  onSend={(text) => handleChat(text)}
+                  intelligenceStatus={intelligenceStatus}
+                />
               </Suspense>
             </div>
           </div>
         </>
       )}
-
     </div>
   );
 }
