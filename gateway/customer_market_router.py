@@ -103,6 +103,7 @@ def _agent_view(name: str, payload: Any) -> dict[str, Any]:
 
 
 def _normalized_history(price_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize DataEngine bars for agents, which expect newest candle first."""
     result = []
     for row in price_data.get("ohlcv", []) or []:
         if isinstance(row, dict):
@@ -114,7 +115,9 @@ def _normalized_history(price_data: dict[str, Any]) -> list[dict[str, Any]]:
                 "close": _safe_float(row.get("close", row.get("c"))),
                 "volume": _safe_float(row.get("volume", row.get("v"))),
             })
-    return result
+    # DataEngine/chart bars are chronological (oldest -> newest), while the
+    # specialist and signal agents intentionally read index 0 as the latest bar.
+    return list(reversed(result))
 
 
 def _why_it_moved(snapshot: dict[str, Any], news: list[dict[str, Any]]) -> dict[str, Any]:
