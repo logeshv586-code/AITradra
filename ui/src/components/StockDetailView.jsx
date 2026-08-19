@@ -3,23 +3,22 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  BrainCircuit,
+  CheckCircle2,
+  Clock3,
   Loader2,
   Newspaper,
+  RefreshCw,
   Shield,
+  Sparkles,
   TrendingDown,
   TrendingUp,
-  Zap,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { API_BASE } from "../api_config";
 import TradingViewChart from "./TradingViewChart";
-import QuanticInsightView from "./QuanticInsightView";
-import WhyCard from "./WhyCard";
-import { MoveRight } from "lucide-react";
 
-// Global cache to persist across re-mounts
-const terminalCache = {};
-
-function toNumber(value, fallback = 0) {
+function number(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -27,420 +26,259 @@ function toNumber(value, fallback = 0) {
 function normalizeBars(bars = []) {
   return bars
     .map((bar, index) => ({
-      t: bar.t || bar.date || `T${index + 1}`,
-      o: toNumber(bar.o ?? bar.open),
-      h: toNumber(bar.h ?? bar.high),
-      l: toNumber(bar.l ?? bar.low),
-      c: toNumber(bar.c ?? bar.close),
-      v: toNumber(bar.v ?? bar.volume),
+      t: bar.t || bar.timestamp || bar.date || `T${index + 1}`,
+      o: number(bar.o ?? bar.open),
+      h: number(bar.h ?? bar.high),
+      l: number(bar.l ?? bar.low),
+      c: number(bar.c ?? bar.close),
+      v: number(bar.v ?? bar.volume),
     }))
     .filter((bar) => bar.c > 0);
 }
 
-function formatCompactNumber(value) {
-  const amount = toNumber(value);
-  if (!amount) return "n/a";
-  if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(1)}B`;
+function compact(value) {
+  const amount = number(value);
+  if (!amount) return "—";
+  if (amount >= 1_000_000_000) return `${(amount / 1_000_000_000).toFixed(1)}B`;
   if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)}M`;
+  if (amount >= 1_000) return `${(amount / 1_000).toFixed(1)}K`;
   return amount.toLocaleString();
 }
 
 export default function StockDetailView({ ticker }) {
   const tickerId = String(ticker || "").toUpperCase();
-  const [stockData, setStockData] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
-  const [explanation, setExplanation] = useState(null);
-  const [chartPayload, setChartPayload] = useState(null);
+  const [brief, setBrief] = useState(null);
+  const [chart, setChart] = useState([]);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [researching, setResearching] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const load = async () => {
     if (!tickerId) return;
+    setError("");
+    try {
+      const [briefResponse, chartResponse, historyResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/customer/brief/${tickerId}`),
+        fetch(`${API_BASE}/api/stock/${tickerId}/chart?period=1d`),
+        fetch(`${API_BASE}/api/customer/history?ticker=${encodeURIComponent(tickerId)}&limit=6`),
+      ]);
+      if (!briefResponse.ok) throw new Error(`Could not load ${tickerId} research`);
+      setBrief(await briefResponse.json());
+      if (chartResponse.ok) setChart(normalizeBars((await chartResponse.json()).ohlcv || []));
+      if (historyResponse.ok) setHistory((await historyResponse.json()).history || []);
+    } catch (e) {
+      setError(e.message || "Market research is unavailable");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    let cancelled = false;
-    const load = async () => {
-      // SWR: Check if we have cached data for this ticker
-      const cached = terminalCache[tickerId];
-      if (cached) {
-        setStockData(cached.stock);
-        setAnalysis(cached.analysis);
-        setExplanation(cached.explanation);
-        setChartPayload(cached.chart);
-        setLoading(false);
-      } else {
-        setLoading(true);
-      }
-      
-      setError("");
-      try {
-        // Step 1: Load stock data FIRST (fast endpoint)
-        const stockRes = await fetch(`${API_BASE}/api/stock/${tickerId}`);
-        if (!stockRes.ok) {
-          throw new Error(`Failed to load ${tickerId} terminal data`);
-        }
-        const stockPayload = await stockRes.json();
-        if (!cancelled) {
-          setStockData(stockPayload);
-          setLoading(false);
-          // Update cache
-          terminalCache[tickerId] = { ...terminalCache[tickerId], stock: stockPayload };
-        }
-
-        // Step 1b: Load live chart bars separately so the terminal can use
-        // intraday candles when the collector has them.
-        try {
-          const chartRes = await fetch(`${API_BASE}/api/stock/${tickerId}/chart?period=1d`);
-          if (chartRes.ok && !cancelled) {
-            const chartData = await chartRes.json();
-            setChartPayload(chartData);
-            terminalCache[tickerId] = { ...terminalCache[tickerId], chart: chartData };
-          }
-        } catch (chartErr) {
-          console.warn(`Chart stream for ${tickerId}:`, chartErr.message);
-        }
-
-        // Step 2: Load analysis in background (slow LLM pipeline — don't block UI)
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 120000); // 2 min max
-          const analysisRes = await fetch(`${API_BASE}/api/stock/${tickerId}/analysis`, {
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          if (analysisRes.ok && !cancelled) {
-            const analysisPayload = await analysisRes.json();
-            setAnalysis(analysisPayload);
-            terminalCache[tickerId] = { ...terminalCache[tickerId], analysis: analysisPayload };
-          }
-        } catch (analysisErr) {
-          // Analysis is non-critical — terminal still works without it
-          console.warn(`Analysis lazy-load for ${tickerId}:`, analysisErr.name === 'AbortError' ? 'timed out' : analysisErr.message);
-        }
-
-        // Step 3: Load intelligence explanation
-        try {
-          const expRes = await fetch(`${API_BASE}/api/stock/${tickerId}/explanation`);
-          if (expRes.ok && !cancelled) {
-             const expData = await expRes.json();
-              if (!expData.error) {
-                 setExplanation(expData);
-                 terminalCache[tickerId] = { ...terminalCache[tickerId], explanation: expData };
-              }
-          }
-        } catch (e) {
-             console.warn("Explanation fetch failed", e);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Terminal data unavailable");
-          setLoading(false);
-        }
-      }
-    };
-
+  useEffect(() => {
+    setLoading(true);
+    setBrief(null);
     load();
-    
-    // Live polling for "live graph" feel
-    const interval = setInterval(load, 30000); // Refresh data every 30s
-    
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
+    const timer = setInterval(load, 60000);
+    return () => clearInterval(timer);
   }, [tickerId]);
 
-  const priceData = useMemo(() => stockData?.price_data || {}, [stockData]);
-  const intelligence = analysis || stockData?.intelligence || {};
-  const intelligenceProfile =
-    stockData?.intelligence_profile ||
-    intelligence.intelligence_profile ||
-    {};
-  const adaptivePlan =
-    stockData?.adaptive_plan ||
-    intelligence.adaptive_plan ||
-    intelligenceProfile.adaptive_plan ||
-    {};
-  const dataQuality = intelligenceProfile.data_quality || {};
-  const modelRouter = intelligenceProfile.model_router || {};
-  const chartData = useMemo(
-    () => normalizeBars(chartPayload?.ohlcv || stockData?.ohlcv_history || priceData.ohlcv || []),
-    [chartPayload, stockData, priceData],
-  );
-  
-  // Calculate price and change based on chart data if primary priceData is empty
-  const lastChartPrice = chartData.length > 0 ? chartData[chartData.length - 1].c : 0;
-  const firstChartPrice = chartData.length > 0 ? chartData[0].o : 0;
-  const chartChange = firstChartPrice ? ((lastChartPrice - firstChartPrice) / firstChartPrice) * 100 : 0;
+  const runFullResearch = async () => {
+    setResearching(true);
+    setError("");
+    try {
+      const response = await fetch(`${API_BASE}/api/customer/research/${tickerId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "DEEP",
+          query: `Explain ${tickerId} for a customer: what happened, why it happened, whether the evidence is bullish/bearish/neutral, the main risks, contradictions, prediction and what to watch next.`,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.detail || "Full research failed");
+      setBrief(data);
+      const historyResponse = await fetch(`${API_BASE}/api/customer/history?ticker=${encodeURIComponent(tickerId)}&limit=6`);
+      if (historyResponse.ok) setHistory((await historyResponse.json()).history || []);
+    } catch (e) {
+      setError(e.message || "Full AI research could not be completed");
+    } finally {
+      setResearching(false);
+    }
+  };
 
-  const news = stockData?.news || intelligence.top_headlines || [];
-  const direction = intelligence.prediction_direction || intelligence.consensus || "SIDEWAYS";
-  const confidence = toNumber(intelligence.confidence_score ?? intelligence.confidence);
-  const recommendation = intelligence.recommendation || "HOLD";
-  const expectedMove = toNumber(intelligence.expected_move_percent);
-  const riskLevel = intelligence.risk_level || "MEDIUM";
-  const reasoningSummary =
-    intelligence.response ||
-    intelligence.reasoning_summary ||
-    intelligence.sections?.verdict ||
-    "Mythic analysis is synchronizing for this instrument.";
-  const sections = intelligence.sections || {};
-  const providerLabel = modelRouter.last_provider_used || modelRouter.active_provider || "adaptive";
-
-  const price = toNumber(priceData.px) || lastChartPrice;
-  const change = (toNumber(priceData.pct_chg ?? priceData.chg)) || chartChange;
+  const price = number(brief?.price?.current);
+  const change = number(brief?.price?.change_pct);
   const isUp = change >= 0;
-  const signalTone =
-    direction === "UP"
-      ? "var(--positive)"
-      : direction === "DOWN"
-        ? "var(--negative)"
-        : "var(--warning)";
+  const prediction = brief?.prediction || {};
+  const risk = brief?.risk || {};
+  const why = brief?.why_it_moved || {};
+  const agents = brief?.agent_consensus?.agents || [];
+  const news = brief?.news || [];
+  const bars = useMemo(() => chart, [chart]);
 
-  if (loading) {
+  if (loading && !brief) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--app-bg)] w-full">
+      <div className="h-full flex flex-col items-center justify-center gap-3 bg-[var(--app-bg)]">
         <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
-        <span className="text-[12px] font-medium text-[var(--text-muted)]">
-          Synchronizing stock terminal...
-        </span>
+        <span className="text-[12px] text-[var(--text-muted)]">Collecting price, news and agent analysis…</span>
       </div>
     );
   }
 
-  if (error || !stockData) {
+  if (error && !brief) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 bg-[var(--app-bg)] w-full text-[var(--negative)]">
-        <AlertTriangle size={28} className="mb-2" />
-        <p className="font-semibold text-[13px]">Stock Terminal Offline</p>
-        <p className="text-[11px] font-mono opacity-80">{error || "No data"}</p>
+      <div className="h-full flex flex-col items-center justify-center gap-2 bg-[var(--app-bg)] text-[var(--negative)]">
+        <AlertTriangle size={28} />
+        <p className="text-[13px] font-semibold">{tickerId} data is unavailable</p>
+        <p className="text-[11px] text-[var(--text-muted)]">{error}</p>
+        <button onClick={load} className="btn-standard mt-3"><RefreshCw size={13} /> Try again</button>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6 lg:gap-8">
-      <header className="surface-card p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-md)] bg-[#1e232b] border border-[var(--border-color)] text-white font-bold text-lg">
-            {tickerId.slice(0, 2)}
-          </div>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-3">
-              <h1 className="heading-1">{tickerId}</h1>
-              <span className="surface-badge">{stockData?.name || "Equity"}</span>
-            </div>
-            <div className="flex items-center gap-4 mt-1">
-              <span className="font-mono text-xl font-semibold text-white">${price.toFixed(2)}</span>
-              <span className="flex items-center gap-1 text-[13px] font-mono font-medium" style={{ color: isUp ? "var(--positive)" : "var(--negative)" }}>
-                {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-                {isUp ? "+" : ""}{change.toFixed(2)}%
-              </span>
-              <span className="surface-badge">{priceData.source_used || "syncing"}</span>
-              <span className="surface-badge">
-                {chartPayload?.live ? "Live chart" : chartPayload?.source_used ? `Chart ${chartPayload.source_used}` : "Chart syncing"}
-              </span>
+    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6">
+      <header className="surface-card p-5 md:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-[var(--radius-md)] bg-[#1e232b] border border-[var(--border-color)] flex items-center justify-center font-bold text-white">{tickerId.slice(0, 2)}</div>
+            <div>
+              <div className="flex items-center gap-2"><h1 className="heading-1">{tickerId}</h1><span className="surface-badge">{brief?.price?.fresh ? "Current data" : "Best available data"}</span></div>
+              <div className="flex flex-wrap items-center gap-3 mt-1">
+                <span className="text-xl font-mono font-semibold text-white">{price ? `$${price.toFixed(2)}` : "Price unavailable"}</span>
+                <span className="flex items-center gap-1 text-[13px] font-mono" style={{ color: isUp ? "var(--positive)" : "var(--negative)" }}>
+                  {isUp ? <TrendingUp size={14} /> : <TrendingDown size={14} />}{isUp ? "+" : ""}{change.toFixed(2)}%
+                </span>
+                <span className="surface-badge">Source: {brief?.price?.source || "unknown"}</span>
+              </div>
             </div>
           </div>
         </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: "Volume", value: formatCompactNumber(priceData.volume) },
-            { label: "52W High", value: priceData.week52_high ? `$${toNumber(priceData.week52_high).toFixed(2)}` : "n/a" },
-            { label: "52W Low", value: priceData.week52_low ? `$${toNumber(priceData.week52_low).toFixed(2)}` : "n/a" },
-            { label: "Market Cap", value: formatCompactNumber(priceData.mktcap) },
-          ].map((item) => (
-            <div key={item.label} className="flex flex-col border-l border-[var(--border-color)] pl-4">
-              <span className="text-small-caps">{item.label}</span>
-              <span className="font-mono text-[14px] text-white mt-1">{item.value}</span>
-            </div>
-          ))}
-        </div>
+        <button onClick={runFullResearch} disabled={researching} className="btn-primary px-5 py-3 text-[12px] shrink-0">
+          {researching ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          {researching ? "Agents are researching…" : "Run full AI research"}
+        </button>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6 lg:gap-8">
-        <div className="flex flex-col gap-6 lg:gap-8">
-          <section className="surface-card flex flex-col">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
-              <BarChart3 size={16} className="text-[var(--accent)]" />
-              <h2 className="heading-3">Price Action</h2>
-            </div>
-            <div className="p-5 min-h-[400px]">
-              <TradingViewChart data={chartData} ticker={tickerId} />
-            </div>
-          </section>
+      {error && <div className="surface-card p-4 text-[12px] text-amber-200 border-amber-500/20">{error}</div>}
 
-          <section className="surface-card flex flex-col">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
-              <Activity size={16} className="text-[var(--accent)]" />
-              <h2 className="heading-3">Key Fundamentals</h2>
-            </div>
-            <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
-              {[
-                { label: "P/E", value: priceData.pe ? Number(priceData.pe).toFixed(1) : "n/a" },
-                { label: "Avg Vol", value: formatCompactNumber(priceData.avg_volume) },
-                { label: "Open", value: priceData.open ? `$${toNumber(priceData.open).toFixed(2)}` : (firstChartPrice ? `$${firstChartPrice.toFixed(2)}` : "n/a") },
-                { label: "Close", value: priceData.close ? `$${toNumber(priceData.close).toFixed(2)}` : (lastChartPrice ? `$${lastChartPrice.toFixed(2)}` : "n/a") },
-                { label: "Signal", value: recommendation },
-                { label: "Risk", value: riskLevel },
-                { label: "Move", value: `${expectedMove.toFixed(2)}%` },
-                { label: "Confidence", value: `${confidence.toFixed(0)}%` },
-              ].map((metric) => (
-                <div key={metric.label} className="flex flex-col gap-1">
-                  <span className="text-small-caps">{metric.label}</span>
-                  <span className="text-[13px] text-white font-medium">{metric.value}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="surface-card flex flex-col">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
-              <Zap size={16} className="text-[var(--accent)]" />
-              <h2 className="heading-3">Mythic Neural Intelligence</h2>
-            </div>
-            <div className="p-4">
-              <WhyCard ticker={tickerId} explanation={explanation} />
-            </div>
-            <div className="p-6 pt-0 flex flex-col gap-4">
-              <p className="text-[13px] leading-relaxed text-[var(--text-main)]">{reasoningSummary}</p>
-              {Object.entries(sections).length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(sections).slice(0, 4).map(([key, value]) => (
-                    <div key={key} className="p-4 bg-[#1e232b] rounded-[var(--radius-md)] border border-[var(--border-color)]">
-                      <p className="text-small-caps mb-2">{key.replace(/_/g, " ")}</p>
-                      <p className="text-[12px] text-[var(--text-muted)] leading-relaxed">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
-
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
         <div className="flex flex-col gap-6">
-          <section className="surface-card flex flex-col">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
-              <Zap size={16} className="text-[var(--warning)]" />
-              <h2 className="heading-3">Signal Stack</h2>
-            </div>
-            <div className="p-6 flex flex-col gap-5">
-              <div className="flex items-center justify-between">
-                <span className="text-small-caps">Direction</span>
-                <span className="font-mono font-bold" style={{ color: signalTone }}>{direction}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-small-caps">Recommendation</span>
-                <span className="font-mono font-bold text-white">{recommendation}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-small-caps">Expected Move</span>
-                <span className="font-mono font-bold text-white">{expectedMove.toFixed(2)}%</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-[11px]">
-                  <span className="font-medium text-[var(--text-muted)] uppercase tracking-wider">Confidence</span>
-                  <span className="font-mono text-white">{confidence.toFixed(0)}%</span>
-                </div>
-                <div className="h-1.5 w-full bg-[#1e232b] rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${Math.min(confidence, 100)}%`, backgroundColor: signalTone }} />
-                </div>
+          <section className="surface-card overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2"><BarChart3 size={16} className="text-[var(--accent)]" /><h2 className="heading-3">Price movement</h2></div>
+            <div className="p-5 min-h-[380px]">{bars.length ? <TradingViewChart data={bars} ticker={tickerId} /> : <div className="h-[340px] flex items-center justify-center text-[12px] text-[var(--text-muted)]">Chart data is syncing.</div>}</div>
+          </section>
+
+          <section className="surface-card overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2"><Activity size={16} className="text-[var(--accent)]" /><h2 className="heading-3">What happened & why</h2></div>
+            <div className="p-5">
+              <p className="text-[14px] text-white leading-relaxed">{why.summary || "AITradra is collecting evidence for this move."}</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+                {(why.drivers || []).map((driver, index) => (
+                  <div key={`${driver.label}-${index}`} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-4">
+                    <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-white">{driver.label}</span><span className="surface-badge">{driver.impact}</span></div>
+                    <p className="text-[11px] text-[var(--text-muted)] leading-relaxed mt-2">{driver.detail}</p>
+                    {driver.url && <a href={driver.url} target="_blank" rel="noreferrer" className="text-[10px] text-[var(--accent)] mt-2 inline-block">Read source →</a>}
+                  </div>
+                ))}
               </div>
             </div>
           </section>
 
-          <section className="surface-card flex flex-col">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
-              <Activity size={16} className="text-[var(--accent)]" />
-              <h2 className="heading-3">Adaptive Engine</h2>
-            </div>
-            <div className="p-6 flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="text-small-caps">Data Grade</span>
-                  <span className="font-mono text-white">{dataQuality.grade || "LOW"}</span>
-                </div>
-                <div className="flex flex-col gap-1 text-right">
-                  <span className="text-small-caps">Model Route</span>
-                  <span className="font-mono text-white">{providerLabel}</span>
-                </div>
-              </div>
-              <div className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#1e232b] p-4">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-small-caps">Mode</span>
-                  <span className="font-mono text-[11px] text-white uppercase">{adaptivePlan.mode || "confirmation_wait"}</span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {(adaptivePlan.next_actions || []).slice(0, 3).map((action) => (
-                    <div key={action} className="flex items-start gap-2 text-[11px] leading-relaxed text-[var(--text-muted)]">
-                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)] shrink-0" />
-                      <span>{action}</span>
+          <section className="surface-card overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2"><BrainCircuit size={16} className="text-[var(--accent)]" /><h2 className="heading-3">What the AI team concluded</h2></div>
+            <div className="p-5">
+              <div className="prose prose-invert prose-sm max-w-none text-[var(--text-main)]"><ReactMarkdown>{brief?.agent_consensus?.summary || prediction.reason || "Analysis is syncing."}</ReactMarkdown></div>
+              {agents.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">
+                  {agents.slice(0, 10).map((agent, index) => (
+                    <div key={`${agent.name}-${index}`} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-4">
+                      <div className="flex items-center justify-between gap-2"><span className="text-[11px] font-semibold text-white">{agent.name}</span><span className="surface-badge">{agent.signal}</span></div>
+                      <p className="text-[10px] leading-relaxed text-[var(--text-muted)] mt-2">{agent.summary}</p>
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="surface-card flex flex-col">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2 bg-[#1b1f27]">
-              <Shield size={16} className="text-[var(--accent)]" />
-              <h2 className="heading-3">Risk Overview</h2>
-            </div>
-            <div className="p-6 flex flex-col gap-3">
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="font-medium text-[var(--text-muted)] uppercase tracking-wider">Risk Level</span>
-                <span className="font-mono text-white">{riskLevel}</span>
-              </div>
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="font-medium text-[var(--text-muted)] uppercase tracking-wider">Primary Driver</span>
-                <span className="font-mono text-white">{intelligence.primary_driver || "technical"}</span>
-              </div>
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="font-medium text-[var(--text-muted)] uppercase tracking-wider">Headline Count</span>
-                <span className="font-mono text-white">{news.length}</span>
-              </div>
-            </div>
-          </section>
-
-          <QuanticInsightView ticker={tickerId} quantic={analysis?.quantic || intelligence.quantic} />
-
-          <section className="surface-card flex flex-col flex-1">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between bg-[#1b1f27]">
-              <div className="flex items-center gap-2">
-                <Newspaper size={16} className="text-[var(--accent)]" />
-                <h2 className="heading-3">Latest News</h2>
-              </div>
-              <span className="surface-badge">{news.length}</span>
-            </div>
-            <div className="p-4 flex flex-col gap-3 max-h-[400px] overflow-y-auto no-scrollbar">
-              {news.length === 0 ? (
-                <p className="py-8 text-center text-[12px] text-[var(--text-muted)]">No recent news available.</p>
-              ) : (
-                news.slice(0, 8).map((item, index) => (
-                  <a
-                    key={`${item.headline || item.title || "news"}-${index}`}
-                    href={item.url || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex flex-col gap-2 p-3 rounded-[var(--radius-md)] border border-transparent hover:border-[var(--border-color)] hover:bg-[#1e232b] transition-colors"
-                  >
-                    <p className="text-[12px] font-medium text-[var(--text-main)] leading-snug line-clamp-2 group-hover:text-[var(--accent)] transition-colors">
-                      {item.headline || item.title}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] text-[var(--text-muted)]">{item.source || "Feed"}</span>
-                      {item.published_at && (
-                        <span className="text-[10px] text-[var(--text-muted)]">{item.published_at}</span>
-                      )}
-                    </div>
-                  </a>
-                ))
               )}
             </div>
           </section>
+
+          <section className="surface-card overflow-hidden">
+            <div className="p-5 border-b border-[var(--border-color)] flex items-center gap-2"><Newspaper size={16} className="text-[var(--accent)]" /><h2 className="heading-3">Evidence & latest news</h2></div>
+            <div className="divide-y divide-[var(--border-color)]">
+              {news.length ? news.map((item, index) => (
+                <div key={`${item.headline}-${index}`} className="p-4 flex items-start gap-3">
+                  <Newspaper size={14} className="text-[var(--text-muted)] mt-0.5 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] text-white font-medium">{item.headline}</div>
+                    {item.summary && <p className="text-[10px] text-[var(--text-muted)] mt-1 line-clamp-2">{item.summary}</p>}
+                    <div className="text-[9px] text-[var(--text-muted)] mt-2">{item.source || "Market source"}{item.published_at ? ` • ${String(item.published_at)}` : ""}</div>
+                  </div>
+                  {item.url && <a href={item.url} target="_blank" rel="noreferrer" className="text-[10px] text-[var(--accent)] shrink-0">Open</a>}
+                </div>
+              )) : <div className="p-8 text-center text-[11px] text-[var(--text-muted)]">No recent article is attached to this asset yet.</div>}
+            </div>
+          </section>
         </div>
+
+        <aside className="flex flex-col gap-5">
+          <section className="surface-card p-5">
+            <div className="flex items-center gap-2 mb-4"><CheckCircle2 size={16} className="text-[var(--accent)]" /><h2 className="heading-3">AI view</h2></div>
+            <div className="text-2xl font-bold text-white">{prediction.recommendation || "HOLD"}</div>
+            <div className="text-[12px] text-[var(--text-muted)] mt-1">{prediction.direction || "SIDEWAYS"} • {number(prediction.confidence).toFixed(0)}% confidence</div>
+            <div className="grid grid-cols-2 gap-3 mt-5">
+              <Metric label="Current" value={prediction.current_price ? `$${number(prediction.current_price).toFixed(2)}` : "—"} />
+              <Metric label="Model target" value={prediction.target_price ? `$${number(prediction.target_price).toFixed(2)}` : "—"} />
+              <Metric label="Expected move" value={`${number(prediction.expected_move_pct).toFixed(2)}%`} />
+              <Metric label="Main driver" value={String(prediction.primary_driver || "—").replace(/_/g, " ")} />
+            </div>
+          </section>
+
+          <section className="surface-card p-5">
+            <div className="flex items-center gap-2 mb-4"><Shield size={16} className="text-[var(--warning)]" /><h2 className="heading-3">Risk</h2></div>
+            <div className="text-xl font-bold text-white">{risk.level || "MEDIUM"}</div>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <Metric label="Volatility" value={`${number(risk.annualized_volatility).toFixed(1)}%`} />
+              <Metric label="Max drawdown" value={`${number(risk.max_drawdown).toFixed(1)}%`} />
+              <Metric label="VaR (95%)" value={`${number(risk.var_95).toFixed(1)}%`} />
+              <Metric label="Data quality" value={brief?.data_quality?.grade || "—"} />
+            </div>
+          </section>
+
+          <section className="surface-card p-5">
+            <div className="flex items-center gap-2 mb-4"><Clock3 size={16} className="text-[var(--accent)]" /><h2 className="heading-3">What to watch next</h2></div>
+            <div className="flex flex-col gap-3">
+              {(brief?.what_to_watch_next || []).map((item, index) => <div key={index} className="flex items-start gap-2 text-[11px] text-[var(--text-muted)]"><span className="text-[var(--accent)] font-bold">{index + 1}.</span><span>{item}</span></div>)}
+              {!brief?.what_to_watch_next?.length && <p className="text-[11px] text-[var(--text-muted)]">Run full AI research to generate the next checks.</p>}
+            </div>
+          </section>
+
+          <section className="surface-card p-5">
+            <div className="text-[11px] font-semibold text-white mb-3">Recent research history</div>
+            <div className="flex flex-col gap-3">
+              {history.length ? history.map((item) => (
+                <div key={item.id} className="border-l border-[var(--border-color)] pl-3">
+                  <div className="text-[10px] text-white">{item.title}</div>
+                  <div className="text-[9px] text-[var(--text-muted)] mt-1">{new Date(item.created_at).toLocaleString()}</div>
+                </div>
+              )) : <p className="text-[10px] text-[var(--text-muted)]">No saved research yet.</p>}
+            </div>
+          </section>
+        </aside>
       </div>
+
+      <div className="surface-card p-4 flex items-start gap-3 text-[11px] text-[var(--text-muted)]">
+        <AlertTriangle size={15} className="text-[var(--warning)] shrink-0 mt-0.5" />
+        Predictions are evidence-based estimates, not guaranteed outcomes. Review the source data, risk and your own financial situation before trading.
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <div className="rounded-[var(--radius-md)] bg-[#171b22] border border-[var(--border-color)] p-3">
+      <div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{label}</div>
+      <div className="text-[11px] font-semibold text-white mt-1 break-words">{value}</div>
     </div>
   );
 }
