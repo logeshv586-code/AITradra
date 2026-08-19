@@ -12,6 +12,15 @@ export default function LiveTickerBar({ stocks = [], onSelect }) {
     return () => { clearInterval(id); clearInterval(clockId); };
   }, []);
 
+  useEffect(() => {
+    const handleCrossPageSelect = (event) => {
+      const ticker = event?.detail?.ticker;
+      if (ticker) onSelect?.(String(ticker).toUpperCase());
+    };
+    window.addEventListener("aitradra:select-ticker", handleCrossPageSelect);
+    return () => window.removeEventListener("aitradra:select-ticker", handleCrossPageSelect);
+  }, [onSelect]);
+
   const items = stocks.length > 0 ? [...stocks, ...stocks, ...stocks] : [];
 
   return (
