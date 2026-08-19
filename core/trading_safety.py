@@ -1,7 +1,7 @@
 """Centralized execution safety, daily-loss tracking, and strategy validation.
 
-This module is intentionally dependency-light so the same guardrails can be used by
-brokers, schedulers, tests, and customer-facing status endpoints.
+Manual customer orders and autonomous trading use separate authorization gates.
+Both modes remain fail-closed and require an explicit server-side live setup.
 """
 
 from __future__ import annotations
@@ -20,26 +20,39 @@ logger = get_logger(__name__)
 LIVE_ACK_PHRASE = "I_UNDERSTAND_LIVE_TRADING"
 
 
-def get_execution_status(settings_obj=settings) -> dict[str, Any]:
-    """Return the single authoritative paper/live execution state.
+def get_execution_status(
+    settings_obj=settings,
+    *,
+    purpose: str = "automation",
+    has_private_key: bool | None = None,
+) -> dict[str, Any]:
+    """Return the authoritative live execution state for one execution purpose.
 
-    Live execution is fail-closed. A private key by itself is never enough to place
-    real orders. All live prerequisites must be explicitly satisfied.
+    `purpose="automation"` preserves the autonomous-bot safety gate.
+    `purpose="manual"` allows a server owner to enable manually confirmed orders
+    without also enabling the autonomous scheduler. A key supplied from the
+    encrypted local connection store can be represented with `has_private_key`.
     """
-
+    purpose = "manual" if str(purpose).lower() == "manual" else "automation"
     paper_requested = bool(settings_obj.PAPER_TRADE_MODE)
     automation_enabled = bool(settings_obj.AUTOTRADE_ENABLED)
-    has_private_key = bool(settings_obj.HYPERLIQUID_PRIVATE_KEY)
+    manual_enabled = bool(getattr(settings_obj, "MANUAL_LIVE_TRADING_ENABLED", False))
+    key_available = bool(settings_obj.HYPERLIQUID_PRIVATE_KEY) if has_private_key is None else bool(has_private_key)
     live_acknowledged = settings_obj.LIVE_TRADING_ACK == LIVE_ACK_PHRASE
     protective_orders_required = bool(settings_obj.REQUIRE_PROTECTIVE_ORDERS)
+    authorization_enabled = manual_enabled if purpose == "manual" else automation_enabled
 
     blockers: list[str] = []
     if paper_requested:
         blockers.append("PAPER_TRADE_MODE is enabled")
-    if not automation_enabled:
-        blockers.append("AUTOTRADE_ENABLED is disabled")
-    if not has_private_key:
-        blockers.append("Hyperliquid private key is not configured")
+    if not authorization_enabled:
+        blockers.append(
+            "MANUAL_LIVE_TRADING_ENABLED is disabled"
+            if purpose == "manual"
+            else "AUTOTRADE_ENABLED is disabled"
+        )
+    if not key_available:
+        blockers.append("Broker private key is not configured")
     if not live_acknowledged:
         blockers.append("Live-trading acknowledgement is not configured")
     if not protective_orders_required:
@@ -47,17 +60,19 @@ def get_execution_status(settings_obj=settings) -> dict[str, Any]:
 
     live_allowed = (
         not paper_requested
-        and automation_enabled
-        and has_private_key
+        and authorization_enabled
+        and key_available
         and live_acknowledged
         and protective_orders_required
     )
 
     return {
+        "purpose": purpose,
         "mode": "live" if live_allowed else "paper",
         "paper_mode": not live_allowed,
         "live_execution_allowed": live_allowed,
         "automation_enabled": automation_enabled,
+        "manual_live_enabled": manual_enabled,
         "protective_orders_required": protective_orders_required,
         "strategy_validation_required": bool(settings_obj.REQUIRE_STRATEGY_VALIDATION),
         "blockers": blockers,
@@ -66,7 +81,6 @@ def get_execution_status(settings_obj=settings) -> dict[str, Any]:
 
 def normalize_candles_latest_first(candles: Iterable[dict]) -> list[dict]:
     """Normalize OHLCV bars to the ordering expected by signal/scoring agents."""
-
     rows = [dict(row) for row in candles if isinstance(row, dict)]
 
     def _timestamp(row: dict) -> float:
@@ -102,8 +116,6 @@ class DailyEquityTracker:
             logger.warning(f"Unable to persist daily equity state: {exc}")
 
     def update(self, current_equity: float) -> float:
-        """Return daily P&L as a decimal fraction, e.g. -0.02 for -2%."""
-
         try:
             equity = float(current_equity or 0)
         except (TypeError, ValueError):
@@ -114,14 +126,7 @@ class DailyEquityTracker:
         today = datetime.now(timezone.utc).date().isoformat()
         state = self._load()
         baseline = float(state.get("baseline_equity", 0) or 0)
-
-        # Changing from paper to live (or another account scope) must never reuse
-        # the previous account's baseline and create a false loss event.
-        if (
-            state.get("date") != today
-            or state.get("scope") != self.scope
-            or baseline <= 0
-        ):
+        if state.get("date") != today or state.get("scope") != self.scope or baseline <= 0:
             baseline = equity
             state = {
                 "date": today,
