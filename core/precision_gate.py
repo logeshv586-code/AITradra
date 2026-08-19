@@ -1,6 +1,6 @@
 """Empirical precision gate for autonomous live trading.
 
-This module does not claim or manufacture a 99% win rate.  It converts a
+This module does not claim or manufacture a 99% win rate. It converts a
 configured precision target into a fail-closed execution requirement based on
 resolved directional predictions that were scored against later market data.
 
@@ -16,9 +16,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 from core.config import settings
-from core.logger import get_logger
-
-logger = get_logger(__name__)
 
 
 def wilson_lower_bound(successes: int, total: int, z: float = 1.959963984540054) -> float:
@@ -56,20 +53,23 @@ class EmpiricalPrecisionGate:
         direction: str | None = None,
         settings_obj=settings,
     ) -> dict[str, Any]:
+        target = float(getattr(settings_obj, "AUTOTRADE_TARGET_PRECISION", 0.99))
         if not bool(getattr(settings_obj, "REQUIRE_EMPIRICAL_PRECISION_VALIDATION", True)):
             return {
                 "eligible": True,
                 "reasons": [],
                 "stats": None,
-                "target_precision": float(getattr(settings_obj, "AUTOTRADE_TARGET_PRECISION", 0.99)),
+                "target_precision": target,
             }
 
-        from self_improvement.accuracy_store import accuracy_store
+        from self_improvement.precision_store import precision_store
 
-        stats = accuracy_store.get_precision_stats(
+        lookback_days = int(getattr(settings_obj, "PRECISION_LOOKBACK_DAYS", 90))
+        stats = precision_store.get_precision_stats(
             ticker=ticker,
             model=model,
             direction=direction,
+            lookback_days=lookback_days,
         )
 
         total = int(stats.get("total_directional", 0) or 0)
@@ -77,7 +77,6 @@ class EmpiricalPrecisionGate:
         observed = (correct / total) if total > 0 else 0.0
         lower_bound = wilson_lower_bound(correct, total)
 
-        target = float(getattr(settings_obj, "AUTOTRADE_TARGET_PRECISION", 0.99))
         min_samples = int(getattr(settings_obj, "AUTOTRADE_MIN_EVALUATED_SIGNALS", 100))
         min_lower_bound = float(
             getattr(settings_obj, "AUTOTRADE_MIN_PRECISION_LOWER_BOUND", 0.95)
@@ -115,6 +114,7 @@ class EmpiricalPrecisionGate:
             "target_precision": target,
             "min_samples": min_samples,
             "min_lower_bound": min_lower_bound,
+            "lookback_days": lookback_days,
         }
         return {
             "eligible": not reasons,
