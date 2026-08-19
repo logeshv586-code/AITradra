@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from core.trading_safety import LIVE_ACK_PHRASE, get_execution_status
-from gateway.connected_source_adapter import _dig
+from gateway.connected_source_adapter import _build_custom_request, _dig
 from gateway.customer_runtime import CustomerRuntimeStore, DEFAULT_HISTORY_USER
 
 
@@ -113,3 +113,49 @@ def test_custom_json_mapping_supports_nested_price_and_news_fields():
     assert _dig(payload, "data.quote.change") == 1.25
     assert _dig(payload, "data.articles.0.title") == "Example headline"
     assert _dig(payload, "data.articles.0.meta.source") == "Example News"
+
+
+def test_custom_request_supports_bearer_auth_and_ticker_substitution():
+    endpoint, params, headers = _build_custom_request(
+        {
+            "endpoint": "https://example.invalid/quotes/{ticker}",
+            "api_key_location": "header",
+            "api_key_name": "Authorization",
+            "api_key_prefix": "Bearer ",
+            "query_params": {"symbol": "{ticker}", "region": "US"},
+            "headers": {"X-Symbol": "{ticker}"},
+        },
+        {"api_key": "secret-token"},
+        "AAPL",
+    )
+    assert endpoint == "https://example.invalid/quotes/AAPL"
+    assert params == {"symbol": "AAPL", "region": "US"}
+    assert headers["Authorization"] == "Bearer secret-token"
+    assert headers["X-Symbol"] == "AAPL"
+
+
+def test_custom_request_supports_query_auth_and_no_auth():
+    endpoint, params, headers = _build_custom_request(
+        {
+            "endpoint": "https://example.invalid/price",
+            "api_key_location": "query",
+            "api_key_name": "apikey",
+        },
+        {"api_key": "query-secret"},
+        "MSFT",
+    )
+    assert endpoint == "https://example.invalid/price"
+    assert params["apikey"] == "query-secret"
+    assert headers == {}
+
+    _, params, headers = _build_custom_request(
+        {
+            "endpoint": "https://example.invalid/price/{ticker}",
+            "api_key_location": "none",
+            "headers": {"Accept": "application/json"},
+        },
+        {"api_key": "must-not-be-used"},
+        "MSFT",
+    )
+    assert params == {}
+    assert headers == {"Accept": "application/json"}

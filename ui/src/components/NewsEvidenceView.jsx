@@ -32,6 +32,15 @@ export default function NewsEvidenceView({ onSelect }) {
     return () => clearInterval(timer);
   }, []);
 
+  const openTicker = (ticker) => {
+    if (!ticker) return;
+    if (onSelect) {
+      onSelect(ticker);
+      return;
+    }
+    window.dispatchEvent(new CustomEvent("aitradra:select-ticker", { detail: { ticker } }));
+  };
+
   const filtered = useMemo(
     () => articles.filter((article) => filter === "ALL" || String(article.impact || "LOW").toUpperCase() === filter),
     [articles, filter]
@@ -57,7 +66,7 @@ export default function NewsEvidenceView({ onSelect }) {
           {(brief?.top_movers || []).slice(0, 5).map((row) => {
             const chg = Number(row.chg || 0);
             return (
-              <button key={row.ticker} onClick={() => onSelect?.(row.ticker)} className="text-left rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-4 hover:border-[var(--accent)] transition-colors">
+              <button key={row.ticker} onClick={() => openTicker(row.ticker)} className="text-left rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-4 hover:border-[var(--accent)] transition-colors">
                 <div className="flex items-center justify-between gap-2"><span className="font-semibold text-white text-[12px]">{row.ticker}</span><span className="surface-badge">{row.recommendation || "HOLD"}</span></div>
                 <div className="flex items-center gap-1 mt-2 font-mono text-[12px]" style={{ color: chg >= 0 ? "var(--positive)" : "var(--negative)" }}>{chg >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{chg >= 0 ? "+" : ""}{chg.toFixed(2)}%</div>
                 <div className="text-[9px] text-[var(--text-muted)] mt-2 capitalize">Main signal: {String(row.primary_driver || "technical").replace(/_/g, " ")}</div>

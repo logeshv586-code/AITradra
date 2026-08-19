@@ -3,13 +3,14 @@
 Built-in public collection remains the default fallback. Customer connections are
 optional and are tried first so users can bring preferred providers without
 editing Python or environment files. A generic JSON mode supports custom REST
-APIs through a small field mapping.
+GET APIs through request/authentication settings and response-field mappings.
 """
 
 from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -41,6 +42,53 @@ def _float(value: Any, default: float = 0.0) -> float:
         return float(str(value).replace("%", "").replace(",", "").strip())
     except (TypeError, ValueError):
         return default
+
+
+def _replace_ticker(value: Any, ticker: str) -> Any:
+    """Substitute {ticker} in endpoint/request values without mutating config."""
+    if isinstance(value, str):
+        return value.replace("{ticker}", ticker)
+    if isinstance(value, dict):
+        return {key: _replace_ticker(item, ticker) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_replace_ticker(item, ticker) for item in value]
+    return value
+
+
+def _build_custom_request(
+    config: dict[str, Any], secrets: dict[str, Any], ticker: str
+) -> tuple[str, dict[str, Any], dict[str, str]]:
+    """Build a safe HTTP GET request for a customer-configured JSON source."""
+    endpoint = str(_replace_ticker(config.get("endpoint", ""), ticker)).strip()
+    if not endpoint:
+        return "", {}, {}
+
+    parsed = urlparse(endpoint)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Custom API endpoint must be an http(s) URL")
+
+    raw_params = _replace_ticker(config.get("query_params") or {}, ticker)
+    raw_headers = _replace_ticker(config.get("headers") or {}, ticker)
+    params = dict(raw_params) if isinstance(raw_params, dict) else {}
+    headers = {
+        str(key): str(value)
+        for key, value in (raw_headers.items() if isinstance(raw_headers, dict) else [])
+    }
+
+    api_key = str(secrets.get("api_key", "") or "")
+    location = str(config.get("api_key_location", "header") or "header").lower()
+    key_name = str(config.get("api_key_name", "apikey") or "apikey")
+    prefix = str(config.get("api_key_prefix", "") or "")
+    credential = f"{prefix}{api_key}" if api_key else ""
+
+    if credential and location == "query":
+        params[key_name] = credential
+    elif credential and location == "header":
+        headers[key_name] = credential
+    elif location not in {"none", "", "query", "header"}:
+        raise ValueError("Unsupported custom API key location")
+
+    return endpoint, params, headers
 
 
 class ConnectedSourceAdapter:
@@ -184,18 +232,9 @@ class ConnectedSourceAdapter:
     async def _custom_price(
         self, client: httpx.AsyncClient, config: dict[str, Any], secrets: dict[str, Any], ticker: str
     ) -> dict[str, Any] | None:
-        endpoint = str(config.get("endpoint", "")).replace("{ticker}", ticker)
+        endpoint, params, headers = _build_custom_request(config, secrets, ticker)
         if not endpoint:
             return None
-        params = dict(config.get("query_params") or {})
-        headers = dict(config.get("headers") or {})
-        api_key = secrets.get("api_key", "")
-        key_name = config.get("api_key_name", "apikey")
-        if api_key:
-            if config.get("api_key_location", "header") == "query":
-                params[key_name] = api_key
-            else:
-                headers[key_name] = api_key
         response = await client.get(endpoint, params=params, headers=headers)
         response.raise_for_status()
         payload = response.json()
@@ -204,7 +243,9 @@ class ConnectedSourceAdapter:
         price = _float(_dig(root, mapping.get("price", "price")))
         change = _float(_dig(root, mapping.get("change_pct", "change_pct")))
         return {
-            "px": price, "chg": change, "pct_chg": change,
+            "px": price,
+            "chg": change,
+            "pct_chg": change,
             "open": _float(_dig(root, mapping.get("open", "open"))),
             "high": _float(_dig(root, mapping.get("high", "high"))),
             "low": _float(_dig(root, mapping.get("low", "low"))),
@@ -292,23 +333,15 @@ class ConnectedSourceAdapter:
         ticker: str,
         limit: int,
     ) -> list[dict[str, Any]]:
-        endpoint = str(config.get("endpoint", "")).replace("{ticker}", ticker)
+        endpoint, params, headers = _build_custom_request(config, secrets, ticker)
         if not endpoint:
             return []
-        params = dict(config.get("query_params") or {})
-        headers = dict(config.get("headers") or {})
-        api_key = secrets.get("api_key", "")
-        key_name = config.get("api_key_name", "apikey")
-        if api_key:
-            if config.get("api_key_location", "header") == "query":
-                params[key_name] = api_key
-            else:
-                headers[key_name] = api_key
         response = await client.get(endpoint, params=params, headers=headers)
         response.raise_for_status()
         payload = response.json()
         mapping = config.get("mapping") or {}
-        rows = _dig(payload, mapping.get("items", "articles"), [])
+        root = _dig(payload, mapping.get("root")) if mapping.get("root") else payload
+        rows = _dig(root, mapping.get("items", "articles"), [])
         if not isinstance(rows, list):
             return []
         results = []

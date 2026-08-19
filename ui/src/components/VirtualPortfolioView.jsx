@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -16,6 +16,15 @@ import {
 import { API_BASE } from "../api_config";
 
 const money = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function apiErrorMessage(payload, fallback) {
+  if (typeof payload?.detail === "string") return payload.detail;
+  if (typeof payload?.detail?.message === "string") return payload.detail.message;
+  if (Array.isArray(payload?.detail)) {
+    return payload.detail.map((item) => item?.msg).filter(Boolean).join(" • ") || fallback;
+  }
+  return fallback;
+}
 
 export default function VirtualPortfolioView({ onSelect }) {
   const [tab, setTab] = useState("practice");
@@ -58,7 +67,9 @@ export default function VirtualPortfolioView({ onSelect }) {
     try {
       const response = await fetch(`${API_BASE}/api/customer/daily-brief?limit=6`);
       if (response.ok) setIdeas((await response.json()).opportunities || []);
-    } catch { /* research ideas are supplementary */ }
+    } catch {
+      // Research ideas are supplementary to account/trading actions.
+    }
   };
 
   const loadLiveAccount = async (id = connectionId) => {
@@ -69,6 +80,7 @@ export default function VirtualPortfolioView({ onSelect }) {
     try {
       const response = await fetch(`${API_BASE}/api/customer/trading/account?connection_id=${encodeURIComponent(id)}`);
       if (response.ok) setLiveAccount(await response.json());
+      else setLiveAccount(null);
     } catch {
       setLiveAccount(null);
     }
@@ -82,31 +94,48 @@ export default function VirtualPortfolioView({ onSelect }) {
     if (connectionId) loadLiveAccount(connectionId);
   }, [connectionId]);
 
+  const openTicker = (ticker) => {
+    if (!ticker) return;
+    if (onSelect) {
+      onSelect(ticker);
+      return;
+    }
+    window.dispatchEvent(new CustomEvent("aitradra:select-ticker", { detail: { ticker } }));
+  };
+
   const initializePractice = async () => {
     setBusy(true);
     setMessage("");
     try {
+      const balance = Number(startingBalance);
+      if (!Number.isFinite(balance) || balance < 1000) throw new Error("Enter a practice balance of at least 1,000.");
       const response = await fetch(`${API_BASE}/api/simulation/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initial_balance: Number(startingBalance) || 100000 }),
+        body: JSON.stringify({ initial_balance: balance }),
       });
       if (!response.ok) throw new Error("Could not create practice account");
       await loadPractice();
       setMessage("Practice account is ready. No real money is involved.");
     } catch (e) {
       setMessage(e.message || "Could not create practice account");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const practiceTrade = async (type, ticker = practiceForm.ticker, shares = practiceForm.shares) => {
     setBusy(true);
     setMessage("");
     try {
+      const cleanTicker = String(ticker || "").trim().toUpperCase();
+      const quantity = Number(shares);
+      if (!cleanTicker) throw new Error("Enter an asset symbol.");
+      if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Enter a quantity greater than zero.");
       const response = await fetch(`${API_BASE}/api/simulation/${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: String(ticker).toUpperCase(), shares: Number(shares) }),
+        body: JSON.stringify({ ticker: cleanTicker, shares: quantity }),
       });
       const result = await response.json();
       if (!response.ok || result.error) throw new Error(result.error || "Practice order failed");
@@ -114,40 +143,108 @@ export default function VirtualPortfolioView({ onSelect }) {
       setMessage(`${type === "buy" ? "Buy" : "Sell"} completed in the practice account.`);
     } catch (e) {
       setMessage(e.message || "Practice order failed");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const submitLive = async (event) => {
     event.preventDefault();
+    setMessage("");
+    setLastLiveResult(null);
+
+    const ticker = String(liveForm.ticker || "").trim().toUpperCase();
+    const qty = Number(liveForm.qty);
+    const leverage = Number(liveForm.leverage);
+    const stopLoss = Number(liveForm.stop_loss);
+    const takeProfit = Number(liveForm.take_profit);
+
+    if (!connectionId) return setMessage("Select a real broker connection first.");
+    if (!ticker) return setMessage("Enter an asset symbol before submitting a real order.");
+    if (!Number.isFinite(qty) || qty <= 0) return setMessage("Enter a real-order quantity greater than zero.");
+    if (!Number.isFinite(leverage) || leverage < 1 || leverage > 10) return setMessage("Leverage must be between 1× and 10×.");
+    if (!Number.isFinite(stopLoss) || stopLoss <= 0 || !Number.isFinite(takeProfit) || takeProfit <= 0) {
+      return setMessage("Enter positive stop-loss and take-profit prices. Both protections are required before a new real position can be submitted.");
+    }
+    if (!liveForm.confirm_live) return setMessage("Confirm that you understand this is a real-money order.");
+
     setBusy(true);
     setMessage("AITradra is running a fresh multi-agent check before the real order…");
-    setLastLiveResult(null);
     try {
       const response = await fetch(`${API_BASE}/api/customer/trading/order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           connection_id: connectionId,
-          ticker: liveForm.ticker.toUpperCase(),
+          ticker,
           side: liveForm.side,
-          qty: Number(liveForm.qty),
-          leverage: Number(liveForm.leverage),
-          stop_loss: Number(liveForm.stop_loss),
-          take_profit: Number(liveForm.take_profit),
-          confirm_live: Boolean(liveForm.confirm_live),
+          qty,
+          leverage,
+          stop_loss: stopLoss,
+          take_profit: takeProfit,
+          reduce_only: false,
+          confirm_live: true,
         }),
       });
       const result = await response.json();
-      if (!response.ok) {
-        const detail = typeof result.detail === "string" ? result.detail : result.detail?.message || "Real order was rejected";
-        throw new Error(detail);
-      }
+      if (!response.ok) throw new Error(apiErrorMessage(result, "Real order was rejected"));
       setLastLiveResult(result);
-      setMessage(`Order status: ${result.order?.status || "submitted"}. Review the pre-trade analysis below.`);
+      const orderStatus = String(result.order?.status || "submitted").toUpperCase();
+      if (["ERROR", "REJECTED", "ROLLED_BACK"].includes(orderStatus)) {
+        const reason = result.order?.error || result.order?.reason || "The broker did not keep the new position open.";
+        setMessage(`Order status: ${orderStatus}. ${reason}`);
+      } else {
+        setMessage(`Order status: ${orderStatus}. Review the pre-trade analysis below.`);
+      }
       await Promise.all([loadLiveAccount(), loadConnectionsAndStatus()]);
     } catch (e) {
       setMessage(e.message || "Real order was not submitted");
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeLivePosition = async (ticker, qty) => {
+    const cleanTicker = String(ticker || "").trim().toUpperCase();
+    const closeQty = Math.abs(Number(qty));
+    if (!manualReady) return setMessage("Real-money trading is currently locked by server safety settings.");
+    if (!connectionId) return setMessage("Select the broker account that owns this position.");
+    if (!cleanTicker || !Number.isFinite(closeQty) || closeQty <= 0) return setMessage("This position does not have a valid close quantity.");
+    if (!window.confirm(`Close ${closeQty} ${cleanTicker} on the connected real-money broker?`)) return;
+
+    setBusy(true);
+    setLastLiveResult(null);
+    setMessage(`Running a fresh risk check before closing ${cleanTicker}…`);
+    try {
+      const response = await fetch(`${API_BASE}/api/customer/trading/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection_id: connectionId,
+          ticker: cleanTicker,
+          side: "sell",
+          qty: closeQty,
+          leverage: 1,
+          stop_loss: null,
+          take_profit: null,
+          reduce_only: true,
+          confirm_live: true,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(apiErrorMessage(result, "The close order was rejected"));
+      setLastLiveResult(result);
+      const orderStatus = String(result.order?.status || "submitted").toUpperCase();
+      if (["ERROR", "REJECTED"].includes(orderStatus)) {
+        throw new Error(result.order?.error || result.order?.reason || `Broker returned ${orderStatus}`);
+      }
+      setMessage(`${cleanTicker} close status: ${orderStatus}. The broker account has been refreshed.`);
+      await Promise.all([loadLiveAccount(), loadConnectionsAndStatus()]);
+    } catch (e) {
+      setMessage(e.message || "The real position could not be closed.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const positions = Array.isArray(practice?.positions) ? practice.positions : Object.values(practice?.positions || {});
@@ -155,6 +252,9 @@ export default function VirtualPortfolioView({ onSelect }) {
   const practiceReturn = Number(practice?.profit_loss_percentage || 0);
   const manualReady = Boolean(liveStatus?.real_money_ready);
   const blockers = liveStatus?.manual?.blockers || [];
+  const hasLiveProtection = Number(liveForm.stop_loss) > 0 && Number(liveForm.take_profit) > 0;
+  const hasLiveQuantity = Number(liveForm.qty) > 0;
+  const canSubmitLive = manualReady && Boolean(connectionId) && Boolean(liveForm.confirm_live) && Boolean(liveForm.ticker.trim()) && hasLiveQuantity && hasLiveProtection && !busy;
 
   return (
     <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6">
@@ -197,7 +297,7 @@ export default function VirtualPortfolioView({ onSelect }) {
                 </div>
               </section>
 
-              <PositionsTable positions={positions} practice onSell={(ticker, qty) => practiceTrade("sell", ticker, qty)} />
+              <PositionsTable positions={positions} practice onClose={(ticker, qty) => practiceTrade("sell", ticker, qty)} busy={busy} />
             </>
           )}
         </>
@@ -220,24 +320,25 @@ export default function VirtualPortfolioView({ onSelect }) {
           </section>
 
           <form onSubmit={submitLive} className="surface-card p-5">
-            <div className="flex items-start gap-3 mb-5"><AlertTriangle size={18} className="text-[var(--negative)] mt-0.5" /><div><h2 className="heading-3">Protected real order</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">A fresh DEEP multi-agent analysis runs immediately before submission. Stop-loss and take-profit are mandatory for new positions.</p></div></div>
+            <div className="flex items-start gap-3 mb-5"><AlertTriangle size={18} className="text-[var(--negative)] mt-0.5" /><div><h2 className="heading-3">Protected real order</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">A fresh DEEP multi-agent analysis runs immediately before submission. Stop-loss and take-profit are mandatory for every new real position.</p></div></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <input className="input-standard uppercase" value={liveForm.ticker} onChange={(e) => setLiveForm({ ...liveForm, ticker: e.target.value.toUpperCase() })} placeholder="BTC" />
               <select className="input-standard" value={liveForm.side} onChange={(e) => setLiveForm({ ...liveForm, side: e.target.value })}><option value="buy">Buy / Long</option><option value="sell">Sell / Short</option></select>
-              <input type="number" min="0" step="any" className="input-standard" value={liveForm.qty} onChange={(e) => setLiveForm({ ...liveForm, qty: e.target.value })} placeholder="Quantity" />
+              <input type="number" min="0.00000001" step="any" className="input-standard" value={liveForm.qty} onChange={(e) => setLiveForm({ ...liveForm, qty: e.target.value })} placeholder="Quantity" />
               <input type="number" min="1" max="10" className="input-standard" value={liveForm.leverage} onChange={(e) => setLiveForm({ ...liveForm, leverage: e.target.value })} placeholder="Leverage" />
-              <input type="number" min="0" step="any" className="input-standard" value={liveForm.stop_loss} onChange={(e) => setLiveForm({ ...liveForm, stop_loss: e.target.value })} placeholder="Stop-loss price" />
-              <input type="number" min="0" step="any" className="input-standard" value={liveForm.take_profit} onChange={(e) => setLiveForm({ ...liveForm, take_profit: e.target.value })} placeholder="Take-profit price" />
+              <input type="number" min="0.00000001" step="any" className="input-standard" value={liveForm.stop_loss} onChange={(e) => setLiveForm({ ...liveForm, stop_loss: e.target.value })} placeholder="Stop-loss price" />
+              <input type="number" min="0.00000001" step="any" className="input-standard" value={liveForm.take_profit} onChange={(e) => setLiveForm({ ...liveForm, take_profit: e.target.value })} placeholder="Take-profit price" />
             </div>
+            {!hasLiveProtection && <p className="text-[10px] text-amber-200 mt-3">Protection required: enter positive stop-loss and take-profit prices before submitting a new real position.</p>}
             <label className="flex items-start gap-2 mt-5 cursor-pointer"><input type="checkbox" className="mt-0.5" checked={liveForm.confirm_live} onChange={(e) => setLiveForm({ ...liveForm, confirm_live: e.target.checked })} /><span className="text-[11px] text-[var(--text-muted)]">I understand this sends a <strong className="text-white">real-money order</strong> to my connected broker if all server safety checks pass.</span></label>
-            <button type="submit" disabled={!manualReady || !connectionId || !liveForm.confirm_live || busy} className="btn-primary mt-5 px-5 py-3 bg-[var(--negative)] hover:opacity-90">{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Analyze & submit real order</button>
+            <button type="submit" disabled={!canSubmitLive} className="btn-primary mt-5 px-5 py-3 bg-[var(--negative)] hover:opacity-90">{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Analyze & submit real order</button>
           </form>
 
-          {liveAccount?.ready && <PositionsTable positions={livePositions} />}
+          {liveAccount?.ready && <PositionsTable positions={livePositions} onClose={closeLivePosition} busy={busy} />}
 
           {lastLiveResult?.pre_trade_analysis && (
             <section className="surface-card p-5">
-              <h2 className="heading-3">Pre-trade AI analysis</h2>
+              <h2 className="heading-3">Latest pre-trade / pre-close AI analysis</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4"><Stat label="AI view" value={lastLiveResult.pre_trade_analysis.prediction?.recommendation || "HOLD"} /><Stat label="Confidence" value={`${Number(lastLiveResult.pre_trade_analysis.prediction?.confidence || 0).toFixed(0)}%`} /><Stat label="Risk" value={lastLiveResult.pre_trade_analysis.risk?.level || "MEDIUM"} /></div>
               <p className="text-[11px] text-[var(--text-muted)] leading-relaxed mt-4">{lastLiveResult.pre_trade_analysis.why_it_moved?.summary}</p>
             </section>
@@ -247,7 +348,7 @@ export default function VirtualPortfolioView({ onSelect }) {
 
       <section className="surface-card p-5">
         <div className="flex items-center justify-between"><div><h2 className="heading-3">Ideas to research</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">These are research leads, not automatic orders.</p></div></div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">{ideas.slice(0, 6).map((idea) => <button key={idea.ticker} onClick={() => onSelect?.(idea.ticker)} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-3 text-left hover:border-[var(--accent)]"><div className="text-[11px] font-semibold text-white">{idea.ticker}</div><div className="text-[9px] text-[var(--text-muted)] mt-1">{idea.recommendation || "HOLD"} • {Number(idea.confidence_score || 0).toFixed(0)}%</div></button>)}</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">{ideas.slice(0, 6).map((idea) => <button key={idea.ticker} onClick={() => openTicker(idea.ticker)} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-3 text-left hover:border-[var(--accent)]"><div className="text-[11px] font-semibold text-white">{idea.ticker}</div><div className="text-[9px] text-[var(--text-muted)] mt-1">{idea.recommendation || "HOLD"} • {Number(idea.confidence_score || 0).toFixed(0)}%</div></button>)}</div>
       </section>
     </div>
   );
@@ -257,17 +358,18 @@ function Stat({ label, value, positive }) {
   return <div className="surface-card p-4"><div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{label}</div><div className={`text-[15px] font-mono font-semibold mt-1 ${positive === true ? "text-[var(--positive)]" : positive === false ? "text-[var(--negative)]" : "text-white"}`}>{value}</div></div>;
 }
 
-function PositionsTable({ positions = [], practice = false, onSell }) {
+function PositionsTable({ positions = [], practice = false, onClose, busy = false }) {
+  const hasAction = Boolean(onClose);
   return (
     <section className="surface-card overflow-hidden">
-      <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between"><h2 className="heading-3">Open positions</h2><span className="surface-badge">{positions.length}</span></div>
-      {positions.length ? <div className="overflow-x-auto"><table className="table-standard min-w-[720px]"><thead><tr><th>Asset</th><th className="text-right">Quantity</th><th className="text-right">Entry</th><th className="text-right">Current</th><th className="text-right">P/L</th><th>Protection</th>{practice && <th>Action</th>}</tr></thead><tbody>{positions.map((p, index) => {
+      <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between"><div><h2 className="heading-3">Open positions</h2>{!practice && hasAction && <p className="text-[9px] text-[var(--text-muted)] mt-1">Close sends a reduce-only request so it cannot intentionally open a new position.</p>}</div><span className="surface-badge">{positions.length}</span></div>
+      {positions.length ? <div className="overflow-x-auto"><table className="table-standard min-w-[780px]"><thead><tr><th>Asset</th><th className="text-right">Quantity</th><th className="text-right">Entry</th><th className="text-right">Current</th><th className="text-right">P/L</th><th>Protection</th>{hasAction && <th>Action</th>}</tr></thead><tbody>{positions.map((p, index) => {
         const ticker = p.ticker || p.symbol;
         const qty = Number(p.quantity ?? p.qty ?? p.shares ?? 0);
         const entry = Number(p.buy_price ?? p.entry_price ?? p.avg_price ?? 0);
         const current = Number(p.current_price ?? entry);
         const pnl = Number(p.profit_loss ?? p.unrealized_pnl ?? 0);
-        return <tr key={`${ticker}-${index}`}><td className="font-semibold text-white">{ticker}</td><td className="text-right font-mono">{qty.toFixed(4)}</td><td className="text-right font-mono">${money(entry)}</td><td className="text-right font-mono">${money(current)}</td><td className="text-right font-mono" style={{ color: pnl >= 0 ? "var(--positive)" : "var(--negative)" }}>{pnl >= 0 ? <TrendingUp size={11} className="inline mr-1" /> : <TrendingDown size={11} className="inline mr-1" />}${money(pnl)}</td><td className="text-[10px] text-[var(--text-muted)]">{p.stop_loss ? `SL ${p.stop_loss}` : "—"}{p.take_profit ? ` • TP ${p.take_profit}` : ""}</td>{practice && <td><button className="btn-standard h-8 px-3 text-[var(--negative)]" onClick={() => onSell?.(ticker, Math.abs(qty))}>Close</button></td>}</tr>;
+        return <tr key={`${ticker}-${index}`}><td className="font-semibold text-white">{ticker}</td><td className="text-right font-mono">{qty.toFixed(4)}</td><td className="text-right font-mono">${money(entry)}</td><td className="text-right font-mono">${money(current)}</td><td className="text-right font-mono" style={{ color: pnl >= 0 ? "var(--positive)" : "var(--negative)" }}>{pnl >= 0 ? <TrendingUp size={11} className="inline mr-1" /> : <TrendingDown size={11} className="inline mr-1" />}${money(pnl)}</td><td className="text-[10px] text-[var(--text-muted)]">{practice ? "Simulated" : <>{p.stop_loss ? `SL ${p.stop_loss}` : "—"}{p.take_profit ? ` • TP ${p.take_profit}` : ""}</>}</td>{hasAction && <td><button disabled={busy} className="btn-standard h-8 px-3 text-[var(--negative)]" onClick={() => onClose?.(ticker, Math.abs(qty))}>{busy ? <Loader2 size={11} className="animate-spin" /> : null} Close</button></td>}</tr>;
       })}</tbody></table></div> : <div className="p-10 text-center text-[11px] text-[var(--text-muted)]">No open positions.</div>}
     </section>
   );
