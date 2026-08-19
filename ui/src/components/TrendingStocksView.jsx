@@ -1,162 +1,57 @@
-import React, { useState, useEffect } from "react";
-import { ArrowUp, ArrowDown, Activity, RefreshCcw, Loader2, BarChart2 } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, BarChart2, Loader2, RefreshCcw, Shield } from "lucide-react";
 import { API_BASE } from "../api_config";
 
 export default function TrendingStocksView({ stocks: liveStocks, onSelect }) {
-  const [data, setData] = useState(liveStocks || []);
-  const [loading, setLoading] = useState(!liveStocks || liveStocks.length === 0);
-  const [error, setError] = useState(null);
+  const [rows, setRows] = useState([]);
   const [filter, setFilter] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (liveStocks && liveStocks.length > 0) {
-      setData(liveStocks);
-      setLoading(false);
-    }
-  }, [liveStocks]);
-
-  const fetchTrending = async () => {
-    setLoading(true);
+  const load = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/market/trending`);
-      if (!res.ok) throw new Error("Could not fetch trending stocks");
-      setData(await res.json());
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      const response = await fetch(`${API_BASE}/api/customer/daily-brief?limit=24`);
+      if (!response.ok) throw new Error("Market pulse is temporarily unavailable");
+      const payload = await response.json();
+      const combined = [...(payload.top_movers || []), ...(payload.opportunities || [])];
+      const seen = new Set();
+      setRows(combined.filter((item) => item.ticker && !seen.has(item.ticker) && seen.add(item.ticker)));
+      setError("");
+    } catch (e) {
+      if (liveStocks?.length) {
+        setRows(liveStocks.map((item) => ({ ...item, ticker: item.ticker || item.id, current_price: item.current_price ?? item.price ?? item.px, chg: item.chg ?? item.change_pct ?? 0 })));
+      } else {
+        setError(e.message || "Market pulse is unavailable");
+      }
+    } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    if (!liveStocks || liveStocks.length === 0) {
-       fetchTrending();
-    }
-  }, [liveStocks]);
+  useEffect(() => { load(); const timer = setInterval(load, 60000); return () => clearInterval(timer); }, []);
 
-  useEffect(() => {
-    if (!data) return;
-    
-    let stocks = [];
-    
-    if (Array.isArray(data)) {
-      stocks = data;
-    } else if (data.gainers) {
-      stocks = [
-        ...(data.gainers || []),
-        ...(data.losers || []),
-        ...(data.most_volatile || [])
-      ];
-    }
-    
-    setProcessedData(stocks);
-  }, [data]);
+  const filtered = useMemo(() => {
+    const copy = [...rows];
+    if (filter === "GAINERS") return copy.filter((row) => Number(row.chg || 0) >= 0).sort((a, b) => Number(b.chg || 0) - Number(a.chg || 0));
+    if (filter === "LOSERS") return copy.filter((row) => Number(row.chg || 0) < 0).sort((a, b) => Number(a.chg || 0) - Number(b.chg || 0));
+    if (filter === "BUY") return copy.filter((row) => row.recommendation === "BUY").sort((a, b) => Number(b.confidence_score || 0) - Number(a.confidence_score || 0));
+    return copy;
+  }, [rows, filter]);
 
-  const [processedData, setProcessedData] = useState([]);
-
-  let filtered = [...processedData];
-  if (filter === "GAINERS") filtered = filtered.filter((s) => s.change_pct >= 0 || s.chg >= 0).sort((a, b) => (b.change_pct || b.chg) - (a.change_pct || a.chg));
-  if (filter === "LOSERS") filtered = filtered.filter((s) => (s.change_pct || s.chg) < 0).sort((a, b) => (a.change_pct || a.chg) - (b.change_pct || b.chg));
+  if (loading) return <div className="h-full flex items-center justify-center gap-3"><Loader2 size={22} className="animate-spin text-[var(--accent)]" /><span className="text-[12px] text-[var(--text-muted)]">Updating market pulse…</span></div>;
 
   return (
-    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in">
-       {/* Page Header */}
-       <div className="flex flex-col gap-2 mb-6">
-          <div className="flex items-center gap-3">
-             <BarChart2 size={20} className="text-[var(--accent)]" />
-             <h1 className="heading-1">Market Pulse</h1>
-          </div>
-          <p className="text-[13px] text-[var(--text-muted)]">Live monitoring of top market movers and high-volume equities.</p>
-       </div>
-
-       {/* Toolbar Area */}
-       <div className="flex flex-col sm:flex-row gap-4 mb-6 justify-between items-center bg-[var(--card-bg)] p-4 rounded-[var(--radius-lg)] border border-[var(--border-color)] shadow-sm">
-          <div className="toggle-group w-full sm:w-auto overflow-x-auto">
-             <button onClick={() => setFilter("ALL")} className={`toggle-item ${filter === "ALL" ? "active" : ""}`}>All Movers</button>
-             <button onClick={() => setFilter("GAINERS")} className={`toggle-item ${filter === "GAINERS" ? "active" : ""}`}>Top Gainers</button>
-             <button onClick={() => setFilter("LOSERS")} className={`toggle-item ${filter === "LOSERS" ? "active" : ""}`}>Top Losers</button>
-          </div>
-
-          <button onClick={fetchTrending} disabled={loading} className="btn-standard w-full sm:w-auto">
-             <RefreshCcw size={12} className={loading ? "animate-spin" : ""} />
-             Refresh
-          </button>
-       </div>
-
-{/* Content Area */}
-        {loading && processedData.length === 0 ? (
-         <div className="h-64 flex flex-col items-center justify-center gap-4 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)]">
-           <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
-           <span className="text-[12px] font-medium text-[var(--text-muted)]">Gathering pulse data...</span>
-         </div>
-       ) : error ? (
-         <div className="h-64 flex flex-col items-center justify-center gap-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] text-[var(--negative)]">
-            <Activity size={24} className="mb-2" />
-            <p className="font-semibold text-[13px]">Data Feed Offline</p>
-            <p className="text-[11px] font-mono opacity-80">{error}</p>
-         </div>
-       ) : (
-<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filtered.map((stock) => {
-              const changeVal = stock.chg ?? stock.change_pct ?? 0;
-              const isUp = changeVal >= 0;
-              const color = isUp ? "var(--positive)" : "var(--negative)";
-              const priceVal = stock.price ?? stock.px ?? stock.current_price ?? 0;
-              const volVal = stock.volume ?? stock.vol ?? 0;
-              return (
-                <button
-                  key={stock.ticker || stock.id}
-                  type="button"
-                  onClick={() => onSelect?.(stock.ticker || stock.id)}
-                  className="surface-card p-5 group flex flex-col gap-4 hover:border-slate-500 transition-colors text-left"
-                >
-                  
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="heading-2">{stock.ticker || stock.id}</h3>
-                      <p className="text-[11px] text-[var(--text-muted)] truncate max-w-[120px]">{stock.name}</p>
-                    </div>
-                    <div 
-                      className="flex items-center gap-1 rounded bg-[#1e232b] px-2 py-1 text-[11px] font-mono font-bold"
-                      style={{ color }}
-                    >
-                      {isUp ? <ArrowUp size={12}/> : <ArrowDown size={12}/>}
-                      {changeVal.toFixed(2)}%
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="surface-badge">{stock.recommendation || "HOLD"}</span>
-                    <span className="surface-badge">{stock.intelligence_grade || "LOW"}</span>
-                    {stock.adaptive_mode && <span className="surface-badge">{stock.adaptive_mode.replace(/_/g, " ")}</span>}
-                  </div>
-
-                  <div className="flex items-end justify-between border-t border-[var(--border-color)] pt-4 mt-auto">
-                    <div>
-                      <p className="text-[10px] uppercase text-[var(--text-muted)] mb-1">Last Price</p>
-                      <p className="font-mono text-xl font-semibold text-white">
-                        ${typeof priceVal === 'number' ? priceVal.toFixed(2) : priceVal}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] uppercase text-[var(--text-muted)] mb-1">Volume</p>
-                      <p className="font-mono text-[13px] text-white">
-                        {typeof volVal === 'number' ? (volVal / 1e6).toFixed(1) + 'M' : volVal}
-                      </p>
-                    </div>
-                  </div>
-
-               </button>
-             );
-           })}
-           {filtered.length === 0 && (
-             <div className="col-span-1 border border-dashed border-[var(--border-color)] sm:col-span-2 lg:col-span-3 xl:col-span-4 h-48 flex items-center justify-center rounded-[var(--radius-lg)]">
-               <span className="text-[12px] text-[var(--text-muted)]">No stocks match current filter.</span>
-             </div>
-           )}
-         </div>
-       )}
+    <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4"><div><div className="flex items-center gap-3"><BarChart2 size={21} className="text-[var(--accent)]" /><h1 className="heading-1">Market Pulse</h1></div><p className="text-[13px] text-[var(--text-muted)] mt-2">See what is moving now and which assets deserve deeper research. Cards show customer-level signals, not internal model diagnostics.</p></div><button onClick={load} className="btn-standard h-9 px-4"><RefreshCcw size={13} /> Refresh</button></div>
+      <div className="toggle-group w-fit overflow-x-auto">{[["ALL", "All movers"], ["GAINERS", "Gainers"], ["LOSERS", "Losers"], ["BUY", "Buy research"]].map(([key, label]) => <button key={key} onClick={() => setFilter(key)} className={`toggle-item ${filter === key ? "active" : ""}`}>{label}</button>)}</div>
+      {error && <div className="surface-card p-4 text-[12px] text-[var(--negative)]">{error}</div>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {filtered.map((row) => {
+          const change = Number(row.chg ?? row.change_pct ?? 0);
+          const price = Number(row.current_price ?? row.price ?? row.px ?? 0);
+          const up = change >= 0;
+          return <button key={row.ticker || row.id} onClick={() => onSelect?.(row.ticker || row.id)} className="surface-card p-5 text-left hover:border-slate-500 transition-colors flex flex-col gap-4"><div className="flex items-start justify-between gap-3"><div><div className="text-[16px] font-bold text-white">{row.ticker || row.id}</div><div className="text-[10px] text-[var(--text-muted)] mt-1">{row.sector || row.name || "Market asset"}</div></div><span className="inline-flex items-center gap-1 font-mono text-[11px]" style={{ color: up ? "var(--positive)" : "var(--negative)" }}>{up ? <ArrowUp size={12} /> : <ArrowDown size={12} />}{up ? "+" : ""}{change.toFixed(2)}%</span></div><div className="text-2xl font-mono font-semibold text-white">${price.toFixed(2)}</div><div className="flex flex-wrap gap-2"><span className={`surface-badge ${row.recommendation === "BUY" ? "text-[var(--positive)]" : row.recommendation === "AVOID" ? "text-[var(--negative)]" : "text-amber-300"}`}>{row.recommendation || "HOLD"}</span>{row.confidence_score != null && <span className="surface-badge">{Number(row.confidence_score).toFixed(0)}% confidence</span>}{row.risk_level && <span className="surface-badge"><Shield size={10} className="inline mr-1" />{row.risk_level} risk</span>}</div><div className="border-t border-[var(--border-color)] pt-3 text-[10px] text-[var(--text-muted)] capitalize">Main reason: {String(row.primary_driver || "market movement").replace(/_/g, " ")}</div></button>;
+        })}
+      </div>
+      {!filtered.length && <div className="surface-card p-10 text-center text-[11px] text-[var(--text-muted)]">No assets match this view yet.</div>}
     </div>
   );
 }

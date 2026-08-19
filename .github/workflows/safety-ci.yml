@@ -26,11 +26,11 @@ jobs:
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio pydantic pydantic-settings
+          pip install pytest pytest-asyncio pydantic pydantic-settings httpx cryptography
       - name: Compile critical Python modules
         run: python -m compileall -q core brokers gateway agents
-      - name: Run trading safety regression suite
-        run: python -m pytest -q tests/test_trading_safety.py
+      - name: Run trading and customer safety regression suites
+        run: python -m pytest -q tests/test_trading_safety.py tests/test_customer_experience.py
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - name: Install frontend dependencies
