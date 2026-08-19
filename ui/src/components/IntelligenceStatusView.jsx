@@ -120,7 +120,6 @@ export default function IntelligenceStatusView() {
 
   const agents = status?.agent_mesh?.agents || [];
   const summary = status?.agent_mesh?.summary || {};
-  const scoring = status?.self_improvement?.prediction_scoring || {};
   const aggregate = status?.accuracy_aggregate || {};
   const displayedAgents = agents.slice(0, 14);
   const predictionAccuracy =
