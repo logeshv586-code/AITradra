@@ -5,6 +5,7 @@ import pytest
 from brokers.broker_router import Order, OrderSide, OrderType
 from brokers.customer_hyperliquid_broker import CustomerHyperliquidBroker
 from gateway.cache import SmartCache
+from gateway.scrapers.social_scraper import SocialScraper
 
 
 class _FakeExchange:
@@ -22,6 +23,28 @@ class _FakeExchange:
     def market_open(self, ticker, is_buy, qty, price, slippage):
         self.opened.append((ticker, is_buy, qty, price, slippage))
         return {"status": "ok"}
+
+
+class _FakeResponse:
+    def __init__(self, status_code=200, payload=None):
+        self.status_code = status_code
+        self._payload = payload or {}
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError(f"HTTP {self.status_code}")
+
+    def json(self):
+        return self._payload
+
+
+class _FakeSession:
+    def __init__(self, response):
+        self.response = response
+        self.headers = {}
+
+    def get(self, *args, **kwargs):
+        return self.response
 
 
 def _manual_live_broker(monkeypatch):
@@ -115,3 +138,40 @@ def test_cache_metadata_reports_real_age_and_source(tmp_path):
     stale = store.get_metadata("AAPL", "price")
     assert stale["age_minutes"] >= 179
     assert store.get_freshness_label("AAPL", "price").startswith("Cached 3h")
+
+
+def test_social_scraper_normalizes_real_reddit_payload():
+    scraper = SocialScraper()
+    scraper.session = _FakeSession(
+        _FakeResponse(
+            payload={
+                "data": {
+                    "children": [
+                        {"data": {"title": "AAPL looks bullish, buy the dip", "selftext": "long growth", "permalink": "/r/stocks/1"}},
+                        {"data": {"title": "AAPL risk discussion", "selftext": "possible drop", "permalink": "/r/stocks/2"}},
+                    ]
+                }
+            }
+        )
+    )
+
+    result = scraper.get_sentiment("AAPL")
+    assert result["source"] == "reddit"
+    assert result["data_available"] is True
+    assert result["is_estimated"] is False
+    assert result["mentions"] == result["reddit_mentions_24h"] == 2
+    assert -1.0 <= result["score"] <= 1.0
+    assert result["bull_bear_ratio"] != "50% bull"
+
+
+def test_social_scraper_provider_failure_is_not_fake_neutral():
+    scraper = SocialScraper()
+    scraper.session = _FakeSession(_FakeResponse(status_code=403))
+
+    result = scraper.get_sentiment("AAPL")
+    assert result["source"] == "none"
+    assert result["data_available"] is False
+    assert result["is_estimated"] is True
+    assert result["mentions"] == 0
+    assert result["bull_bear_ratio"] == "N/A"
+    assert result["reddit_sentiment"] == "unavailable"
