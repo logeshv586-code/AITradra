@@ -35,8 +35,12 @@ class CustomerHyperliquidBroker(HyperliquidBroker):
     """Hyperliquid account adapter scoped to manually confirmed customer orders."""
 
     def __init__(self, private_key: str, vault_address: str | None = None):
-        # Parent initialization still gives us hardened paper helpers and public data.
-        super().__init__(private_key=None, vault_address=vault_address)
+        # Explicit placeholder prevents parent initialization from ever falling
+        # back to the separate automation private key in settings.
+        super().__init__(
+            private_key="__manual_customer_broker_no_parent_signing__",
+            vault_address=vault_address,
+        )
         self.private_key = private_key
         self.vault_address = vault_address
         self.execution_status = get_execution_status(
