@@ -1,12 +1,14 @@
 """AccuracyStore — SQLite-backed aggregate accuracy persistence.
 
 Tracks rolling accuracy by ticker, model, provider, and direction for
-long-term model comparison and auto-improvement decisions.
+long-term model comparison and auto-improvement decisions. Directional
+predictions are also mirrored into the binary precision evidence store used by
+the autonomous live-trading precision gate.
 """
 
 import sqlite3
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from core.config import settings
 from core.logger import get_logger
 
@@ -63,11 +65,18 @@ class AccuracyStore:
         direction: str,
         accuracy: float,
     ) -> None:
-        """Upsert a new accuracy data point into the aggregate table."""
+        """Upsert a new accuracy data point and mirror directional correctness.
+
+        For BULLISH/BEARISH predictions the scorer returns a positive continuous
+        score only when price moved in the predicted direction; therefore
+        ``accuracy > 0`` is the binary directional-correctness flag used by the
+        precision gate. Partial progress toward a target still counts as a
+        correct direction, while the continuous score remains separately stored.
+        """
         try:
+            accuracy = max(0.0, min(float(accuracy or 0.0), 1.0))
             now = datetime.now(timezone.utc).isoformat()
             conn = sqlite3.connect(self.db_path)
-            # Try to fetch existing row
             row = conn.execute(
                 """SELECT total_scored, sum_accuracy, best_score, worst_score
                    FROM accuracy_aggregate
@@ -90,6 +99,7 @@ class AccuracyStore:
                      ticker, model, provider, direction),
                 )
             else:
+                total = 1
                 conn.execute(
                     """INSERT INTO accuracy_aggregate
                        (ticker, model, provider, direction, total_scored,
@@ -100,6 +110,28 @@ class AccuracyStore:
                 )
             conn.commit()
             conn.close()
+
+            normalized_direction = str(direction or "").upper()
+            if normalized_direction in {"BULLISH", "BEARISH"}:
+                try:
+                    from self_improvement.precision_store import DirectionalPrecisionStore
+
+                    precision = DirectionalPrecisionStore(self.db_path)
+                    precision.record_outcome(
+                        prediction_id=(
+                            f"aggregate:{str(ticker).upper()}:{model}:{provider}:"
+                            f"{normalized_direction}:{total}:{now}"
+                        ),
+                        ticker=ticker,
+                        model=model,
+                        provider=provider,
+                        direction=normalized_direction,
+                        correct=accuracy > 0.0,
+                        continuous_accuracy=accuracy,
+                        scored_at=now,
+                    )
+                except Exception as exc:
+                    logger.warning("Precision evidence mirror failed: %s", exc)
         except Exception as e:
             logger.warning(f"AccuracyStore record_outcome failed: {e}")
 
@@ -184,6 +216,4 @@ class AccuracyStore:
             return {}
 
 
-# Singleton
 accuracy_store = AccuracyStore()
-
