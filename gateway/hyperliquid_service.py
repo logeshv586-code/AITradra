@@ -1,12 +1,22 @@
-"""
-Hyperliquid Trading Service — Orchestrates the autonomous trading loop.
-Flow: Fetch Stats -> Close Losers -> Gather TA -> LLM Decision -> Risk Check -> Execute.
+"""Hyperliquid autonomous trading service with fail-closed execution gates.
+
+Flow: account state -> protective exits -> indicators -> AI decision -> signal
+fusion -> deterministic risk gate -> strategy validation -> protected execution.
 """
 
-import asyncio
-from typing import List, Dict
+from __future__ import annotations
+
+from typing import Optional
+import pandas as pd
+
 from core.config import settings
 from core.logger import get_logger
+from core.trading_safety import (
+    DailyEquityTracker,
+    get_execution_status,
+    normalize_candles_latest_first,
+    strategy_validation_store,
+)
 from brokers.hyperliquid_broker import HyperliquidBroker
 from brokers.broker_router import Order, OrderSide, OrderType
 from tools.indicator_service import IndicatorService
@@ -14,183 +24,314 @@ from agents.hyperliquid_agent import HyperliquidTradingAgent
 from agents.risk_manager import RiskManagerAgent
 from agents.signal_aggregator import SignalAggregatorAgent
 from agents.base_agent import AgentContext
-import pandas as pd
 
 logger = get_logger(__name__)
 
+
 class HyperliquidTradingService:
-    """
-    Service that runs the Hyperliquid trading loop.
-    Designed to mimic the functionality of the reference repo.
-    """
-    
+    """Runs a guarded trading cycle for the configured Hyperliquid assets."""
+
     def __init__(self):
         self.broker = HyperliquidBroker()
         self.agent = HyperliquidTradingAgent()
         self.risk_manager = RiskManagerAgent()
         self.signal_aggregator = SignalAggregatorAgent()
         self.active_tickers = settings.HYPERLIQUID_ASSETS
+        self.daily_equity = DailyEquityTracker()
+
+    async def _portfolio_context(self) -> tuple[dict, list[dict]]:
+        balance = await self.broker.get_balance()
+        positions = await self.broker.get_positions()
+        total_value = float(balance.get("total", 0) or 0)
+        daily_pnl_pct = self.daily_equity.update(total_value)
+
+        for position in positions:
+            if "unrealized_pnl_pct" not in position:
+                entry = float(position.get("entry_price", 0) or 0)
+                qty = abs(float(position.get("qty", 0) or 0))
+                unrealized = float(position.get("unrealized_pnl", 0) or 0)
+                position["unrealized_pnl_pct"] = (
+                    unrealized / (qty * entry) if qty > 0 and entry > 0 else 0.0
+                )
+
+        return (
+            {
+                "total_value": total_value,
+                "cash": float(balance.get("cash", balance.get("available", 0)) or 0),
+                "available": float(balance.get("available", balance.get("cash", 0)) or 0),
+                "daily_pnl_pct": daily_pnl_pct,
+                "open_positions": positions,
+                "paper": bool(balance.get("paper", self.broker.paper)),
+            },
+            positions,
+        )
+
+    @staticmethod
+    def _find_position(positions: list[dict], ticker: str) -> Optional[dict]:
+        ticker = ticker.upper()
+        return next(
+            (p for p in positions if str(p.get("ticker", "")).upper() == ticker),
+            None,
+        )
+
+    async def _force_close(self, ticker: str, positions: list[dict], reason: str) -> dict:
+        position = self._find_position(positions, ticker)
+        if not position:
+            return {"status": "SKIPPED", "reason": f"No open position for {ticker}"}
+
+        qty = float(position.get("qty", 0) or 0)
+        if qty == 0:
+            return {"status": "SKIPPED", "reason": f"Position for {ticker} is already flat"}
+
+        logger.warning("[%s] FORCE CLOSE: %s", ticker, reason)
+        return await self.broker.place_order(
+            Order(
+                ticker=ticker,
+                side=OrderSide.SELL if qty > 0 else OrderSide.BUY,
+                qty=abs(qty),
+                order_type=OrderType.MARKET,
+                reduce_only=True,
+                reference_price=float(position.get("current_price", 0) or 0) or None,
+            )
+        )
 
     async def run_cycle(self):
-        """Runs one iteration of the trading loop for all assets."""
-        logger.info(f"Starting Hyperliquid Trading Cycle for assets: {self.active_tickers}")
-        
-        # 1. Fetch current account state
-        portfolio_sum = await self.broker.get_balance()
-        positions = await self.broker.get_positions()
-        
-        # Add unrealized PnL % to positions for risk manager
-        for pos in positions:
-            entry_px = pos.get("entry_price", 1)
-            pos["unrealized_pnl_pct"] = pos["unrealized_pnl"] / (abs(pos["qty"]) * entry_px) if entry_px != 0 else 0
+        """Run one guarded iteration for all configured assets."""
+        execution = get_execution_status(settings)
+        logger.info(
+            "Starting Hyperliquid trading cycle | mode=%s | assets=%s",
+            execution["mode"],
+            self.active_tickers,
+        )
 
-        portfolio_context = {
-            "total_value": portfolio_sum.get("total", 0),
-            "cash": portfolio_sum.get("cash", 0),
-            "available": portfolio_sum.get("available", 0),
-            "open_positions": positions
-        }
+        portfolio_context, positions = await self._portfolio_context()
+
+        # Daily-loss circuit breaker is evaluated before asking the LLM for entries.
+        if portfolio_context["daily_pnl_pct"] <= -settings.MAX_DAILY_LOSS_PCT:
+            logger.critical(
+                "Daily loss breaker active: %.2f%% <= -%.2f%%. New entries are disabled.",
+                portfolio_context["daily_pnl_pct"] * 100,
+                settings.MAX_DAILY_LOSS_PCT * 100,
+            )
 
         for ticker in self.active_tickers:
             try:
-                # 2. Gather TA Indicators
-                candles = await self.broker.get_candles(ticker, interval=settings.HYPERLIQUID_INTERVAL)
+                candles = await self.broker.get_candles(
+                    ticker, interval=settings.HYPERLIQUID_INTERVAL
+                )
                 if not candles:
-                    logger.warning(f"Could not fetch candles for {ticker}, skipping.")
-                    continue
-                
-                df = pd.DataFrame(candles)
-                latest_indicators = IndicatorService.get_latest_indicators(df)
-                
-                # Convert candle data to OHLCV list for agents
-                ohlcv_list = candles if isinstance(candles, list) else candles.to_dict("records") if hasattr(candles, "to_dict") else []
-                
-                # 3. Create Agent Context for trading agent
-                context = AgentContext(task=f"Hyperliquid trading analysis for {ticker}", ticker=ticker)
-                context.observations["indicators"] = latest_indicators
-                context.observations["portfolio"] = portfolio_context
-                context.metadata["ohlcv_data"] = ohlcv_list
-                
-                # 4. Agent Decision
-                context = await self.agent.run(context)
-                decision = context.result.get("decision", "HOLD") if context.result else "HOLD"
-                
-                if decision == "HOLD":
-                    logger.info(f"[{ticker}] Agent chose to HOLD. Reason: {(context.result or {}).get('reasoning', 'N/A')}")
+                    logger.warning("[%s] No candles available; skipping.", ticker)
                     continue
 
-                # 5. Build a mock signal_aggregator_result from the agent decision
-                # This is required so RiskManagerAgent can gate on confidence + direction
-                agent_confidence = context.confidence * 100 if context.confidence <= 1.0 else context.confidence
+                # Broker returns chronological bars for pandas indicators. Signal/ATR
+                # agents use an explicit newest-first contract.
+                df = pd.DataFrame(candles).sort_values("timestamp").reset_index(drop=True)
+                last_close = float(df.iloc[-1]["close"]) if not df.empty else 0.0
+                ohlcv_latest_first = normalize_candles_latest_first(candles)
+
+                # In paper mode, evaluate stored SL/TP against current market price.
+                protective_result = await self.broker.process_protective_orders(
+                    ticker, mark_price=last_close
+                )
+                if protective_result:
+                    logger.info(
+                        "[%s] Paper protective exit fired: %s",
+                        ticker,
+                        protective_result.get("trigger"),
+                    )
+                    portfolio_context, positions = await self._portfolio_context()
+
+                # Existing catastrophic losses are closed before considering any entry.
+                breached = next(
+                    (
+                        p
+                        for p in positions
+                        if float(p.get("unrealized_pnl_pct", 0) or 0)
+                        <= -settings.FORCE_CLOSE_LOSS_PCT
+                    ),
+                    None,
+                )
+                if breached:
+                    breached_ticker = str(breached.get("ticker", ticker)).upper()
+                    await self._force_close(
+                        breached_ticker,
+                        positions,
+                        f"loss exceeded {settings.FORCE_CLOSE_LOSS_PCT * 100:.1f}%",
+                    )
+                    portfolio_context, positions = await self._portfolio_context()
+                    # Continue to evaluate current ticker only if it is not the one closed.
+                    if breached_ticker == ticker.upper():
+                        continue
+
+                if portfolio_context["daily_pnl_pct"] <= -settings.MAX_DAILY_LOSS_PCT:
+                    continue
+
+                latest_indicators = IndicatorService.get_latest_indicators(df)
+                context = AgentContext(
+                    task=f"Hyperliquid trading analysis for {ticker}", ticker=ticker
+                )
+                context.observations["indicators"] = latest_indicators
+                context.observations["portfolio"] = portfolio_context
+                context.metadata["ohlcv_data"] = ohlcv_latest_first
+
+                context = await self.agent.run(context)
                 agent_result = context.result or {}
-                
-                # Run signal aggregation using indicator data
+                decision = str(agent_result.get("decision", "HOLD")).upper()
+                if decision not in {"LONG", "SHORT"}:
+                    logger.info(
+                        "[%s] HOLD: %s",
+                        ticker,
+                        agent_result.get("reasoning", agent_result.get("reason", "No high-conviction setup")),
+                    )
+                    continue
+
+                existing = self._find_position(positions, ticker)
+                if existing and not settings.ALLOW_POSITION_ADDONS:
+                    logger.info(
+                        "[%s] Existing position detected; add-on entries are disabled.", ticker
+                    )
+                    continue
+
+                agent_confidence = (
+                    context.confidence * 100
+                    if context.confidence <= 1.0
+                    else context.confidence
+                )
+
                 agg_context = AgentContext(
                     task=f"Signal aggregation for {ticker}",
                     ticker=ticker,
-                    metadata={"ohlcv_data": ohlcv_list},
+                    metadata={"ohlcv_data": ohlcv_latest_first},
                     observations={
                         "specialist_outputs": {
                             "technical": {
                                 "signal": "BULLISH" if decision == "LONG" else "BEARISH",
                                 "confidence": context.confidence,
-                                "score": agent_result.get("score", 0.3 if decision == "LONG" else -0.3),
+                                "score": agent_result.get(
+                                    "score", 0.3 if decision == "LONG" else -0.3
+                                ),
                             }
                         }
-                    }
+                    },
                 )
                 agg_context = await self.signal_aggregator.run(agg_context)
-                signal_aggregator_result = agg_context.result or {
+                signal_result = agg_context.result or {
                     "verdict": "BUY" if decision == "LONG" else "SELL",
                     "confidence": agent_confidence,
-                    "entry_point": df.iloc[-1]["close"] if not df.empty else 0,
+                    "entry_point": last_close,
                     "stop_loss": 0,
                     "take_profit": 0,
                 }
 
-                # 6. Risk Manager Validation — now with proper signal_aggregator_result
-                risk_context = AgentContext(task=f"Risk evaluation for {ticker} trade", ticker=ticker)
-                risk_context.observations["portfolio"] = portfolio_context
-                risk_context.observations["confidence"] = agent_confidence
-                risk_context.observations["requested_leverage"] = agent_result.get("leverage", 1)
-                risk_context.observations["signal_aggregator_result"] = signal_aggregator_result
-                # Pass specialist outputs for risk level extraction
-                risk_context.observations["specialist_outputs"] = {
-                    "risk": {
-                        "risk_level": "MEDIUM",
-                        "var_pct": 2.5,
-                        "max_drawdown_pct": 10.0,
+                risk_context = AgentContext(
+                    task=f"Risk evaluation for {ticker} trade", ticker=ticker
+                )
+                risk_context.observations.update(
+                    {
+                        "portfolio": portfolio_context,
+                        "confidence": agent_confidence,
+                        "requested_leverage": agent_result.get("leverage", 1),
+                        "signal_aggregator_result": signal_result,
+                        "specialist_outputs": {
+                            "risk": {
+                                "risk_level": agent_result.get("risk_level", "MEDIUM"),
+                                "var_pct": agent_result.get("var_pct", 2.5),
+                                "annualized_volatility": agent_result.get(
+                                    "annualized_volatility", 0.20
+                                ),
+                                "max_drawdown_pct": agent_result.get(
+                                    "max_drawdown_pct", 10.0
+                                ),
+                            }
+                        },
                     }
-                }
-                
+                )
                 risk_context = await self.risk_manager.run(risk_context)
                 risk_result = risk_context.result or {}
-                
-                if risk_result.get("decision") == "BLOCK":
-                    logger.warning(f"[{ticker}] Trade BLOCKED by Risk Manager. Reason: {risk_result.get('reason')}")
-                    continue
-                
-                if risk_result.get("decision") == "FORCE_CLOSE":
-                    logger.info(f"[{ticker}] FORCE CLOSE triggered by Risk Manager.")
-                    # Find position to close
-                    pos_to_close = next((p for p in positions if p["ticker"] == ticker), None)
-                    if pos_to_close:
-                        side = OrderSide.SELL if pos_to_close["qty"] > 0 else OrderSide.BUY
-                        order = Order(
-                            ticker=ticker,
-                            side=side,
-                            qty=abs(pos_to_close["qty"]),
-                            order_type=OrderType.MARKET
-                        )
-                        await self.broker.place_order(order)
-                    continue
+                risk_decision = risk_result.get("decision", "BLOCK")
 
-                # 7. Execute Approved Trade
-                if risk_result.get("decision") == "APPROVE":
-                    side = OrderSide.BUY if decision == "LONG" else OrderSide.SELL
-                    last_close = df.iloc[-1]["close"] if not df.empty else 1
-                    suggested_size = risk_result.get("suggested_position_size", 0)
-                    suggested_qty = suggested_size / last_close if last_close > 0 else 0
-                    
-                    if suggested_qty <= 0:
-                        logger.warning(f"[{ticker}] Skipping: qty={suggested_qty:.6f} too small")
-                        continue
-                    
-                    order = Order(
-                        ticker=ticker,
-                        side=side,
-                        qty=suggested_qty,
-                        order_type=OrderType.MARKET
+                if risk_decision == "BLOCK":
+                    logger.warning(
+                        "[%s] Trade blocked by Risk Manager: %s",
+                        ticker,
+                        risk_result.get("reason"),
                     )
-                    
-                    logger.info(f"[{ticker}] Executing {decision} order: {suggested_qty:.6f} units "
-                                f"(${suggested_size:.2f} at ${last_close:.2f})")
-                    exec_result = await self.broker.place_order(order)
-                    logger.info(f"[{ticker}] Execution result: {exec_result.get('status')}")
+                    continue
 
-            except Exception as e:
-                logger.error(f"Error in {ticker} trading cycle: {e}", exc_info=True)
+                if risk_decision == "FORCE_CLOSE":
+                    force_ticker = str(risk_result.get("ticker") or ticker).upper()
+                    await self._force_close(
+                        force_ticker,
+                        positions,
+                        risk_result.get("reason", "Risk Manager force close"),
+                    )
+                    portfolio_context, positions = await self._portfolio_context()
+                    continue
 
-    async def start_loop(self):
-        """Infinite loop for autonomous trading."""
-        interval_map = {
-            "1m": 60,
-            "5m": 300,
-            "15m": 900,
-            "1h": 3600,
-            "4h": 14400,
-            "1d": 86400
+                if risk_decision != "APPROVE":
+                    continue
+
+                suggested_size = float(risk_result.get("suggested_position_size", 0) or 0)
+                suggested_qty = suggested_size / last_close if last_close > 0 else 0
+                if suggested_qty <= 0:
+                    logger.warning("[%s] Suggested quantity is too small; skipping.", ticker)
+                    continue
+
+                # Backtests are an enforced prerequisite only for real-money execution.
+                if execution["live_execution_allowed"]:
+                    validation = strategy_validation_store.check(
+                        ticker, settings.LIVE_STRATEGY_ID
+                    )
+                    if not validation["eligible"]:
+                        logger.critical(
+                            "[%s] LIVE trade blocked by strategy validation: %s",
+                            ticker,
+                            "; ".join(validation["reasons"]),
+                        )
+                        continue
+
+                stop_loss = float(risk_result.get("stop_loss", 0) or 0)
+                take_profit = float(risk_result.get("take_profit", 0) or 0)
+                order = Order(
+                    ticker=ticker,
+                    side=OrderSide.BUY if decision == "LONG" else OrderSide.SELL,
+                    qty=suggested_qty,
+                    order_type=OrderType.MARKET,
+                    reference_price=last_close,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    leverage=int(risk_result.get("leverage", 1) or 1),
+                )
+
+                logger.info(
+                    "[%s] %s %s %.6f units ($%.2f) | SL=%.4f TP=%.4f mode=%s",
+                    ticker,
+                    "Executing" if execution["live_execution_allowed"] else "Paper executing",
+                    decision,
+                    suggested_qty,
+                    suggested_size,
+                    stop_loss,
+                    take_profit,
+                    execution["mode"],
+                )
+                exec_result = await self.broker.place_order(order)
+                if exec_result.get("status") not in {"FILLED", "PARTIALLY_FILLED"}:
+                    logger.error("[%s] Execution was not completed: %s", ticker, exec_result)
+                else:
+                    logger.info("[%s] Execution complete: %s", ticker, exec_result.get("status"))
+                    portfolio_context, positions = await self._portfolio_context()
+
+            except Exception as exc:
+                logger.error("Error in %s trading cycle: %s", ticker, exc, exc_info=True)
+
+        return {
+            "mode": execution["mode"],
+            "live_execution_allowed": execution["live_execution_allowed"],
+            "daily_pnl_pct": portfolio_context.get("daily_pnl_pct", 0),
+            "positions": len(positions),
+            "assets_checked": len(self.active_tickers),
         }
-        sleep_secs = interval_map.get(settings.HYPERLIQUID_INTERVAL, 300)
-        
-        logger.info(f"Hyperliquid Trading Service loop started. Interval: {settings.HYPERLIQUID_INTERVAL}")
-        while True:
-            try:
-                await self.run_cycle()
-            except Exception as e:
-                logger.error(f"Critical error in trading loop: {e}", exc_info=True)
-            
-            await asyncio.sleep(sleep_secs)
 
-# Singleton instance
+
+# Singleton used by scheduler and status routes.
 hyperliquid_trading_service = HyperliquidTradingService()
