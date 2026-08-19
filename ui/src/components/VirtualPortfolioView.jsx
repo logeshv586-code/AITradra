@@ -1,444 +1,274 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
+  CheckCircle2,
   Coins,
   Loader2,
-  Plus,
+  Lock,
   Minus,
-  Search,
+  Plus,
+  RefreshCw,
   ShieldCheck,
-  TrendingUp,
   TrendingDown,
-  Info,
+  TrendingUp,
+  WalletCards,
 } from "lucide-react";
 import { API_BASE } from "../api_config";
 
-const money = (value) =>
-  Number(value || 0).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+const money = (value) => Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function VirtualPortfolioView({ onSelect }) {
-  const [data, setData] = useState(null);
-  const [intel, setIntel] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [tab, setTab] = useState("practice");
+  const [practice, setPractice] = useState(null);
+  const [connections, setConnections] = useState([]);
+  const [liveStatus, setLiveStatus] = useState(null);
+  const [liveAccount, setLiveAccount] = useState(null);
+  const [connectionId, setConnectionId] = useState("");
+  const [ideas, setIdeas] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [practiceForm, setPracticeForm] = useState({ ticker: "AAPL", shares: "1" });
   const [startingBalance, setStartingBalance] = useState("100000");
-  const [order, setOrder] = useState({ ticker: "", shares: "" });
-  const [sellQuantities, setSellQuantities] = useState({});
-  const [notice, setNotice] = useState(null);
+  const [liveForm, setLiveForm] = useState({ ticker: "BTC", side: "buy", qty: "0.001", leverage: "1", stop_loss: "", take_profit: "", confirm_live: false });
+  const [lastLiveResult, setLastLiveResult] = useState(null);
 
-  const loadData = async () => {
+  const loadPractice = async () => {
+    const response = await fetch(`${API_BASE}/api/simulation/status`);
+    if (response.ok) {
+      const payload = await response.json();
+      setPractice(payload.status || payload);
+    }
+  };
+
+  const loadConnectionsAndStatus = async () => {
+    const [connectionResponse, statusResponse] = await Promise.all([
+      fetch(`${API_BASE}/api/customer/connections`),
+      fetch(`${API_BASE}/api/customer/trading/status`),
+    ]);
+    if (connectionResponse.ok) {
+      const all = (await connectionResponse.json()).connections || [];
+      const brokers = all.filter((item) => item.category === "broker" && item.enabled);
+      setConnections(brokers);
+      setConnectionId((current) => current || brokers[0]?.id || "");
+    }
+    if (statusResponse.ok) setLiveStatus(await statusResponse.json());
+  };
+
+  const loadIdeas = async () => {
     try {
-      const [portfolioResponse, intelResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/simulation/status`),
-        fetch(`${API_BASE}/api/intel/overview`),
-      ]);
-      if (portfolioResponse.ok) {
-        const json = await portfolioResponse.json();
-        setData(json.status || json);
-      }
-      if (intelResponse.ok) setIntel(await intelResponse.json());
+      const response = await fetch(`${API_BASE}/api/customer/daily-brief?limit=6`);
+      if (response.ok) setIdeas((await response.json()).opportunities || []);
+    } catch { /* research ideas are supplementary */ }
+  };
+
+  const loadLiveAccount = async (id = connectionId) => {
+    if (!id) {
+      setLiveAccount(null);
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/customer/trading/account?connection_id=${encodeURIComponent(id)}`);
+      if (response.ok) setLiveAccount(await response.json());
     } catch {
-      setNotice({ type: "error", text: "Practice account data is temporarily unavailable." });
-    } finally {
-      setLoading(false);
+      setLiveAccount(null);
     }
   };
 
   useEffect(() => {
-    loadData();
-    const timer = setInterval(loadData, 10_000);
-    return () => clearInterval(timer);
+    Promise.all([loadPractice(), loadConnectionsAndStatus(), loadIdeas()]).catch(() => {});
   }, []);
 
-  const initialize = async () => {
-    const balance = Number(startingBalance);
-    if (!Number.isFinite(balance) || balance <= 0) {
-      setNotice({ type: "error", text: "Enter a starting balance greater than zero." });
-      return;
-    }
-    setActionLoading(true);
-    setNotice(null);
+  useEffect(() => {
+    if (connectionId) loadLiveAccount(connectionId);
+  }, [connectionId]);
+
+  const initializePractice = async () => {
+    setBusy(true);
+    setMessage("");
     try {
       const response = await fetch(`${API_BASE}/api/simulation/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ initial_balance: balance }),
+        body: JSON.stringify({ initial_balance: Number(startingBalance) || 100000 }),
       });
-      const result = await response.json();
-      if (!response.ok || result?.error) throw new Error(result?.error || "Could not create practice account");
-      setData(result);
-      setNotice({ type: "success", text: "Practice account is ready. No real money is connected." });
-    } catch (error) {
-      setNotice({ type: "error", text: error.message });
-    } finally {
-      setActionLoading(false);
-    }
+      if (!response.ok) throw new Error("Could not create practice account");
+      await loadPractice();
+      setMessage("Practice account is ready. No real money is involved.");
+    } catch (e) {
+      setMessage(e.message || "Could not create practice account");
+    } finally { setBusy(false); }
   };
 
-  const trade = async (type, ticker, shares) => {
-    const cleanTicker = String(ticker || "").trim().toUpperCase();
-    const quantity = Number(shares);
-    if (!cleanTicker) {
-      setNotice({ type: "error", text: "Enter a ticker, for example AAPL or BTC-USD." });
-      return;
-    }
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      setNotice({ type: "error", text: "Enter a share or unit quantity greater than zero." });
-      return;
-    }
-
-    setActionLoading(true);
-    setNotice(null);
+  const practiceTrade = async (type, ticker = practiceForm.ticker, shares = practiceForm.shares) => {
+    setBusy(true);
+    setMessage("");
     try {
       const response = await fetch(`${API_BASE}/api/simulation/${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: cleanTicker, shares: quantity }),
+        body: JSON.stringify({ ticker: String(ticker).toUpperCase(), shares: Number(shares) }),
       });
       const result = await response.json();
-      if (!response.ok || result?.error) throw new Error(result?.error || "Practice order could not be completed");
-      setData(result);
-      setNotice({
-        type: "success",
-        text: `${type === "buy" ? "Bought" : "Sold"} ${quantity} ${cleanTicker} in your practice account.`,
-      });
-      if (type === "buy") setOrder({ ticker: "", shares: "" });
-      if (type === "sell") {
-        setSellQuantities((previous) => ({ ...previous, [cleanTicker]: "" }));
-      }
-    } catch (error) {
-      setNotice({ type: "error", text: error.message });
-    } finally {
-      setActionLoading(false);
-    }
+      if (!response.ok || result.error) throw new Error(result.error || "Practice order failed");
+      setPractice(result.status || result);
+      setMessage(`${type === "buy" ? "Buy" : "Sell"} completed in the practice account.`);
+    } catch (e) {
+      setMessage(e.message || "Practice order failed");
+    } finally { setBusy(false); }
   };
 
-  if (loading && !data) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 bg-[var(--app-bg)] w-full">
-        <Loader2 size={24} className="text-[var(--accent)] animate-spin" />
-        <span className="text-[12px] text-[var(--text-muted)]">Loading your practice account…</span>
-      </div>
-    );
-  }
+  const submitLive = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("AITradra is running a fresh multi-agent check before the real order…");
+    setLastLiveResult(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/customer/trading/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connection_id: connectionId,
+          ticker: liveForm.ticker.toUpperCase(),
+          side: liveForm.side,
+          qty: Number(liveForm.qty),
+          leverage: Number(liveForm.leverage),
+          stop_loss: Number(liveForm.stop_loss),
+          take_profit: Number(liveForm.take_profit),
+          confirm_live: Boolean(liveForm.confirm_live),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        const detail = typeof result.detail === "string" ? result.detail : result.detail?.message || "Real order was rejected";
+        throw new Error(detail);
+      }
+      setLastLiveResult(result);
+      setMessage(`Order status: ${result.order?.status || "submitted"}. Review the pre-trade analysis below.`);
+      await Promise.all([loadLiveAccount(), loadConnectionsAndStatus()]);
+    } catch (e) {
+      setMessage(e.message || "Real order was not submitted");
+    } finally { setBusy(false); }
+  };
 
-  if (!data?.initialized) {
-    return (
-      <div className="h-full overflow-y-auto flex items-center justify-center p-6 bg-[var(--app-bg)] w-full">
-        <div className="surface-card max-w-lg w-full p-8 text-center flex flex-col items-center border border-[var(--border-color)]">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#1e232b] border border-[var(--border-color)] mb-5">
-            <Coins size={30} className="text-[var(--accent)]" />
-          </div>
-          <span className="surface-badge mb-3 text-[var(--positive)]">Practice mode • No real money</span>
-          <h2 className="heading-2">Create a practice account</h2>
-          <p className="mt-3 text-[13px] text-[var(--text-muted)] leading-relaxed">
-            Try ideas with current market prices before risking capital. Simulated fills include configurable slippage and fees so results are less idealized.
-          </p>
-          <div className="w-full mt-7 text-left">
-            <label className="text-small-caps block mb-2">Starting balance</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">$</span>
-              <input
-                type="number"
-                min="1"
-                value={startingBalance}
-                onChange={(event) => setStartingBalance(event.target.value)}
-                className="input-standard w-full !pl-7 font-mono"
-              />
-            </div>
-          </div>
-          {notice && (
-            <div className="mt-4 w-full text-left text-[12px] text-[var(--negative)]">{notice.text}</div>
-          )}
-          <button onClick={initialize} disabled={actionLoading} className="btn-primary w-full py-3 text-[13px] mt-5">
-            {actionLoading ? <><Loader2 size={14} className="animate-spin" /> Creating…</> : "Start practicing"}
-          </button>
-          <div className="mt-5 flex gap-2 text-left text-[11px] text-[var(--text-muted)] leading-relaxed">
-            <ShieldCheck size={14} className="text-[var(--positive)] shrink-0 mt-0.5" />
-            This account is for learning and testing. A profitable practice result does not guarantee the same result with real money.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const cash = Number(data.available_cash || 0);
-  const equity = Number(data.total_balance || 0);
-  const pnl = Number(data.total_profit_loss || 0);
-  const returnPct = Number(data.profit_loss_percentage || 0);
-  const fees = Number(data.fees_paid || 0);
-  const positions = Array.isArray(data.positions) ? data.positions : Object.values(data.positions || {});
-  const positive = returnPct >= 0;
-  const opportunities = (intel?.top_opportunities || []).slice(0, 5);
-  const assumptions = data.execution_assumptions || {};
+  const positions = Array.isArray(practice?.positions) ? practice.positions : Object.values(practice?.positions || {});
+  const livePositions = liveAccount?.positions || [];
+  const practiceReturn = Number(practice?.profit_loss_percentage || 0);
+  const manualReady = Boolean(liveStatus?.real_money_ready);
+  const blockers = liveStatus?.manual?.blockers || [];
 
   return (
     <div className="flex-1 overflow-y-auto w-full p-4 md:p-6 lg:p-8 max-w-[1440px] mx-auto animate-fade-in flex flex-col gap-6">
-      <div className="flex flex-col lg:flex-row gap-5 justify-between lg:items-center">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <Coins size={20} className="text-[var(--accent)]" />
-            <h1 className="heading-1">Paper Trading</h1>
-            <span className="surface-badge text-[var(--positive)]">Practice only</span>
-          </div>
-          <p className="text-[13px] text-[var(--text-muted)] mt-2 max-w-2xl">
-            Test your decisions with current prices and realistic execution assumptions. Nothing on this page sends a real-money order.
-          </p>
+          <div className="flex items-center gap-3"><Coins size={22} className="text-[var(--accent)]" /><h1 className="heading-1">Trading</h1></div>
+          <p className="text-[13px] text-[var(--text-muted)] mt-2 max-w-2xl">Practice first, or use a separately unlocked real-money broker connection. AI research provides context; every manual real trade still requires your confirmation.</p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Metric label="Cash" value={`$${money(cash)}`} />
-          <Metric label="Account value" value={`$${money(equity)}`} />
-          <Metric label="Total P/L" value={`${pnl >= 0 ? "+" : ""}$${money(pnl)}`} positive={pnl >= 0} />
-          <Metric label="Return" value={`${positive ? "+" : ""}${returnPct.toFixed(2)}%`} positive={positive} />
+        <div className="inline-flex rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-1">
+          <button onClick={() => setTab("practice")} className={`px-4 py-2 rounded-[var(--radius-sm)] text-[11px] ${tab === "practice" ? "bg-[var(--accent)] text-white" : "text-[var(--text-muted)]"}`}>Practice</button>
+          <button onClick={() => setTab("live")} className={`px-4 py-2 rounded-[var(--radius-sm)] text-[11px] ${tab === "live" ? "bg-[var(--negative)] text-white" : "text-[var(--text-muted)]"}`}>Real trading</button>
         </div>
       </div>
 
-      {notice && (
-        <div className={`rounded-[var(--radius-md)] border px-4 py-3 text-[12px] ${
-          notice.type === "success"
-            ? "border-[#10b98140] bg-[#10b98110] text-[var(--positive)]"
-            : "border-[#ef444440] bg-[#ef444410] text-[var(--negative)]"
-        }`}>
-          {notice.text}
-        </div>
+      {message && <div className="surface-card p-4 text-[12px] text-[var(--text-muted)]">{busy && <Loader2 size={13} className="inline mr-2 animate-spin" />}{message}</div>}
+
+      {tab === "practice" ? (
+        <>
+          {!practice?.initialized ? (
+            <section className="surface-card max-w-xl p-6">
+              <div className="flex items-start gap-3"><ShieldCheck size={19} className="text-[var(--positive)] mt-0.5" /><div><h2 className="heading-3">Create a practice account</h2><p className="text-[11px] text-[var(--text-muted)] mt-2">Use live/reference market prices with simulated cash, fees and slippage. Nothing here sends a real order.</p></div></div>
+              <div className="flex gap-3 mt-5"><input type="number" min="1000" className="input-standard" value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} /><button onClick={initializePractice} disabled={busy} className="btn-primary px-5">Start practice</button></div>
+            </section>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <Stat label="Practice cash" value={`$${money(practice.available_cash)}`} />
+                <Stat label="Account value" value={`$${money(practice.total_balance)}`} />
+                <Stat label="Total P/L" value={`$${money(practice.total_profit_loss)}`} positive={Number(practice.total_profit_loss || 0) >= 0} />
+                <Stat label="Return" value={`${practiceReturn >= 0 ? "+" : ""}${practiceReturn.toFixed(2)}%`} positive={practiceReturn >= 0} />
+              </div>
+
+              <section className="surface-card p-5">
+                <div className="flex items-center gap-2 mb-4"><WalletCards size={16} className="text-[var(--accent)]" /><h2 className="heading-3">Practice order</h2></div>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto_auto] gap-3">
+                  <input className="input-standard uppercase" value={practiceForm.ticker} onChange={(e) => setPracticeForm({ ...practiceForm, ticker: e.target.value.toUpperCase() })} placeholder="Ticker" />
+                  <input type="number" min="0.0001" step="any" className="input-standard" value={practiceForm.shares} onChange={(e) => setPracticeForm({ ...practiceForm, shares: e.target.value })} placeholder="Quantity" />
+                  <button disabled={busy} onClick={() => practiceTrade("buy")} className="btn-standard border-[var(--positive)] text-[var(--positive)]"><Plus size={13} /> Buy</button>
+                  <button disabled={busy} onClick={() => practiceTrade("sell")} className="btn-standard border-[var(--negative)] text-[var(--negative)]"><Minus size={13} /> Sell</button>
+                </div>
+              </section>
+
+              <PositionsTable positions={positions} practice onSell={(ticker, qty) => practiceTrade("sell", ticker, qty)} />
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          <div className={`surface-card p-5 border ${manualReady ? "border-emerald-500/20" : "border-amber-500/20"}`}>
+            <div className="flex items-start gap-3">
+              {manualReady ? <CheckCircle2 size={18} className="text-[var(--positive)] mt-0.5" /> : <Lock size={18} className="text-amber-300 mt-0.5" />}
+              <div className="flex-1"><h2 className="heading-3">{manualReady ? "Real-money manual trading is unlocked" : "Real-money trading is locked"}</h2><p className="text-[11px] text-[var(--text-muted)] mt-2">{liveStatus?.message || "The server owner must intentionally enable live mode. Adding a broker key alone cannot unlock trading."}</p></div>
+            </div>
+            {!manualReady && blockers.length > 0 && <div className="flex flex-wrap gap-2 mt-4">{blockers.map((item) => <span key={item} className="surface-badge text-amber-200">{item}</span>)}</div>}
+          </div>
+
+          <section className="surface-card p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div><h2 className="heading-3">Broker account</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">Broker keys are managed under Intelligence Status → Your data & broker connections.</p></div>
+              <div className="flex gap-2"><select className="input-standard min-w-[220px]" value={connectionId} onChange={(e) => setConnectionId(e.target.value)}><option value="">Select broker</option>{connections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><button onClick={() => loadLiveAccount()} className="btn-standard"><RefreshCw size={12} /></button></div>
+            </div>
+            {liveAccount?.ready && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-5"><Stat label="Account value" value={`$${money(liveAccount.balance?.total)}`} /><Stat label="Available" value={`$${money(liveAccount.balance?.available)}`} /><Stat label="Open positions" value={String(livePositions.length)} /><Stat label="Mode" value="REAL MONEY" positive={false} /></div>}
+          </section>
+
+          <form onSubmit={submitLive} className="surface-card p-5">
+            <div className="flex items-start gap-3 mb-5"><AlertTriangle size={18} className="text-[var(--negative)] mt-0.5" /><div><h2 className="heading-3">Protected real order</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">A fresh DEEP multi-agent analysis runs immediately before submission. Stop-loss and take-profit are mandatory for new positions.</p></div></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <input className="input-standard uppercase" value={liveForm.ticker} onChange={(e) => setLiveForm({ ...liveForm, ticker: e.target.value.toUpperCase() })} placeholder="BTC" />
+              <select className="input-standard" value={liveForm.side} onChange={(e) => setLiveForm({ ...liveForm, side: e.target.value })}><option value="buy">Buy / Long</option><option value="sell">Sell / Short</option></select>
+              <input type="number" min="0" step="any" className="input-standard" value={liveForm.qty} onChange={(e) => setLiveForm({ ...liveForm, qty: e.target.value })} placeholder="Quantity" />
+              <input type="number" min="1" max="10" className="input-standard" value={liveForm.leverage} onChange={(e) => setLiveForm({ ...liveForm, leverage: e.target.value })} placeholder="Leverage" />
+              <input type="number" min="0" step="any" className="input-standard" value={liveForm.stop_loss} onChange={(e) => setLiveForm({ ...liveForm, stop_loss: e.target.value })} placeholder="Stop-loss price" />
+              <input type="number" min="0" step="any" className="input-standard" value={liveForm.take_profit} onChange={(e) => setLiveForm({ ...liveForm, take_profit: e.target.value })} placeholder="Take-profit price" />
+            </div>
+            <label className="flex items-start gap-2 mt-5 cursor-pointer"><input type="checkbox" className="mt-0.5" checked={liveForm.confirm_live} onChange={(e) => setLiveForm({ ...liveForm, confirm_live: e.target.checked })} /><span className="text-[11px] text-[var(--text-muted)]">I understand this sends a <strong className="text-white">real-money order</strong> to my connected broker if all server safety checks pass.</span></label>
+            <button type="submit" disabled={!manualReady || !connectionId || !liveForm.confirm_live || busy} className="btn-primary mt-5 px-5 py-3 bg-[var(--negative)] hover:opacity-90">{busy ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />} Analyze & submit real order</button>
+          </form>
+
+          {liveAccount?.ready && <PositionsTable positions={livePositions} />}
+
+          {lastLiveResult?.pre_trade_analysis && (
+            <section className="surface-card p-5">
+              <h2 className="heading-3">Pre-trade AI analysis</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4"><Stat label="AI view" value={lastLiveResult.pre_trade_analysis.prediction?.recommendation || "HOLD"} /><Stat label="Confidence" value={`${Number(lastLiveResult.pre_trade_analysis.prediction?.confidence || 0).toFixed(0)}%`} /><Stat label="Risk" value={lastLiveResult.pre_trade_analysis.risk?.level || "MEDIUM"} /></div>
+              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed mt-4">{lastLiveResult.pre_trade_analysis.why_it_moved?.summary}</p>
+            </section>
+          )}
+        </>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_330px] gap-6">
-        <div className="flex flex-col gap-6">
-          <section className="surface-card p-5 md:p-6">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <h2 className="heading-3">Place a practice order</h2>
-                <p className="text-[11px] text-[var(--text-muted)] mt-1">Use the same symbols you see elsewhere in AITradra.</p>
-              </div>
-              <span className="surface-badge">No real funds</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px_auto] gap-3">
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <input
-                  value={order.ticker}
-                  onChange={(event) => setOrder((previous) => ({ ...previous, ticker: event.target.value.toUpperCase() }))}
-                  placeholder="Ticker, e.g. AAPL"
-                  className="input-standard w-full !pl-9 font-mono"
-                />
-              </div>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={order.shares}
-                onChange={(event) => setOrder((previous) => ({ ...previous, shares: event.target.value }))}
-                placeholder="Shares / units"
-                className="input-standard w-full font-mono"
-              />
-              <button
-                onClick={() => trade("buy", order.ticker, order.shares)}
-                disabled={actionLoading}
-                className="btn-standard border-[var(--positive)] text-[var(--positive)] hover:bg-[#10b98115] justify-center"
-              >
-                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Buy
-              </button>
-            </div>
-          </section>
-
-          <section className="surface-card overflow-hidden">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between">
-              <div>
-                <h2 className="heading-3">Open practice positions</h2>
-                <p className="text-[11px] text-[var(--text-muted)] mt-1">Values refresh automatically from market data.</p>
-              </div>
-              <span className="surface-badge">{positions.length} open</span>
-            </div>
-            {positions.length ? (
-              <div className="overflow-x-auto">
-                <table className="table-standard min-w-[760px]">
-                  <thead>
-                    <tr>
-                      <th>Symbol</th>
-                      <th className="text-right">Quantity</th>
-                      <th className="text-right">Average fill</th>
-                      <th className="text-right">Current</th>
-                      <th className="text-right">P/L</th>
-                      <th className="text-center">Sell</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {positions.map((position) => {
-                      const ticker = position.ticker;
-                      const quantity = Number(position.quantity || position.shares || 0);
-                      const avg = Number(position.buy_price || position.avg_price || 0);
-                      const current = Number(position.current_price || avg);
-                      const positionPnl = Number(position.profit_loss || 0);
-                      const positionReturn = Number(position.profit_loss_pct || 0);
-                      const isPositive = positionReturn >= 0;
-                      return (
-                        <tr key={ticker}>
-                          <td>
-                            <button onClick={() => onSelect?.(ticker)} className="font-semibold text-white hover:text-[var(--accent)]">
-                              {ticker}
-                            </button>
-                          </td>
-                          <td className="text-right font-mono text-[var(--text-muted)]">{quantity.toFixed(quantity % 1 === 0 ? 0 : 4)}</td>
-                          <td className="text-right font-mono">${money(avg)}</td>
-                          <td className="text-right font-mono text-white">${money(current)}</td>
-                          <td className={`text-right font-mono ${isPositive ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
-                            <div>{isPositive ? "+" : ""}{positionReturn.toFixed(2)}%</div>
-                            <div className="text-[10px] opacity-75">{positionPnl >= 0 ? "+" : ""}${money(positionPnl)}</div>
-                          </td>
-                          <td>
-                            <div className="flex items-center justify-center gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                max={quantity}
-                                value={sellQuantities[ticker] || ""}
-                                onChange={(event) => setSellQuantities((previous) => ({ ...previous, [ticker]: event.target.value }))}
-                                placeholder="Qty"
-                                className="input-standard !w-20 !p-1.5 text-center"
-                              />
-                              <button
-                                onClick={() => trade("sell", ticker, sellQuantities[ticker] || quantity)}
-                                disabled={actionLoading}
-                                className="btn-standard !px-2.5 !py-1.5 border-[var(--negative)] text-[var(--negative)] hover:bg-[#ef444415]"
-                              >
-                                <Minus size={12} /> Sell
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-10 text-center text-[13px] text-[var(--text-muted)]">
-                You do not have any practice positions yet. Try a small order above.
-              </div>
-            )}
-          </section>
-
-          <section className="surface-card overflow-hidden">
-            <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between">
-              <h2 className="heading-3">Practice activity</h2>
-              <span className="surface-badge">{data.history?.length || 0} orders</span>
-            </div>
-            {data.history?.length ? (
-              <div className="overflow-x-auto max-h-[320px] no-scrollbar">
-                <table className="table-standard min-w-[720px]">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Action</th>
-                      <th>Symbol</th>
-                      <th className="text-right">Quantity</th>
-                      <th className="text-right">Fill</th>
-                      <th className="text-right">Fee</th>
-                      <th className="text-right">P/L</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...data.history].reverse().slice(0, 50).map((item, index) => (
-                      <tr key={`${item.timestamp}-${index}`}>
-                        <td className="text-[11px] text-[var(--text-muted)] font-mono">
-                          {new Date(item.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                        </td>
-                        <td>
-                          <span className={`text-[10px] font-bold px-2 py-1 rounded ${item.type === "BUY" ? "bg-[#10b98120] text-[var(--positive)]" : "bg-[#ef444420] text-[var(--negative)]"}`}>
-                            {item.type}
-                          </span>
-                        </td>
-                        <td className="font-semibold text-white">{item.ticker}</td>
-                        <td className="text-right font-mono">{Number(item.quantity || 0).toFixed(4)}</td>
-                        <td className="text-right font-mono">${money(item.price)}</td>
-                        <td className="text-right font-mono text-[var(--text-muted)]">${money(item.fee)}</td>
-                        <td className={`text-right font-mono ${Number(item.profit_loss || 0) >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}`}>
-                          {item.type === "SELL" ? `${Number(item.profit_loss || 0) >= 0 ? "+" : ""}$${money(item.profit_loss)}` : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-8 text-center text-[13px] text-[var(--text-muted)]">Your practice order history will appear here.</div>
-            )}
-          </section>
-        </div>
-
-        <aside className="flex flex-col gap-5">
-          <section className="surface-card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <ShieldCheck size={16} className="text-[var(--positive)]" />
-              <h3 className="heading-3">How practice fills work</h3>
-            </div>
-            <div className="space-y-3 text-[12px] text-[var(--text-muted)] leading-relaxed">
-              <p>Orders use the latest market reference price available to AITradra.</p>
-              <div className="flex justify-between"><span>Estimated slippage</span><span className="font-mono text-white">{Number(assumptions.slippage_bps || 0).toFixed(1)} bps</span></div>
-              <div className="flex justify-between"><span>Estimated trading fee</span><span className="font-mono text-white">{Number(assumptions.fee_bps || 0).toFixed(1)} bps</span></div>
-              <div className="flex justify-between"><span>Fees paid so far</span><span className="font-mono text-white">${money(fees)}</span></div>
-            </div>
-          </section>
-
-          <section className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="heading-3">Ideas to research</h3>
-              <Info size={14} className="text-[var(--text-muted)]" />
-            </div>
-            <p className="text-[11px] text-[var(--text-muted)] mb-4">These are research leads, not automatic orders.</p>
-            <div className="space-y-2">
-              {opportunities.length ? opportunities.map((item) => {
-                const ticker = item.ticker || item.id;
-                const direction = item.prediction_direction || item.direction;
-                const up = direction === "UP" || String(item.recommendation || "").includes("BUY");
-                return (
-                  <button
-                    key={ticker}
-                    onClick={() => onSelect?.(ticker)}
-                    className="w-full flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] px-3 py-3 hover:border-[var(--accent)] transition text-left"
-                  >
-                    <div>
-                      <div className="font-semibold text-white text-[12px]">{ticker}</div>
-                      <div className="text-[10px] text-[var(--text-muted)] mt-1">{item.recommendation || "Research"} • {Number(item.confidence_score || item.confidence || 0).toFixed(0)}% confidence</div>
-                    </div>
-                    {up ? <TrendingUp size={15} className="text-[var(--positive)]" /> : <TrendingDown size={15} className="text-[var(--negative)]" />}
-                  </button>
-                );
-              }) : (
-                <div className="text-[12px] text-[var(--text-muted)]">Research ideas will appear after market intelligence finishes loading.</div>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-[var(--radius-lg)] border border-amber-400/20 bg-amber-400/5 p-5">
-            <div className="flex items-start gap-2">
-              <Info size={15} className="text-amber-300 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
-                Use practice results to learn how a strategy behaves across many trades and market conditions. One winning trade—or even a winning month—is not enough evidence that a strategy will remain profitable.
-              </p>
-            </div>
-          </section>
-        </aside>
-      </div>
+      <section className="surface-card p-5">
+        <div className="flex items-center justify-between"><div><h2 className="heading-3">Ideas to research</h2><p className="text-[10px] text-[var(--text-muted)] mt-1">These are research leads, not automatic orders.</p></div></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">{ideas.slice(0, 6).map((idea) => <button key={idea.ticker} onClick={() => onSelect?.(idea.ticker)} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-3 text-left hover:border-[var(--accent)]"><div className="text-[11px] font-semibold text-white">{idea.ticker}</div><div className="text-[9px] text-[var(--text-muted)] mt-1">{idea.recommendation || "HOLD"} • {Number(idea.confidence_score || 0).toFixed(0)}%</div></button>)}</div>
+      </section>
     </div>
   );
 }
 
-function Metric({ label, value, positive }) {
+function Stat({ label, value, positive }) {
+  return <div className="surface-card p-4"><div className="text-[9px] uppercase tracking-wider text-[var(--text-muted)]">{label}</div><div className={`text-[15px] font-mono font-semibold mt-1 ${positive === true ? "text-[var(--positive)]" : positive === false ? "text-[var(--negative)]" : "text-white"}`}>{value}</div></div>;
+}
+
+function PositionsTable({ positions = [], practice = false, onSell }) {
   return (
-    <div className="surface-card min-w-[130px] px-4 py-3">
-      <span className="text-small-caps block mb-1">{label}</span>
-      <span
-        className={`font-mono text-[14px] font-semibold ${
-          positive === undefined ? "text-white" : positive ? "text-[var(--positive)]" : "text-[var(--negative)]"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
+    <section className="surface-card overflow-hidden">
+      <div className="p-5 border-b border-[var(--border-color)] flex items-center justify-between"><h2 className="heading-3">Open positions</h2><span className="surface-badge">{positions.length}</span></div>
+      {positions.length ? <div className="overflow-x-auto"><table className="table-standard min-w-[720px]"><thead><tr><th>Asset</th><th className="text-right">Quantity</th><th className="text-right">Entry</th><th className="text-right">Current</th><th className="text-right">P/L</th><th>Protection</th>{practice && <th>Action</th>}</tr></thead><tbody>{positions.map((p, index) => {
+        const ticker = p.ticker || p.symbol;
+        const qty = Number(p.quantity ?? p.qty ?? p.shares ?? 0);
+        const entry = Number(p.buy_price ?? p.entry_price ?? p.avg_price ?? 0);
+        const current = Number(p.current_price ?? entry);
+        const pnl = Number(p.profit_loss ?? p.unrealized_pnl ?? 0);
+        return <tr key={`${ticker}-${index}`}><td className="font-semibold text-white">{ticker}</td><td className="text-right font-mono">{qty.toFixed(4)}</td><td className="text-right font-mono">${money(entry)}</td><td className="text-right font-mono">${money(current)}</td><td className="text-right font-mono" style={{ color: pnl >= 0 ? "var(--positive)" : "var(--negative)" }}>{pnl >= 0 ? <TrendingUp size={11} className="inline mr-1" /> : <TrendingDown size={11} className="inline mr-1" />}${money(pnl)}</td><td className="text-[10px] text-[var(--text-muted)]">{p.stop_loss ? `SL ${p.stop_loss}` : "—"}{p.take_profit ? ` • TP ${p.take_profit}` : ""}</td>{practice && <td><button className="btn-standard h-8 px-3 text-[var(--negative)]" onClick={() => onSell?.(ticker, Math.abs(qty))}>Close</button></td>}</tr>;
+      })}</tbody></table></div> : <div className="p-10 text-center text-[11px] text-[var(--text-muted)]">No open positions.</div>}
+    </section>
   );
 }
