@@ -6,6 +6,7 @@ from core.logger import get_logger
 
 logger = get_logger(__name__)
 
+
 class SmartCache:
     """
     SQLite-backed cache with TTL and source tracking.
@@ -35,28 +36,43 @@ class SmartCache:
     def get(self, key: str, data_type: str) -> tuple[dict | None, bool]:
         """Returns (data, is_fresh). data is None only if never cached."""
         from gateway.config import Config
-        
+
         ttl_minutes = Config.CACHE_TTL.get(data_type, 15)
-        # Convert hours to minutes if needed (based on implementation prompt TTL keys)
         if data_type in ["sentiment", "fundamentals", "analysis"]:
             ttl_minutes *= 60
 
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 "SELECT value, timestamp FROM cache WHERE key = ? AND data_type = ?",
-                (key, data_type)
+                (key, data_type),
             )
             row = cursor.fetchone()
-            
+
             if not row:
                 return None, False
-            
+
             value_json, ts_str = row
             data = json.loads(value_json)
             ts = datetime.fromisoformat(ts_str)
-            
             is_fresh = datetime.now() - ts < timedelta(minutes=ttl_minutes)
             return data, is_fresh
+
+    def get_metadata(self, key: str, data_type: str) -> dict:
+        """Return cache age/source metadata without changing the existing get() API."""
+        with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT source, timestamp FROM cache WHERE key = ? AND data_type = ?",
+                (key, data_type),
+            ).fetchone()
+        if not row:
+            return {"source": None, "timestamp": None, "age_minutes": None}
+        source, ts_str = row
+        try:
+            ts = datetime.fromisoformat(ts_str)
+            age_minutes = max((datetime.now() - ts).total_seconds() / 60.0, 0.0)
+        except (TypeError, ValueError):
+            age_minutes = None
+        return {"source": source, "timestamp": ts_str, "age_minutes": age_minutes}
 
     def set(self, key: str, data_type: str, value: dict, source: str):
         """Store with timestamp and source name."""
@@ -71,30 +87,20 @@ class SmartCache:
         data, is_fresh = self.get(key, data_type)
         if not data:
             return "No Data"
-        
+
         if is_fresh:
             return "Live"
-        
-        # Calculate how long ago
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute(
-                "SELECT timestamp, source FROM cache WHERE key = ? AND data_type = ?",
-                (key, data_type)
-            )
-            row = cursor.fetchone()
-            if row:
-                ts_str, source = row
-                ts = datetime.fromisoformat(ts_str)
-                diff = datetime.now() - ts
-                
-                if diff.total_seconds() < 3600:
-                    return f"Cached {int(diff.total_seconds()/60)}m ago"
-                elif diff.days < 1:
-                    return f"Cached {int(diff.total_seconds()/3600)}h ago"
-                else:
-                    return "Stale"
-        
-        return "Unknown"
+
+        metadata = self.get_metadata(key, data_type)
+        age_minutes = metadata.get("age_minutes")
+        if age_minutes is None:
+            return "Unknown"
+        if age_minutes < 60:
+            return f"Cached {int(age_minutes)}m ago"
+        if age_minutes < 24 * 60:
+            return f"Cached {int(age_minutes / 60)}h ago"
+        return "Stale"
+
 
 # Global instance
 cache = SmartCache()
