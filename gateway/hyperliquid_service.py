@@ -37,7 +37,9 @@ class HyperliquidTradingService:
         self.risk_manager = RiskManagerAgent()
         self.signal_aggregator = SignalAggregatorAgent()
         self.active_tickers = settings.HYPERLIQUID_ASSETS
-        self.daily_equity = DailyEquityTracker()
+        self.daily_equity = DailyEquityTracker(
+            scope=f"hyperliquid-{'paper' if self.broker.paper else 'live'}"
+        )
 
     async def _portfolio_context(self) -> tuple[dict, list[dict]]:
         balance = await self.broker.get_balance()
@@ -105,8 +107,6 @@ class HyperliquidTradingService:
         )
 
         portfolio_context, positions = await self._portfolio_context()
-
-        # Daily-loss circuit breaker is evaluated before asking the LLM for entries.
         if portfolio_context["daily_pnl_pct"] <= -settings.MAX_DAILY_LOSS_PCT:
             logger.critical(
                 "Daily loss breaker active: %.2f%% <= -%.2f%%. New entries are disabled.",
@@ -123,13 +123,12 @@ class HyperliquidTradingService:
                     logger.warning("[%s] No candles available; skipping.", ticker)
                     continue
 
-                # Broker returns chronological bars for pandas indicators. Signal/ATR
-                # agents use an explicit newest-first contract.
+                # Indicators need chronological bars. Signal and ATR code explicitly
+                # uses index 0 as the newest bar, so it receives a normalized copy.
                 df = pd.DataFrame(candles).sort_values("timestamp").reset_index(drop=True)
                 last_close = float(df.iloc[-1]["close"]) if not df.empty else 0.0
                 ohlcv_latest_first = normalize_candles_latest_first(candles)
 
-                # In paper mode, evaluate stored SL/TP against current market price.
                 protective_result = await self.broker.process_protective_orders(
                     ticker, mark_price=last_close
                 )
@@ -141,7 +140,6 @@ class HyperliquidTradingService:
                     )
                     portfolio_context, positions = await self._portfolio_context()
 
-                # Existing catastrophic losses are closed before considering any entry.
                 breached = next(
                     (
                         p
@@ -159,7 +157,6 @@ class HyperliquidTradingService:
                         f"loss exceeded {settings.FORCE_CLOSE_LOSS_PCT * 100:.1f}%",
                     )
                     portfolio_context, positions = await self._portfolio_context()
-                    # Continue to evaluate current ticker only if it is not the one closed.
                     if breached_ticker == ticker.upper():
                         continue
 
@@ -181,14 +178,18 @@ class HyperliquidTradingService:
                     logger.info(
                         "[%s] HOLD: %s",
                         ticker,
-                        agent_result.get("reasoning", agent_result.get("reason", "No high-conviction setup")),
+                        agent_result.get(
+                            "reasoning",
+                            agent_result.get("reason", "No high-conviction setup"),
+                        ),
                     )
                     continue
 
                 existing = self._find_position(positions, ticker)
                 if existing and not settings.ALLOW_POSITION_ADDONS:
                     logger.info(
-                        "[%s] Existing position detected; add-on entries are disabled.", ticker
+                        "[%s] Existing position detected; add-on entries are disabled.",
+                        ticker,
                     )
                     continue
 
@@ -197,27 +198,28 @@ class HyperliquidTradingService:
                     if context.confidence <= 1.0
                     else context.confidence
                 )
+                technical_signal = {
+                    "signal": "BULLISH" if decision == "LONG" else "BEARISH",
+                    "confidence": context.confidence,
+                }
+                # Preserve a genuine numeric model score when present. Otherwise the
+                # aggregator derives score strength from confidence instead of using
+                # an arbitrary placeholder that can suppress every trade.
+                if agent_result.get("score") is not None:
+                    technical_signal["score"] = agent_result["score"]
 
                 agg_context = AgentContext(
                     task=f"Signal aggregation for {ticker}",
                     ticker=ticker,
                     metadata={"ohlcv_data": ohlcv_latest_first},
                     observations={
-                        "specialist_outputs": {
-                            "technical": {
-                                "signal": "BULLISH" if decision == "LONG" else "BEARISH",
-                                "confidence": context.confidence,
-                                "score": agent_result.get(
-                                    "score", 0.3 if decision == "LONG" else -0.3
-                                ),
-                            }
-                        }
+                        "specialist_outputs": {"technical": technical_signal},
                     },
                 )
                 agg_context = await self.signal_aggregator.run(agg_context)
                 signal_result = agg_context.result or {
-                    "verdict": "BUY" if decision == "LONG" else "SELL",
-                    "confidence": agent_confidence,
+                    "verdict": "HOLD",
+                    "confidence": 0,
                     "entry_point": last_close,
                     "stop_loss": 0,
                     "take_profit": 0,
@@ -271,13 +273,16 @@ class HyperliquidTradingService:
                 if risk_decision != "APPROVE":
                     continue
 
-                suggested_size = float(risk_result.get("suggested_position_size", 0) or 0)
+                suggested_size = float(
+                    risk_result.get("suggested_position_size", 0) or 0
+                )
                 suggested_qty = suggested_size / last_close if last_close > 0 else 0
                 if suggested_qty <= 0:
-                    logger.warning("[%s] Suggested quantity is too small; skipping.", ticker)
+                    logger.warning(
+                        "[%s] Suggested quantity is too small; skipping.", ticker
+                    )
                     continue
 
-                # Backtests are an enforced prerequisite only for real-money execution.
                 if execution["live_execution_allowed"]:
                     validation = strategy_validation_store.check(
                         ticker, settings.LIVE_STRATEGY_ID
@@ -306,7 +311,9 @@ class HyperliquidTradingService:
                 logger.info(
                     "[%s] %s %s %.6f units ($%.2f) | SL=%.4f TP=%.4f mode=%s",
                     ticker,
-                    "Executing" if execution["live_execution_allowed"] else "Paper executing",
+                    "Executing"
+                    if execution["live_execution_allowed"]
+                    else "Paper executing",
                     decision,
                     suggested_qty,
                     suggested_size,
@@ -316,13 +323,21 @@ class HyperliquidTradingService:
                 )
                 exec_result = await self.broker.place_order(order)
                 if exec_result.get("status") not in {"FILLED", "PARTIALLY_FILLED"}:
-                    logger.error("[%s] Execution was not completed: %s", ticker, exec_result)
+                    logger.error(
+                        "[%s] Execution was not completed: %s", ticker, exec_result
+                    )
                 else:
-                    logger.info("[%s] Execution complete: %s", ticker, exec_result.get("status"))
+                    logger.info(
+                        "[%s] Execution complete: %s",
+                        ticker,
+                        exec_result.get("status"),
+                    )
                     portfolio_context, positions = await self._portfolio_context()
 
             except Exception as exc:
-                logger.error("Error in %s trading cycle: %s", ticker, exc, exc_info=True)
+                logger.error(
+                    "Error in %s trading cycle: %s", ticker, exc, exc_info=True
+                )
 
         return {
             "mode": execution["mode"],
@@ -333,5 +348,4 @@ class HyperliquidTradingService:
         }
 
 
-# Singleton used by scheduler and status routes.
 hyperliquid_trading_service = HyperliquidTradingService()
