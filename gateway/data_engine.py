@@ -1,17 +1,19 @@
 """
-AXIOM Data Engine — Real Market Data from Knowledge Store + Multi-Source Collector.
+AXIOM Data Engine — Real Market Data from customer APIs + open/public sources.
 
 Priority chain:
-  1. Knowledge Store (SQLite) — fastest, local cache
-  2. Data Cache (parquet files) — recent collector results
-  3. Collector Agent (Stooq, Alpha Vantage, web scrape) — live data
-  4. RSS/Web scrapers — news and sentiment
+  1. In-memory cache — fastest recent result
+  2. Customer-connected market/news APIs — optional and configurable from UI
+  3. Knowledge Store (SQLite) — local historical cache
+  4. Collector Agent (yfinance/Stooq/Alpha Vantage/web fallback) — live public data
+  5. RSS/Web/social collectors — news and sentiment
 
-NEVER returns empty. Always provides the best available data with freshness labels.
+NEVER fabricates a live price. When no source is available it returns a clear
+syncing payload so customer screens can explain that data is unavailable.
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from core.config import settings
 from core.logger import get_logger
 from gateway.cache import cache
@@ -23,10 +25,9 @@ logger = get_logger(__name__)
 
 
 class DataEngine:
-    """Real data engine with knowledge store integration."""
+    """Real data engine with connected-provider and knowledge-store integration."""
 
     def _df_to_ohlcv(self, df, tail: int = 120) -> list[dict]:
-        """Convert collector frames into frontend chart bars."""
         rows = []
         if df is None or df.empty:
             return rows
@@ -42,19 +43,56 @@ class DataEngine:
         return rows
 
     async def get_price_data(self, ticker: str, allow_scrape: bool = False) -> dict:
-        """Returns real price data from knowledge store or collector."""
+        """Return the best current price payload without inventing values."""
+        ticker = ticker.upper()
 
-        # 1. Check in-memory cache
         data, is_fresh = cache.get(ticker, "price")
         if data and (is_fresh or not allow_scrape):
-            # Return cached data immediately, even if slightly stale, unless force-scrape requested
-            return {**data, "source_used": "cache", "freshness_minutes": 0, "is_estimated": False}
+            return {
+                **data,
+                "source_used": data.get("source_used", "cache"),
+                "freshness_minutes": 0,
+                "is_estimated": False,
+            }
 
-        # 2. If allow_scrape is True, try to get live data FIRST
-        if allow_scrape or (ticker in settings.DEFAULT_WATCHLIST):
+        # A customer-connected source is preferred when the caller asks for live data.
+        if allow_scrape or ticker in settings.DEFAULT_WATCHLIST:
+            try:
+                from gateway.connected_source_adapter import connected_sources
+
+                connected = await connected_sources.get_price(ticker)
+                if connected and float(connected.get("px", 0) or 0) > 0:
+                    px = float(connected.get("px", 0))
+                    res = {
+                        "px": round(px, 4),
+                        "chg": float(connected.get("chg", connected.get("pct_chg", 0)) or 0),
+                        "pct_chg": float(connected.get("pct_chg", connected.get("chg", 0)) or 0),
+                        "open": float(connected.get("open", 0) or 0),
+                        "high": float(connected.get("high", 0) or 0),
+                        "low": float(connected.get("low", 0) or 0),
+                        "close": float(connected.get("close", px) or px),
+                        "volume": int(float(connected.get("volume", 0) or 0)),
+                        "avg_volume": int(float(connected.get("avg_volume", 0) or 0)),
+                        "mktcap": float(connected.get("mktcap", 0) or 0),
+                        "pe": float(connected.get("pe", 0) or 0),
+                        "week52_high": float(connected.get("week52_high", 0) or 0),
+                        "week52_low": float(connected.get("week52_low", 0) or 0),
+                        "ts": datetime.now().isoformat(),
+                        "ohlcv": connected.get("ohlcv", []),
+                        "source_used": connected.get("source_used", "connected_api"),
+                        "connection_id": connected.get("connection_id"),
+                        "freshness_minutes": 0,
+                        "is_estimated": False,
+                    }
+                    cache.set(ticker, "price", res, res["source_used"])
+                    return res
+            except Exception as exc:
+                logger.warning(f"Connected market data lookup failed for {ticker}: {type(exc).__name__}")
+
+        if allow_scrape or ticker in settings.DEFAULT_WATCHLIST:
             try:
                 from agents.collector_agent import fetch_ticker
-                # Use 1mo period to ensure charts are populated on first hit
+
                 df, source = await fetch_ticker(ticker, period="1mo", scrape_ok=True)
                 if not df.empty:
                     latest_row = df.iloc[-1]
@@ -63,50 +101,67 @@ class DataEngine:
                     prev_close = float(prev_row.get("Close", px))
                     chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
 
-                    # Store in knowledge store
                     try:
                         from gateway.knowledge_store import knowledge_store
-                        records = [{"date": str(idx.date()) if hasattr(idx, 'date') else str(idx),
-                                    "open": float(row.get("Open", 0)), "high": float(row.get("High", 0)),
-                                    "low": float(row.get("Low", 0)), "close": float(row.get("Close", 0)),
-                                    "volume": int(row.get("Volume", 0)),
-                                    "mktcap": df.attrs.get("mktcap", 0),
-                                    "pe": df.attrs.get("pe", 0)}
-                                   for idx, row in df.iterrows()]
+
+                        records = [
+                            {
+                                "date": str(idx.date()) if hasattr(idx, "date") else str(idx),
+                                "open": float(row.get("Open", 0)),
+                                "high": float(row.get("High", 0)),
+                                "low": float(row.get("Low", 0)),
+                                "close": float(row.get("Close", 0)),
+                                "volume": int(row.get("Volume", 0)),
+                                "mktcap": df.attrs.get("mktcap", 0),
+                                "pe": df.attrs.get("pe", 0),
+                            }
+                            for idx, row in df.iterrows()
+                        ]
                         if records:
                             knowledge_store.store_daily_ohlcv(ticker, records)
                     except Exception as store_err:
                         logger.warning(f"Failed to store OHLCV for {ticker}: {store_err}")
 
                     ohlcv_list = self._df_to_ohlcv(df, tail=120)
-
                     res = {
-                        "px": round(px, 2), "chg": round(chg, 2), "pct_chg": round(chg, 2),
-                        "open": float(latest_row.get("Open", px)), "high": float(latest_row.get("High", px)),
-                        "low": float(latest_row.get("Low", px)), "close": px, "volume": int(latest_row.get("Volume", 0)),
+                        "px": round(px, 2),
+                        "chg": round(chg, 2),
+                        "pct_chg": round(chg, 2),
+                        "open": float(latest_row.get("Open", px)),
+                        "high": float(latest_row.get("High", px)),
+                        "low": float(latest_row.get("Low", px)),
+                        "close": px,
+                        "volume": int(latest_row.get("Volume", 0)),
                         "avg_volume": int(df["Volume"].mean()) if "Volume" in df.columns else 0,
                         "mktcap": df.attrs.get("mktcap", 0),
                         "pe": df.attrs.get("pe", 0),
                         "week52_high": float(df["Close"].max()) if "Close" in df.columns else px,
                         "week52_low": float(df["Close"].min()) if "Close" in df.columns else px,
-                        "ts": datetime.now().isoformat(), "ohlcv": ohlcv_list,
+                        "ts": datetime.now().isoformat(),
+                        "ohlcv": ohlcv_list,
                     }
                     cache.set(ticker, "price", res, source)
-                    return {**res, "source_used": source, "freshness_minutes": 0, "is_estimated": False}
+                    return {
+                        **res,
+                        "source_used": source,
+                        "freshness_minutes": 0,
+                        "is_estimated": False,
+                    }
             except Exception as e:
                 logger.warning(f"Collector fetch failed for {ticker}: {e}")
 
-        # 3. Check knowledge store for recent OHLCV as a fallback (or if scrape is disabled)
         try:
             from gateway.knowledge_store import knowledge_store
+
             ohlcv = knowledge_store.get_ohlcv_history(ticker, days=100)
-            if ohlcv and len(ohlcv) > 0:
+            if ohlcv:
                 latest = ohlcv[0]
                 px = float(latest.get("close", 0))
                 if px > 0:
                     prev_close = float(ohlcv[1]["close"]) if len(ohlcv) > 1 else px
                     chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
-
+                    lows = [float(r.get("low", 0) or 0) for r in ohlcv[:252]]
+                    lows = [value for value in lows if value > 0]
                     res = {
                         "px": round(px, 2),
                         "chg": round(chg, 2),
@@ -119,36 +174,56 @@ class DataEngine:
                         "avg_volume": 0,
                         "mktcap": latest.get("market_cap", 0),
                         "pe": latest.get("pe_ratio", 0),
-                        "week52_high": max(float(r.get("high", 0)) for r in ohlcv[:252]) if len(ohlcv) > 10 else px * 1.3,
-                        "week52_low": min(float(r.get("low", px)) for r in ohlcv[:252] if float(r.get("low", 0)) > 0) if len(ohlcv) > 10 else px * 0.7,
+                        "week52_high": max(float(r.get("high", 0) or 0) for r in ohlcv[:252]),
+                        "week52_low": min(lows) if lows else 0,
                         "ts": latest.get("date", datetime.now().isoformat()),
-                        "ohlcv": [{"t": r.get("date"), "o": r.get("open"), "h": r.get("high"),
-                                   "l": r.get("low"), "c": r.get("close"), "v": r.get("volume")}
-                                  for r in ohlcv[:30]],
+                        "ohlcv": [
+                            {
+                                "t": r.get("date"),
+                                "o": r.get("open"),
+                                "h": r.get("high"),
+                                "l": r.get("low"),
+                                "c": r.get("close"),
+                                "v": r.get("volume"),
+                            }
+                            for r in ohlcv[:30]
+                        ],
                     }
                     cache.set(ticker, "price", res, "knowledge_store")
-                    return {**res, "source_used": "knowledge_store", "freshness_minutes": 0, "is_estimated": False}
+                    return {
+                        **res,
+                        "source_used": "knowledge_store",
+                        "freshness_minutes": 0,
+                        "is_estimated": False,
+                    }
         except Exception as e:
             logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
 
-        # 4. Return stale cache if available (last chance before fallback)
         if data:
             return {**data, "source_used": "cache_stale", "is_stale": True}
 
         return {
-            "px": 0, "chg": 0, "pct_chg": 0, "open": 0, "high": 0, "low": 0, "close": 0,
-            "volume": 0, "avg_volume": 0, "mktcap": 0, "pe": 0,
-            "week52_high": 0, "week52_low": 0,
-            "ts": datetime.now().isoformat(), "ohlcv": [],
-            "source_used": "none", "is_estimated": True, "syncing": True
+            "px": 0,
+            "chg": 0,
+            "pct_chg": 0,
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": 0,
+            "volume": 0,
+            "avg_volume": 0,
+            "mktcap": 0,
+            "pe": 0,
+            "week52_high": 0,
+            "week52_low": 0,
+            "ts": datetime.now().isoformat(),
+            "ohlcv": [],
+            "source_used": "none",
+            "is_estimated": True,
+            "syncing": True,
         }
 
     async def get_live_chart_data(self, ticker: str, period: str = "1d") -> dict:
-        """Fetch chart data optimized for the stock terminal.
-
-        A 1d request uses yfinance 5-minute bars when available through the
-        collector, then gracefully falls back to cached/daily history.
-        """
         ticker = ticker.upper()
         period = period if period in {"1d", "5d", "1mo", "3mo", "6mo", "1y"} else "1d"
         cache_key = f"{ticker}:{period}"
@@ -158,6 +233,7 @@ class DataEngine:
 
         try:
             from agents.collector_agent import fetch_ticker
+
             df, source = await fetch_ticker(
                 ticker,
                 period=period,
@@ -190,86 +266,89 @@ class DataEngine:
         }
 
     async def _trigger_background_fetch(self, ticker: str):
-        """Hidden background fetch to warm the cache for a specific ticker."""
         try:
             from agents.collector_agent import fetch_ticker
+
             await fetch_ticker(ticker, period="1d", scrape_ok=True)
             logger.info(f"Background warming complete for {ticker}")
         except Exception:
             pass
 
     async def get_news(self, ticker: str, max_items: int = 10, allow_scrape: bool = False) -> list[dict]:
-        """Deduplicated news from knowledge store + RSS + Web."""
-        articles = []
+        """Combine customer APIs, stored history, RSS and web news."""
+        ticker = ticker.upper()
+        articles: list[dict] = []
 
-        # 1. Knowledge store news
+        try:
+            from gateway.connected_source_adapter import connected_sources
+
+            articles.extend(await connected_sources.get_news(ticker, limit=max_items))
+        except Exception as exc:
+            logger.warning(f"Connected news lookup failed for {ticker}: {type(exc).__name__}")
+
         try:
             from gateway.knowledge_store import knowledge_store
+
             stored_news = knowledge_store.get_news_for_ticker(ticker, limit=max_items, days=14)
             for n in stored_news:
-                articles.append({
-                    "headline": n.get("headline", ""),
-                    "summary": n.get("summary", ""),
-                    "url": n.get("url", ""),
-                    "source": n.get("source", "KnowledgeStore"),
-                    "published_at": n.get("published_at", ""),
-                    "sentiment_score": n.get("sentiment_score", 0),
-                })
+                articles.append(
+                    {
+                        "headline": n.get("headline", ""),
+                        "summary": n.get("summary", ""),
+                        "url": n.get("url", ""),
+                        "source": n.get("source", "KnowledgeStore"),
+                        "published_at": n.get("published_at", ""),
+                        "sentiment_score": n.get("sentiment_score", 0),
+                    }
+                )
         except Exception as e:
             logger.warning(f"Knowledge store news lookup failed: {e}")
 
-        # 2. RSS + Web scrapers (only if explicitly allowed or no cached data found)
         if allow_scrape or not articles:
             try:
-                # Limit blocking scrapers in the request path
-                rss_news = rss_scraper.get_for_ticker(ticker)
-                for n in rss_news:
-                    articles.append(n)
-                
+                articles.extend(rss_scraper.get_for_ticker(ticker))
                 if allow_scrape:
                     web_news = web_scraper.scrape_ticker_news(ticker)
-                    for n in web_news:
-                        articles.append(n)
-                
-                # Persist discovered news to Knowledge Store
+                    if asyncio.iscoroutine(web_news):
+                        web_news = await web_news
+                    articles.extend(web_news or [])
                 if articles:
                     try:
                         from gateway.knowledge_store import knowledge_store
+
                         knowledge_store.store_news(articles)
                     except Exception as store_err:
                         logger.warning(f"Failed to persist news for {ticker}: {store_err}")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(f"Public news crawl failed for {ticker}: {type(exc).__name__}")
 
-        # 3. Deduplicate by headline
         seen = set()
         unique = []
         for n in articles:
-            h = n.get("headline", "").strip().lower()
-            if h and h not in seen:
-                seen.add(h)
+            headline = str(n.get("headline", "")).strip()
+            key = headline.lower()
+            if headline and key not in seen:
+                seen.add(key)
                 unique.append(n)
 
-        # Trigger background crawl if we have very little news
         if not allow_scrape and len(unique) < 3:
             asyncio.create_task(self._trigger_news_warmup(ticker))
 
         return unique[:max_items]
 
     async def _trigger_news_warmup(self, ticker: str):
-        """Background news crawl."""
         try:
-            await web_scraper.scrape_ticker_news(ticker)
+            result = web_scraper.scrape_ticker_news(ticker)
+            if asyncio.iscoroutine(result):
+                await result
         except Exception:
             pass
 
     async def get_social_sentiment(self, ticker: str, allow_scrape: bool = False) -> dict:
-        # Prioritize fast sentiment returns
         try:
             return social_scraper.get_sentiment(ticker)
         except Exception:
             if allow_scrape:
-                # Synchronous fallback only if allowed
                 try:
                     return await asyncio.to_thread(social_scraper.get_sentiment, ticker)
                 except Exception:
@@ -277,20 +356,25 @@ class DataEngine:
             return {"score": 0, "mentions": 0, "source": "none"}
 
     async def get_full_context(self, ticker: str, allow_scrape: bool = False) -> dict:
-        """Aggregates everything for LLM reasoning."""
         price = await self.get_price_data(ticker, allow_scrape=allow_scrape)
         news = await self.get_news(ticker, allow_scrape=allow_scrape)
         sentiment = await self.get_social_sentiment(ticker, allow_scrape=allow_scrape)
-
         return {
             **price,
             "news": news,
             **sentiment,
-            "news_freshness": datetime.now().isoformat()
+            "news_freshness": datetime.now().isoformat(),
         }
 
     async def get_price_move_reason(self, ticker: str) -> dict:
-        return {"reason_text": "Analyzing...", "confidence": 0}
+        context = await self.get_full_context(ticker, allow_scrape=False)
+        change = float(context.get("pct_chg", context.get("chg", 0)) or 0)
+        headlines = [n.get("headline") for n in context.get("news", [])[:3] if n.get("headline")]
+        direction = "higher" if change > 0 else "lower" if change < 0 else "sideways"
+        reason = f"{ticker.upper()} is trading {direction} by {abs(change):.2f}% in the latest session."
+        if headlines:
+            reason += f" The newest related headline is: {headlines[0]}"
+        return {"reason_text": reason, "confidence": 55 if headlines else 35, "headlines": headlines}
 
 
 # Global instance
