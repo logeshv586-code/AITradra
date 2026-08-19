@@ -65,13 +65,21 @@ class AccuracyStore:
         direction: str,
         accuracy: float,
     ) -> None:
-        """Upsert a new accuracy data point and mirror directional correctness.
+        """Upsert a continuous score and mirror conservative binary precision.
 
         For BULLISH/BEARISH predictions the scorer returns a positive continuous
         score only when price moved in the predicted direction; therefore
         ``accuracy > 0`` is the binary directional-correctness flag used by the
-        precision gate. Partial progress toward a target still counts as a
-        correct direction, while the continuous score remains separately stored.
+        precision gate.
+
+        The existing scorer can revisit the same unresolved KnowledgeStore
+        insight more than once. To prevent that rescoring cadence from inflating
+        the live precision metric, the binary precision evidence uses one stable
+        UTC-day bucket per ticker/model/provider/direction. Repeated scores in
+        that bucket update the same row rather than creating fake extra samples.
+        This is intentionally conservative: multiple same-direction predictions
+        in one day may collapse into one evidence sample rather than being
+        over-counted.
         """
         try:
             accuracy = max(0.0, min(float(accuracy or 0.0), 1.0))
@@ -99,7 +107,6 @@ class AccuracyStore:
                      ticker, model, provider, direction),
                 )
             else:
-                total = 1
                 conn.execute(
                     """INSERT INTO accuracy_aggregate
                        (ticker, model, provider, direction, total_scored,
@@ -117,10 +124,11 @@ class AccuracyStore:
                     from self_improvement.precision_store import DirectionalPrecisionStore
 
                     precision = DirectionalPrecisionStore(self.db_path)
+                    utc_day = now[:10]
                     precision.record_outcome(
                         prediction_id=(
-                            f"aggregate:{str(ticker).upper()}:{model}:{provider}:"
-                            f"{normalized_direction}:{total}:{now}"
+                            f"daily:{str(ticker).upper()}:{model}:{provider}:"
+                            f"{normalized_direction}:{utc_day}"
                         ),
                         ticker=ticker,
                         model=model,
