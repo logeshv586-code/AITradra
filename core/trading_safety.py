@@ -65,11 +65,7 @@ def get_execution_status(settings_obj=settings) -> dict[str, Any]:
 
 
 def normalize_candles_latest_first(candles: Iterable[dict]) -> list[dict]:
-    """Normalize OHLCV bars to the ordering expected by signal/scoring agents.
-
-    Hyperliquid returns chronological candles in practice while the signal stack uses
-    index 0 as the latest bar. Sorting here makes that contract explicit.
-    """
+    """Normalize OHLCV bars to the ordering expected by signal/scoring agents."""
 
     rows = [dict(row) for row in candles if isinstance(row, dict)]
 
@@ -88,6 +84,7 @@ class DailyEquityTracker:
     """Persist a UTC day-start equity baseline for the daily loss circuit breaker."""
 
     path: Path = BASE_DIR / "data" / "trading_daily_equity.json"
+    scope: str = "default"
 
     def _load(self) -> dict[str, Any]:
         try:
@@ -118,9 +115,20 @@ class DailyEquityTracker:
         state = self._load()
         baseline = float(state.get("baseline_equity", 0) or 0)
 
-        if state.get("date") != today or baseline <= 0:
+        # Changing from paper to live (or another account scope) must never reuse
+        # the previous account's baseline and create a false loss event.
+        if (
+            state.get("date") != today
+            or state.get("scope") != self.scope
+            or baseline <= 0
+        ):
             baseline = equity
-            state = {"date": today, "baseline_equity": baseline, "last_equity": equity}
+            state = {
+                "date": today,
+                "scope": self.scope,
+                "baseline_equity": baseline,
+                "last_equity": equity,
+            }
             self._save(state)
             return 0.0
 
