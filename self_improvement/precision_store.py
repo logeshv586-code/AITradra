@@ -1,6 +1,6 @@
 """DirectionalPrecisionStore — resolved prediction evidence for live precision gating.
 
-Stores one row per resolved directional prediction.  This intentionally keeps
+Stores one row per resolved directional prediction. This intentionally keeps
 binary direction correctness separate from the existing continuous accuracy
 score so a live-trading precision target cannot be satisfied by averaging
 partial-credit scores.
@@ -116,7 +116,7 @@ class DirectionalPrecisionStore:
         direction: str | None = None,
         lookback_days: int = 90,
     ) -> dict[str, Any]:
-        clauses = ["ticker = ?", "scored_at >= datetime('now', ?)"]
+        clauses = ["ticker = ?", "datetime(scored_at) >= datetime('now', ?)"]
         params: list[Any] = [str(ticker).upper(), f"-{max(1, int(lookback_days))} days"]
         if model:
             clauses.append("model = ?")
