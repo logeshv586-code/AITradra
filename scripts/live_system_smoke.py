@@ -17,8 +17,12 @@ from pathlib import Path
 
 # Isolate caches/state produced by this smoke run.
 _TMP_ROOT = Path(tempfile.mkdtemp(prefix="aitradra-live-smoke-"))
-os.environ["DATA_CACHE_DIR"] = str(_TMP_ROOT / "collector-cache")
-os.environ["DATA_DIR"] = str(_TMP_ROOT / "data")
+_TMP_DATA_DIR = _TMP_ROOT / "data"
+_TMP_CACHE_DIR = _TMP_ROOT / "collector-cache"
+_TMP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+_TMP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+os.environ["DATA_CACHE_DIR"] = str(_TMP_CACHE_DIR)
+os.environ["DATA_DIR"] = str(_TMP_DATA_DIR)
 os.environ["KNOWLEDGE_DB_NAME"] = "smoke-knowledge.db"
 os.environ["MARKET_DATA_DB_NAME"] = "smoke-market.sqlite3"
 os.environ["PAPER_TRADE_MODE"] = "true"
