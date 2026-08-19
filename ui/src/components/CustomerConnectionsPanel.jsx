@@ -9,8 +9,18 @@ const EMPTY_FORM = {
   api_key: "",
   private_key: "",
   endpoint: "",
+  auth_mode: "header",
+  api_key_name: "X-API-Key",
+  api_key_prefix: "",
+  query_params_json: "",
+  headers_json: "",
+  root_path: "",
   price_path: "price",
   change_path: "change_pct",
+  open_path: "open",
+  high_path: "high",
+  low_path: "low",
+  volume_path: "volume",
   items_path: "articles",
   headline_path: "title",
   summary_path: "description",
@@ -18,6 +28,20 @@ const EMPTY_FORM = {
   source_path: "source",
   published_path: "published_at",
 };
+
+function parseJsonObject(raw, label) {
+  if (!String(raw || "").trim()) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`${label} must be valid JSON, for example {"symbol":"{ticker}"}.`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+  return parsed;
+}
 
 export default function CustomerConnectionsPanel() {
   const [providers, setProviders] = useState([]);
@@ -64,12 +88,30 @@ export default function CustomerConnectionsPanel() {
         ? form.category
         : (selectedProvider?.category || form.category);
       const config = {};
+
       if (form.provider === "custom_json") {
-        config.endpoint = form.endpoint;
-        config.api_key_location = "header";
-        config.api_key_name = "Authorization";
+        if (!String(form.endpoint || "").trim()) throw new Error("Enter the custom JSON API endpoint.");
+        config.endpoint = form.endpoint.trim();
+        config.query_params = parseJsonObject(form.query_params_json, "Query parameters");
+        config.headers = parseJsonObject(form.headers_json, "Extra headers");
+
+        if (form.auth_mode === "none") {
+          config.api_key_location = "none";
+          config.api_key_name = "";
+          config.api_key_prefix = "";
+        } else if (form.auth_mode === "bearer") {
+          config.api_key_location = "header";
+          config.api_key_name = "Authorization";
+          config.api_key_prefix = "Bearer ";
+        } else {
+          config.api_key_location = form.auth_mode;
+          config.api_key_name = form.api_key_name || (form.auth_mode === "query" ? "apikey" : "X-API-Key");
+          config.api_key_prefix = form.api_key_prefix || "";
+        }
+
         config.mapping = category === "news"
           ? {
+              root: form.root_path || "",
               items: form.items_path || "articles",
               headline: form.headline_path || "title",
               summary: form.summary_path || "description",
@@ -78,10 +120,16 @@ export default function CustomerConnectionsPanel() {
               published_at: form.published_path || "published_at",
             }
           : {
+              root: form.root_path || "",
               price: form.price_path || "price",
               change_pct: form.change_path || "change_pct",
+              open: form.open_path || "open",
+              high: form.high_path || "high",
+              low: form.low_path || "low",
+              volume: form.volume_path || "volume",
             };
       }
+
       const response = await fetch(`${API_BASE}/api/customer/connections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -145,7 +193,7 @@ export default function CustomerConnectionsPanel() {
         <form onSubmit={save} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-4 flex flex-col gap-3">
           <div>
             <div className="text-[12px] font-semibold text-white">Add a connection</div>
-            <div className="text-[10px] text-[var(--text-muted)] mt-1">Choose a preset or connect almost any JSON REST API by mapping its fields.</div>
+            <div className="text-[10px] text-[var(--text-muted)] mt-1">Choose a preset or connect a JSON REST GET API by mapping its authentication, request parameters and response fields.</div>
           </div>
           <select
             value={form.provider}
@@ -169,13 +217,32 @@ export default function CustomerConnectionsPanel() {
 
           {selectedProvider?.category === "broker" ? (
             <input type="password" className="input-standard" value={form.private_key} onChange={(e) => setForm({ ...form, private_key: e.target.value })} placeholder="Broker private key" autoComplete="off" />
-          ) : (
-            <input type="password" className="input-standard" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} placeholder={selectedProvider?.needs_api_key ? "API key" : "API key (optional)"} autoComplete="off" />
-          )}
+          ) : form.provider !== "custom_json" || form.auth_mode !== "none" ? (
+            <input type="password" className="input-standard" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} placeholder={selectedProvider?.needs_api_key ? "API key" : "API key / token (optional)"} autoComplete="off" />
+          ) : null}
 
           {form.provider === "custom_json" && (
             <>
               <input className="input-standard" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} placeholder="https://api.example.com/resource/{ticker}" />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select className="input-standard" value={form.auth_mode} onChange={(e) => setForm({ ...form, auth_mode: e.target.value })}>
+                  <option value="none">No API key</option>
+                  <option value="bearer">Bearer token</option>
+                  <option value="header">API key in header</option>
+                  <option value="query">API key in query string</option>
+                </select>
+                {form.auth_mode !== "none" && form.auth_mode !== "bearer" && <input className="input-standard" value={form.api_key_name} onChange={(e) => setForm({ ...form, api_key_name: e.target.value })} placeholder={form.auth_mode === "query" ? "Query key name, e.g. apikey" : "Header name, e.g. X-API-Key"} />}
+                {form.auth_mode === "header" && <input className="input-standard sm:col-span-2" value={form.api_key_prefix} onChange={(e) => setForm({ ...form, api_key_prefix: e.target.value })} placeholder="Optional key prefix, e.g. Token " />}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <textarea className="input-standard min-h-[82px] font-mono text-[10px]" value={form.query_params_json} onChange={(e) => setForm({ ...form, query_params_json: e.target.value })} placeholder={'Optional query JSON\n{"symbol":"{ticker}","region":"US"}'} />
+                <textarea className="input-standard min-h-[82px] font-mono text-[10px]" value={form.headers_json} onChange={(e) => setForm({ ...form, headers_json: e.target.value })} placeholder={'Optional headers JSON\n{"Accept":"application/json"}'} />
+              </div>
+
+              <input className="input-standard" value={form.root_path} onChange={(e) => setForm({ ...form, root_path: e.target.value })} placeholder="Optional response root path, e.g. data.quote" />
+
               {form.category === "news" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input className="input-standard" value={form.items_path} onChange={(e) => setForm({ ...form, items_path: e.target.value })} placeholder="Articles array path" />
@@ -186,12 +253,16 @@ export default function CustomerConnectionsPanel() {
                   <input className="input-standard" value={form.published_path} onChange={(e) => setForm({ ...form, published_path: e.target.value })} placeholder="Published date field" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input className="input-standard" value={form.price_path} onChange={(e) => setForm({ ...form, price_path: e.target.value })} placeholder="Price field path" />
                   <input className="input-standard" value={form.change_path} onChange={(e) => setForm({ ...form, change_path: e.target.value })} placeholder="Change % field path" />
+                  <input className="input-standard" value={form.open_path} onChange={(e) => setForm({ ...form, open_path: e.target.value })} placeholder="Open field path" />
+                  <input className="input-standard" value={form.high_path} onChange={(e) => setForm({ ...form, high_path: e.target.value })} placeholder="High field path" />
+                  <input className="input-standard" value={form.low_path} onChange={(e) => setForm({ ...form, low_path: e.target.value })} placeholder="Low field path" />
+                  <input className="input-standard" value={form.volume_path} onChange={(e) => setForm({ ...form, volume_path: e.target.value })} placeholder="Volume field path" />
                 </div>
               )}
-              <p className="text-[9px] text-[var(--text-muted)] leading-relaxed">Nested JSON paths can use dots, for example <code>data.quote.price</code> or <code>response.articles</code>.</p>
+              <p className="text-[9px] text-[var(--text-muted)] leading-relaxed">Use <code>{"{ticker}"}</code> in the endpoint, query values or header values. Nested JSON paths use dots, for example <code>data.quote.price</code>. Custom connections currently expect a GET endpoint returning JSON.</p>
             </>
           )}
 
