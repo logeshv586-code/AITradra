@@ -11,6 +11,12 @@ const EMPTY_FORM = {
   endpoint: "",
   price_path: "price",
   change_path: "change_pct",
+  items_path: "articles",
+  headline_path: "title",
+  summary_path: "description",
+  url_path: "url",
+  source_path: "source",
+  published_path: "published_at",
 };
 
 export default function CustomerConnectionsPanel() {
@@ -41,28 +47,40 @@ export default function CustomerConnectionsPanel() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (!selectedProvider) return;
+    if (!selectedProvider || form.provider === "custom_json") return;
     setForm((previous) => ({
       ...previous,
       category: selectedProvider.category,
       name: previous.name || selectedProvider.name,
     }));
-  }, [selectedProvider]);
+  }, [selectedProvider, form.provider]);
 
   const save = async (event) => {
     event.preventDefault();
     setBusy(true);
     setMessage("");
     try {
+      const category = form.provider === "custom_json"
+        ? form.category
+        : (selectedProvider?.category || form.category);
       const config = {};
       if (form.provider === "custom_json") {
         config.endpoint = form.endpoint;
         config.api_key_location = "header";
         config.api_key_name = "Authorization";
-        config.mapping = {
-          price: form.price_path || "price",
-          change_pct: form.change_path || "change_pct",
-        };
+        config.mapping = category === "news"
+          ? {
+              items: form.items_path || "articles",
+              headline: form.headline_path || "title",
+              summary: form.summary_path || "description",
+              url: form.url_path || "url",
+              source: form.source_path || "source",
+              published_at: form.published_path || "published_at",
+            }
+          : {
+              price: form.price_path || "price",
+              change_pct: form.change_path || "change_pct",
+            };
       }
       const response = await fetch(`${API_BASE}/api/customer/connections`, {
         method: "POST",
@@ -70,7 +88,7 @@ export default function CustomerConnectionsPanel() {
         body: JSON.stringify({
           name: form.name || selectedProvider?.name || "My connection",
           provider: form.provider,
-          category: selectedProvider?.category || form.category,
+          category,
           api_key: form.api_key,
           private_key: form.private_key,
           config,
@@ -78,8 +96,8 @@ export default function CustomerConnectionsPanel() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.detail || "Could not save connection");
-      setMessage("Connection saved. AITradra will automatically prefer it when compatible data is requested.");
-      setForm({ ...EMPTY_FORM, provider: form.provider, category: selectedProvider?.category || form.category });
+      setMessage("Connection saved. AITradra will automatically use it whenever this type of data is requested.");
+      setForm({ ...EMPTY_FORM, provider: form.provider, category });
       await load();
     } catch (error) {
       setMessage(error.message || "Could not save connection.");
@@ -127,7 +145,7 @@ export default function CustomerConnectionsPanel() {
         <form onSubmit={save} className="rounded-[var(--radius-md)] border border-[var(--border-color)] bg-[#171b22] p-4 flex flex-col gap-3">
           <div>
             <div className="text-[12px] font-semibold text-white">Add a connection</div>
-            <div className="text-[10px] text-[var(--text-muted)] mt-1">Choose a preset or connect a JSON API.</div>
+            <div className="text-[10px] text-[var(--text-muted)] mt-1">Choose a preset or connect almost any JSON REST API by mapping its fields.</div>
           </div>
           <select
             value={form.provider}
@@ -139,6 +157,14 @@ export default function CustomerConnectionsPanel() {
           >
             {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name} — {provider.category.replace("_", " ")}</option>)}
           </select>
+
+          {form.provider === "custom_json" && (
+            <select className="input-standard" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+              <option value="market_data">Custom market/price API</option>
+              <option value="news">Custom news API</option>
+            </select>
+          )}
+
           <input className="input-standard" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Connection name" />
 
           {selectedProvider?.category === "broker" ? (
@@ -149,11 +175,23 @@ export default function CustomerConnectionsPanel() {
 
           {form.provider === "custom_json" && (
             <>
-              <input className="input-standard" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} placeholder="https://api.example.com/quote/{ticker}" />
-              <div className="grid grid-cols-2 gap-2">
-                <input className="input-standard" value={form.price_path} onChange={(e) => setForm({ ...form, price_path: e.target.value })} placeholder="Price field path" />
-                <input className="input-standard" value={form.change_path} onChange={(e) => setForm({ ...form, change_path: e.target.value })} placeholder="Change % field path" />
-              </div>
+              <input className="input-standard" value={form.endpoint} onChange={(e) => setForm({ ...form, endpoint: e.target.value })} placeholder="https://api.example.com/resource/{ticker}" />
+              {form.category === "news" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input className="input-standard" value={form.items_path} onChange={(e) => setForm({ ...form, items_path: e.target.value })} placeholder="Articles array path" />
+                  <input className="input-standard" value={form.headline_path} onChange={(e) => setForm({ ...form, headline_path: e.target.value })} placeholder="Headline field" />
+                  <input className="input-standard" value={form.summary_path} onChange={(e) => setForm({ ...form, summary_path: e.target.value })} placeholder="Summary field" />
+                  <input className="input-standard" value={form.url_path} onChange={(e) => setForm({ ...form, url_path: e.target.value })} placeholder="URL field" />
+                  <input className="input-standard" value={form.source_path} onChange={(e) => setForm({ ...form, source_path: e.target.value })} placeholder="Source field" />
+                  <input className="input-standard" value={form.published_path} onChange={(e) => setForm({ ...form, published_path: e.target.value })} placeholder="Published date field" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <input className="input-standard" value={form.price_path} onChange={(e) => setForm({ ...form, price_path: e.target.value })} placeholder="Price field path" />
+                  <input className="input-standard" value={form.change_path} onChange={(e) => setForm({ ...form, change_path: e.target.value })} placeholder="Change % field path" />
+                </div>
+              )}
+              <p className="text-[9px] text-[var(--text-muted)] leading-relaxed">Nested JSON paths can use dots, for example <code>data.quote.price</code> or <code>response.articles</code>.</p>
             </>
           )}
 
