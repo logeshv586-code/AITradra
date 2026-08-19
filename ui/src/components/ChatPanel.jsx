@@ -176,21 +176,25 @@ export default function ChatPanel({
                           </span>
                         )}
                       {(message.sources || []).slice(0, 3).map((source, sourceIndex) => {
-                        const headline =
-                          source.headline ||
-                          source.title ||
-                          source.url ||
-                          `Evidence ${sourceIndex + 1}`;
+                        const sourceIsText = typeof source === "string";
+                        const headline = sourceIsText
+                          ? source
+                          : source?.headline ||
+                            source?.title ||
+                            source?.name ||
+                            source?.url ||
+                            `Evidence ${sourceIndex + 1}`;
+                        const url = sourceIsText ? null : source?.url;
                         const body = (
                           <>
                             <Newspaper size={10} />
                             <span className="max-w-[240px] truncate">{headline}</span>
                           </>
                         );
-                        return source.url ? (
+                        return url ? (
                           <a
                             key={`${headline}-${sourceIndex}`}
-                            href={source.url}
+                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="surface-badge flex items-center gap-1 hover:text-white"
