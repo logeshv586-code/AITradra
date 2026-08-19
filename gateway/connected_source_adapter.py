@@ -227,6 +227,36 @@ class ConnectedSourceAdapter:
                     "volume": int(_float(payload.get("volume"))),
                 }
 
+            if provider == "polygon":
+                if not key:
+                    return None
+                response = await client.get(
+                    f"https://api.polygon.io/v2/aggs/ticker/{ticker}/prev",
+                    params={"adjusted": "true", "apiKey": key},
+                )
+                response.raise_for_status()
+                payload = response.json()
+                results = payload.get("results") or []
+                if not results or not isinstance(results, list):
+                    return None
+                first = results[0]
+                open_px = _float(first.get("o"))
+                close_px = _float(first.get("c"))
+                chg = close_px - open_px
+                pct_chg = (chg / open_px * 100) if open_px > 0 else 0.0
+                return {
+                    "px": close_px,
+                    "chg": chg,
+                    "pct_chg": pct_chg,
+                    "open": open_px,
+                    "high": _float(first.get("h")),
+                    "low": _float(first.get("l")),
+                    "close": close_px,
+                    "volume": int(_float(first.get("v"))),
+                    "timestamp": first.get("t"),
+                    "provider": "polygon",
+                }
+
             return await self._custom_price(client, config, secrets, ticker)
 
     async def _custom_price(
