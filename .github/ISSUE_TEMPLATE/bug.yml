@@ -1,0 +1,66 @@
+name: Bug report
+description: Report something that is broken or unsafe
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. If this involves credentials, private keys, live trading bypass, or security impact, do not post secrets here. Follow SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is broken?
+      placeholder: Describe the issue clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can maintainers reproduce it?
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Customer UI
+        - Market data
+        - News/social evidence
+        - AI agents
+        - Risk management
+        - Paper trading
+        - Real trading / broker
+        - Dev setup
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I did not include API keys, private keys, account credentials, or private financial data.
+          required: true
+        - label: This bug does not claim guaranteed investment returns.
+          required: true
