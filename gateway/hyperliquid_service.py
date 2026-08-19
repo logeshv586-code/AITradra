@@ -1,7 +1,8 @@
 """Hyperliquid autonomous trading service with fail-closed execution gates.
 
 Flow: account state -> protective exits -> indicators -> AI decision -> signal
-fusion -> deterministic risk gate -> strategy validation -> protected execution.
+fusion -> deterministic risk gate -> strategy validation -> empirical precision
+validation -> protected execution.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import pandas as pd
 
 from core.config import settings
 from core.logger import get_logger
+from core.precision_gate import empirical_precision_gate
 from core.trading_safety import (
     DailyEquityTracker,
     get_execution_status,
@@ -202,9 +204,6 @@ class HyperliquidTradingService:
                     "signal": "BULLISH" if decision == "LONG" else "BEARISH",
                     "confidence": context.confidence,
                 }
-                # Preserve a genuine numeric model score when present. Otherwise the
-                # aggregator derives score strength from confidence instead of using
-                # an arbitrary placeholder that can suppress every trade.
                 if agent_result.get("score") is not None:
                     technical_signal["score"] = agent_result["score"]
 
@@ -219,11 +218,28 @@ class HyperliquidTradingService:
                 agg_context = await self.signal_aggregator.run(agg_context)
                 signal_result = agg_context.result or {
                     "verdict": "HOLD",
+                    "direction": "HOLD",
                     "confidence": 0,
                     "entry_point": last_close,
                     "stop_loss": 0,
                     "take_profit": 0,
                 }
+
+                # A high model confidence is not the same as historical accuracy,
+                # but autonomous live mode should still reject weak current signals.
+                if execution["live_execution_allowed"]:
+                    min_live_confidence = float(
+                        getattr(settings, "AUTOTRADE_MIN_SIGNAL_CONFIDENCE", 90.0)
+                    )
+                    current_confidence = float(signal_result.get("confidence", 0) or 0)
+                    if current_confidence < min_live_confidence:
+                        logger.critical(
+                            "[%s] LIVE trade blocked: current signal confidence %.1f%% < %.1f%%.",
+                            ticker,
+                            current_confidence,
+                            min_live_confidence,
+                        )
+                        continue
 
                 risk_context = AgentContext(
                     task=f"Risk evaluation for {ticker} trade", ticker=ticker
@@ -294,6 +310,25 @@ class HyperliquidTradingService:
                             "; ".join(validation["reasons"]),
                         )
                         continue
+
+                    precision = empirical_precision_gate.check(
+                        ticker,
+                        direction=signal_result.get("direction"),
+                    )
+                    if not precision["eligible"]:
+                        logger.critical(
+                            "[%s] LIVE trade blocked by empirical precision gate: %s",
+                            ticker,
+                            "; ".join(precision["reasons"]),
+                        )
+                        continue
+                    logger.info(
+                        "[%s] Empirical precision gate passed: observed=%.2f%% lower_bound=%.2f%% samples=%s",
+                        ticker,
+                        float(precision["stats"].get("observed_precision", 0)) * 100,
+                        float(precision["stats"].get("wilson_lower_bound", 0)) * 100,
+                        precision["stats"].get("total_directional", 0),
+                    )
 
                 stop_loss = float(risk_result.get("stop_loss", 0) or 0)
                 take_profit = float(risk_result.get("take_profit", 0) or 0)
