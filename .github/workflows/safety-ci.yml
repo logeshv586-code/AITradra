@@ -26,11 +26,11 @@ jobs:
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio pydantic pydantic-settings httpx cryptography
+          pip install pytest pytest-asyncio pydantic pydantic-settings httpx requests cryptography
       - name: Compile critical Python modules
         run: python -m compileall -q core brokers gateway agents
       - name: Run trading and customer safety regression suites
-        run: python -m pytest -q tests/test_trading_safety.py tests/test_customer_experience.py
+        run: python -m pytest -q tests/test_trading_safety.py tests/test_customer_experience.py tests/test_live_integrity.py
 
   frontend-build:
     runs-on: ubuntu-latest

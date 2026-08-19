@@ -4,12 +4,13 @@ AXIOM Data Engine — Real Market Data from customer APIs + open/public sources.
 Priority chain:
   1. In-memory cache — fastest recent result
   2. Customer-connected market/news APIs — optional and configurable from UI
-  3. Knowledge Store (SQLite) — local historical cache
-  4. Collector Agent (yfinance/Stooq/Alpha Vantage/web fallback) — live public data
+  3. Collector Agent (yfinance/Stooq/Alpha Vantage/web fallback) — live public data
+  4. Knowledge Store (SQLite) — real historical fallback, explicitly marked stale
   5. RSS/Web/social collectors — news and sentiment
 
-NEVER fabricates a live price. When no source is available it returns a clear
-syncing payload so customer screens can explain that data is unavailable.
+NEVER fabricates a live price. When no current source is available, historical or
+cached observations are explicitly marked stale so agents and customer screens do
+not mistake them for a live quote.
 """
 
 import asyncio
@@ -26,6 +27,18 @@ logger = get_logger(__name__)
 
 class DataEngine:
     """Real data engine with connected-provider and knowledge-store integration."""
+
+    @staticmethod
+    def _age_minutes(value) -> float | None:
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if parsed.tzinfo is not None:
+                parsed = parsed.replace(tzinfo=None)
+            return max((datetime.now() - parsed).total_seconds() / 60.0, 0.0)
+        except (TypeError, ValueError):
+            return None
 
     def _df_to_ohlcv(self, df, tail: int = 120) -> list[dict]:
         rows = []
@@ -46,12 +59,32 @@ class DataEngine:
         """Return the best current price payload without inventing values."""
         ticker = ticker.upper()
         data, is_fresh = cache.get(ticker, "price")
-        if data and (is_fresh or not allow_scrape):
+        cache_meta = cache.get_metadata(ticker, "price")
+        cache_age = cache_meta.get("age_minutes")
+
+        if data and is_fresh:
             return {
                 **data,
-                "source_used": data.get("source_used", "cache"),
-                "freshness_minutes": 0,
+                "ticker": ticker,
+                "source_used": data.get("source_used", cache_meta.get("source") or "cache"),
+                "freshness_minutes": round(cache_age or 0.0, 1),
                 "is_estimated": False,
+                "is_stale": False,
+                "syncing": False,
+            }
+
+        # Non-refreshing callers may use the last real observation for display,
+        # but it must remain visibly stale. Refreshing customer/research callers
+        # continue through the live-source chain below instead.
+        if data and not allow_scrape and ticker not in settings.DEFAULT_WATCHLIST:
+            return {
+                **data,
+                "ticker": ticker,
+                "source_used": "cache_stale",
+                "freshness_minutes": round(cache_age, 1) if cache_age is not None else None,
+                "is_estimated": False,
+                "is_stale": True,
+                "syncing": True,
             }
 
         if allow_scrape or ticker in settings.DEFAULT_WATCHLIST:
@@ -62,6 +95,7 @@ class DataEngine:
                 if connected and float(connected.get("px", 0) or 0) > 0:
                     px = float(connected.get("px", 0))
                     res = {
+                        "ticker": ticker,
                         "px": round(px, 4),
                         "chg": float(connected.get("chg", connected.get("pct_chg", 0)) or 0),
                         "pct_chg": float(connected.get("pct_chg", connected.get("chg", 0)) or 0),
@@ -81,6 +115,8 @@ class DataEngine:
                         "connection_id": connected.get("connection_id"),
                         "freshness_minutes": 0,
                         "is_estimated": False,
+                        "is_stale": False,
+                        "syncing": False,
                     }
                     cache.set(ticker, "price", res, res["source_used"])
                     return res
@@ -91,7 +127,16 @@ class DataEngine:
             try:
                 from agents.collector_agent import fetch_ticker
 
-                df, source = await fetch_ticker(ticker, period="1mo", scrape_ok=True)
+                # Customer/research refreshes bypass the collector's long-lived
+                # parquet cache so a request advertised as fresh actually checks
+                # a public market source. Background/non-scrape paths may still
+                # benefit from the collector cache.
+                df, source = await fetch_ticker(
+                    ticker,
+                    period="1mo",
+                    use_cache=not allow_scrape,
+                    scrape_ok=True,
+                )
                 if not df.empty:
                     latest_row = df.iloc[-1]
                     px = float(latest_row.get("Close", 0))
@@ -120,7 +165,9 @@ class DataEngine:
                         logger.warning(f"Failed to store OHLCV for {ticker}: {store_err}")
 
                     ohlcv_list = self._df_to_ohlcv(df, tail=120)
+                    collector_cached = source in {"cache", "stale_cache"}
                     res = {
+                        "ticker": ticker,
                         "px": round(px, 2),
                         "chg": round(chg, 2),
                         "pct_chg": round(chg, 2),
@@ -136,14 +183,14 @@ class DataEngine:
                         "week52_low": float(df["Close"].min()) if "Close" in df.columns else px,
                         "ts": datetime.now().isoformat(),
                         "ohlcv": ohlcv_list,
+                        "source_used": source,
+                        "freshness_minutes": 0 if not collector_cached else None,
+                        "is_estimated": False,
+                        "is_stale": collector_cached,
+                        "syncing": collector_cached,
                     }
                     cache.set(ticker, "price", res, source)
-                    return {
-                        **res,
-                        "source_used": source,
-                        "freshness_minutes": 0,
-                        "is_estimated": False,
-                    }
+                    return res
             except Exception as e:
                 logger.warning(f"Collector fetch failed for {ticker}: {e}")
 
@@ -159,7 +206,10 @@ class DataEngine:
                     chg = ((px - prev_close) / prev_close * 100) if prev_close else 0
                     lows = [float(r.get("low", 0) or 0) for r in ohlcv[:252]]
                     lows = [value for value in lows if value > 0]
+                    observed_at = latest.get("date", datetime.now().isoformat())
+                    observed_age = self._age_minutes(observed_at)
                     res = {
+                        "ticker": ticker,
                         "px": round(px, 2),
                         "chg": round(chg, 2),
                         "pct_chg": round(chg, 2),
@@ -173,31 +223,41 @@ class DataEngine:
                         "pe": latest.get("pe_ratio", 0),
                         "week52_high": max(float(r.get("high", 0) or 0) for r in ohlcv[:252]),
                         "week52_low": min(lows) if lows else 0,
-                        "ts": latest.get("date", datetime.now().isoformat()),
+                        "ts": observed_at,
                         "ohlcv": [
                             {"t": r.get("date"), "o": r.get("open"), "h": r.get("high"),
                              "l": r.get("low"), "c": r.get("close"), "v": r.get("volume")}
                             for r in ohlcv[:30]
                         ],
+                        "source_used": "knowledge_store",
+                        "freshness_minutes": round(observed_age, 1) if observed_age is not None else None,
+                        "is_estimated": False,
+                        "is_stale": True,
+                        "syncing": True,
                     }
                     cache.set(ticker, "price", res, "knowledge_store")
-                    return {
-                        **res,
-                        "source_used": "knowledge_store",
-                        "freshness_minutes": 0,
-                        "is_estimated": False,
-                    }
+                    return res
         except Exception as e:
             logger.warning(f"Knowledge store price lookup failed for {ticker}: {e}")
 
         if data:
-            return {**data, "source_used": "cache_stale", "is_stale": True}
+            return {
+                **data,
+                "ticker": ticker,
+                "source_used": "cache_stale",
+                "freshness_minutes": round(cache_age, 1) if cache_age is not None else None,
+                "is_estimated": False,
+                "is_stale": True,
+                "syncing": True,
+            }
 
         return {
+            "ticker": ticker,
             "px": 0, "chg": 0, "pct_chg": 0, "open": 0, "high": 0, "low": 0,
             "close": 0, "volume": 0, "avg_volume": 0, "mktcap": 0, "pe": 0,
             "week52_high": 0, "week52_low": 0, "ts": datetime.now().isoformat(),
-            "ohlcv": [], "source_used": "none", "is_estimated": True, "syncing": True,
+            "ohlcv": [], "source_used": "none", "freshness_minutes": None,
+            "is_estimated": True, "is_stale": True, "syncing": True,
         }
 
     async def get_live_chart_data(self, ticker: str, period: str = "1d") -> dict:
@@ -215,7 +275,7 @@ class DataEngine:
                 payload = {
                     "ticker": ticker, "period": period, "ohlcv": bars,
                     "source_used": source, "updated_at": datetime.now().isoformat(),
-                    "live": period == "1d" and source not in {"stale_cache", "none"},
+                    "live": period == "1d" and source not in {"cache", "stale_cache", "none"},
                 }
                 cache.set(cache_key, "chart", payload, source)
                 return payload

@@ -105,12 +105,10 @@ class CustomerHyperliquidBroker(HyperliquidBroker):
         if order.qty <= 0:
             return {"status": "REJECTED", "reason": "Quantity must be positive", "paper": False}
 
-        reference = await self._reference_price(order)
-        protection_error = self._validate_protection(order, reference)
-        if protection_error:
-            return {"status": "REJECTED", "reason": protection_error, "paper": False}
-
         try:
+            # Risk-reducing exits intentionally run before entry-only reference-price
+            # and protection validation. A customer must be able to close exposure
+            # when research or quote services are unavailable.
             if order.reduce_only:
                 if order.order_type != OrderType.MARKET:
                     return {"status": "REJECTED", "reason": "Reduce-only close must use market execution", "paper": False}
@@ -127,7 +125,13 @@ class CustomerHyperliquidBroker(HyperliquidBroker):
                     "broker": "hyperliquid",
                     "paper": False,
                     "raw_status": result.get("status"),
+                    "reduce_only": True,
                 }
+
+            reference = await self._reference_price(order)
+            protection_error = self._validate_protection(order, reference)
+            if protection_error:
+                return {"status": "REJECTED", "reason": protection_error, "paper": False}
 
             if order.order_type != OrderType.MARKET:
                 return {"status": "REJECTED", "reason": "Protected live entries currently use market execution", "paper": False}

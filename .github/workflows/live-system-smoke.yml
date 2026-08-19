@@ -1,0 +1,56 @@
+name: Live System Smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-market-agent-paper-trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PAPER_TRADE_MODE: "true"
+      AUTOTRADE_ENABLED: "false"
+      MANUAL_LIVE_TRADING_ENABLED: "false"
+      LIVE_SMOKE_REPORT: live-smoke-report.json
+      LIVE_NEWS_DECISION_REPORT: live-news-decision-report.json
+      PYTHONPATH: "."
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install live smoke dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            pydantic pydantic-settings python-dotenv structlog \
+            httpx requests cryptography \
+            pandas numpy yfinance beautifulsoup4 lxml feedparser \
+            pytest pytest-asyncio
+      - name: Compile smoke-tested modules
+        run: |
+          python -m compileall -q \
+            core/config.py core/scoring.py core/trading_safety.py \
+            gateway/cache.py gateway/data_engine.py gateway/knowledge_store.py gateway/simulation_engine.py \
+            gateway/scrapers/rss_scraper.py gateway/scrapers/social_scraper.py \
+            agents/collector_agent.py agents/base_agent.py agents/specialist_agents.py \
+            agents/signal_aggregator.py agents/risk_manager.py \
+            brokers/customer_hyperliquid_broker.py
+      - name: Run real-network market, agent and practice-trade smoke
+        run: python scripts/live_system_smoke.py
+      - name: Run live news, social provenance and autonomous decision guard smoke
+        run: python scripts/live_news_decision_smoke.py
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-system-smoke-report
+          path: |
+            live-smoke-report.json
+            live-news-decision-report.json
+          if-no-files-found: warn
