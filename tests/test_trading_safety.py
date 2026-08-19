@@ -4,6 +4,7 @@ import pytest
 
 from agents.base_agent import AgentContext
 from agents.risk_manager import RiskManagerAgent
+from agents.signal_aggregator import SignalAggregatorAgent
 from brokers.broker_router import Order, OrderSide, PaperBroker
 from core.trading_safety import (
     DailyEquityTracker,
@@ -60,9 +61,21 @@ def test_candles_are_normalized_latest_first():
 
 
 def test_daily_equity_tracker_reports_loss(tmp_path):
-    tracker = DailyEquityTracker(path=tmp_path / "equity.json")
+    tracker = DailyEquityTracker(path=tmp_path / "equity.json", scope="paper")
     assert tracker.update(100_000) == 0
     assert tracker.update(98_000) == pytest.approx(-0.02)
+
+
+def test_daily_equity_tracker_resets_when_account_scope_changes(tmp_path):
+    path = tmp_path / "equity.json"
+    paper = DailyEquityTracker(path=path, scope="paper")
+    live = DailyEquityTracker(path=path, scope="live")
+
+    assert paper.update(100_000) == 0
+    assert paper.update(95_000) == pytest.approx(-0.05)
+    # Switching execution/account scope must establish a new baseline rather than
+    # comparing a real-money account with the old paper account balance.
+    assert live.update(5_000) == 0
 
 
 def test_strategy_validation_requires_oos_and_thresholds(tmp_path, monkeypatch):
@@ -84,10 +97,14 @@ def test_strategy_validation_requires_oos_and_thresholds(tmp_path, monkeypatch):
         "total_trades": 45,
         "profit_factor": 1.5,
     }
-    store.record("BTC", "strategy-v1", metrics, approved=True, out_of_sample_passed=True)
+    store.record(
+        "BTC", "strategy-v1", metrics, approved=True, out_of_sample_passed=True
+    )
     assert store.check("BTC", "strategy-v1")["eligible"] is True
 
-    store.record("ETH", "strategy-v1", metrics, approved=True, out_of_sample_passed=False)
+    store.record(
+        "ETH", "strategy-v1", metrics, approved=True, out_of_sample_passed=False
+    )
     result = store.check("ETH", "strategy-v1")
     assert result["eligible"] is False
     assert any("Out-of-sample" in reason for reason in result["reasons"])
@@ -159,4 +176,35 @@ async def test_risk_manager_accepts_strong_buy_label_when_other_gates_pass():
     )
     result = await agent.act(context)
     assert result.result["decision"] == "APPROVE"
-    assert result.result["stop_loss"] < result.result["entry"] < result.result["take_profit"]
+    assert (
+        result.result["stop_loss"]
+        < result.result["entry"]
+        < result.result["take_profit"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_technical_only_signal_is_not_penalized_for_missing_news():
+    agent = SignalAggregatorAgent()
+    context = AgentContext(task="technical-only signal", ticker="BTC")
+    context.metadata["ohlcv_data"] = [
+        {
+            "timestamp": 10_000 - i,
+            "open": 100.0 + i * 0.01,
+            "high": 102.0 + i * 0.01,
+            "low": 99.0 + i * 0.01,
+            "close": 101.0 + i * 0.01,
+            "volume": 1_000.0,
+        }
+        for i in range(100)
+    ]
+    context.observations["specialist_outputs"] = {
+        "technical": {"signal": "BULLISH", "confidence": 0.90}
+    }
+
+    result = await agent.act(context)
+    assert result.result["signal_mode"] == "technical_only"
+    assert result.result["confidence"] >= 70
+    assert "BUY" in result.result["verdict"]
+    assert result.result["stop_loss"] < result.result["entry"]
+    assert result.result["take_profit"] > result.result["entry"]
