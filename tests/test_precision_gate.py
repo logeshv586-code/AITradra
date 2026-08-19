@@ -92,7 +92,7 @@ def test_precision_gate_rejects_99_of_100_when_statistical_bound_is_weak(
     assert result["stats"]["wilson_lower_bound"] < 0.95
 
 
-def test_accuracy_store_mirrors_binary_precision_evidence(tmp_path):
+def test_repeated_same_day_scoring_does_not_inflate_precision_samples(tmp_path):
     db_path = str(tmp_path / "accuracy.db")
     accuracy = AccuracyStore(db_path)
     accuracy.record_outcome(
@@ -114,5 +114,5 @@ def test_accuracy_store_mirrors_binary_precision_evidence(tmp_path):
     stats = precision.get_precision_stats(
         ticker="BTC", model="SignalAggregatorAgent", direction="BULLISH"
     )
-    assert stats["total_directional"] == 2
-    assert stats["correct_scored"] == 1
+    assert stats["total_directional"] == 1
+    assert stats["correct_scored"] == 0
