@@ -242,12 +242,25 @@ class BrokerRouter:
             vault_address=config.get("HYPERLIQUID_VAULT_ADDRESS"),
         )
 
+        from brokers.alpaca_broker import AlpacaBroker
+
+        self.alpaca_broker = None
+        if config.get("ALPACA_API_KEY") and config.get("ALPACA_SECRET_KEY"):
+            self.alpaca_broker = AlpacaBroker(
+                api_key=config.get("ALPACA_API_KEY", ""),
+                secret_key=config.get("ALPACA_SECRET_KEY", ""),
+                paper=config.get("PAPER_TRADE_MODE", True),
+                enable_live_trading=config.get("ENABLE_LIVE_TRADING", False),
+            )
+
     async def execute(self, order: Order, asset_class: str = "equity") -> dict:
         if asset_class == "crypto":
             if self.hyperliquid_broker:
                 return await self.hyperliquid_broker.place_order(order)
             if self.ccxt_broker:
                 return await self.ccxt_broker.place_order(order)
+        if asset_class == "alpaca" and self.alpaca_broker:
+            return await self.alpaca_broker.place_order(order)
         return await self.paper_broker.place_order(order)
 
     async def get_all_positions(self) -> dict:
@@ -256,4 +269,6 @@ class BrokerRouter:
             positions["ccxt"] = await self.ccxt_broker.get_positions()
         if self.hyperliquid_broker:
             positions["hyperliquid"] = await self.hyperliquid_broker.get_positions()
+        if self.alpaca_broker:
+            positions["alpaca"] = await self.alpaca_broker.get_positions()
         return positions

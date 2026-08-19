@@ -151,7 +151,7 @@ flowchart LR
 | **Multi-Agent Research** | Technical, macro, fundamental, sentiment, sector, catalyst and regime analysis | `agents/orchestrator.py`, `agents/specialist_agents.py`, `agents/extended_specialists.py` |
 | **Decision Fusion** | Signal normalization, consensus and calibrated confidence | `agents/signal_aggregator.py`, `core/scoring.py`, `agents/critique_layer.py` |
 | **Risk** | Daily-loss gate, position limits, leverage caps, reserve logic and protective levels | `agents/risk_manager.py`, `core/trading_safety.py` |
-| **Execution** | Practice broker, generic routing, autonomous Hyperliquid path and manual Hyperliquid adapter | `brokers/`, `gateway/hyperliquid_service.py` |
+| **Execution** | Practice broker, Alpaca paper/live adapter, generic routing, autonomous Hyperliquid path and manual Hyperliquid adapter | `brokers/`, `gateway/hyperliquid_service.py` |
 | **Validation** | Out-of-sample strategy checks, prediction scoring and safety regressions | `agents/legacy/backtest_agent/`, `tests/`, `.github/workflows/safety-ci.yml` |
 
 ---
