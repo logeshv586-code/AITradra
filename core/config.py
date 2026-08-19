@@ -82,8 +82,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "nvidia_nim"
     NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
 
-    # Generic OpenAI-compatible provider. This works for OpenAI, OpenRouter,
-    # Groq, Together, local gateways, or any /chat/completions-compatible API.
+    # Generic OpenAI-compatible provider.
     OPENAI_COMPATIBLE_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_COMPATIBLE_API_KEY: str = ""
     OPENAI_COMPATIBLE_MODEL: str = "gpt-4o-mini"
@@ -100,7 +99,7 @@ class Settings(BaseSettings):
     ANALYSIS_MODEL: str = "meta/llama3-70b-instruct"
     GENERAL_MODEL: str = "minimaxai/minimax-m2.5"
 
-    # Local LLM Fallbacks (Store filenames in .env, resolved to absolute at runtime)
+    # Local LLM Fallbacks
     LOCAL_REASONING_MODEL_PATH: str = "NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
     LOCAL_GENERAL_MODEL_PATH: str = "Qwen2.5-3B-Instruct-Q4_K_M.gguf"
 
@@ -123,15 +122,7 @@ class Settings(BaseSettings):
             normalized = v.strip().lower()
             if normalized in {"1", "true", "yes", "on", "debug", "development", "dev"}:
                 return True
-            if normalized in {
-                "0",
-                "false",
-                "no",
-                "off",
-                "release",
-                "prod",
-                "production",
-            }:
+            if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
                 return False
         return v
 
@@ -153,6 +144,7 @@ class Settings(BaseSettings):
 
     # Execution safety — live trading is fail-closed unless every gate is explicit.
     AUTOTRADE_ENABLED: bool = False
+    MANUAL_LIVE_TRADING_ENABLED: bool = False
     LIVE_TRADING_ACK: str = ""
     REQUIRE_PROTECTIVE_ORDERS: bool = True
     REQUIRE_STRATEGY_VALIDATION: bool = True
@@ -194,25 +186,19 @@ class Settings(BaseSettings):
     BALANCE_RESERVE_PCT: float = 0.20
     MANDATORY_STOP_LOSS_PCT: float = 0.05
 
-    # Watchlist (Expanded for comprehensive global visibility)
+    # Watchlist
     DEFAULT_WATCHLIST: list[str] = [
-        # US Tech & Megacap
         "AAPL", "GOOGL", "MSFT", "AMZN", "NVDA", "TSLA", "META", "NFLX",
         "AMD", "INTC", "CRM", "ADBE", "PYPL", "SQ", "UBER", "ABNB", "SPOT",
         "PLTR", "SNOW", "SHOP", "ORCL", "IBM",
-        # US Finance / Traditional
         "JPM", "BAC", "WFC", "GS", "MS", "V", "MA", "JNJ", "PFE", "UNH",
         "PG", "KO", "PEP", "WMT", "TGT", "HD", "XOM", "CVX",
-        # Indian / Asian Equities
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS",
         "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "TATAMOTORS.NS", "BABA", "TCEHY",
         "TSM", "SONY",
-        # European / Other Internationals
         "ASML", "NVO", "NVS", "SAP", "SIE.DE", "LVMUY", "NSRGY", "RY", "TD",
         "BHP", "RIO",
-        # Major Indices & ETFs
         "SPY", "QQQ", "DIA", "IWM", "VTI", "VEA", "VWO", "GLD", "SLV", "USO", "TLT",
-        # Cryptocurrencies
         "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD", "ADA-USD",
         "AVAX-USD", "DOGE-USD", "DOT-USD", "LINK-USD", "MATIC-USD",
     ]
