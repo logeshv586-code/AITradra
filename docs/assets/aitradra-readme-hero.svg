@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="640" viewBox="0 0 1920 640" role="img" aria-labelledby="title desc">
+<title id="title">AITradra AI Trading Intelligence</title><desc id="desc">CEO-level AITradra README hero showing live market intelligence, multi-agent analysis, risk controls, precision validation and scheduled health monitoring.</desc>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#030712"/><stop offset=".55" stop-color="#07162d"/><stop offset="1" stop-color="#020713"/></linearGradient>
+ <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2d7cff"/><stop offset="1" stop-color="#00b9ff"/></linearGradient>
+ <linearGradient id="green" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#00e3a3"/><stop offset="1" stop-color="#0a886c"/></linearGradient>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#a46f17"/><stop offset=".35" stop-color="#ffe083"/><stop offset=".65" stop-color="#efb444"/><stop offset="1" stop-color="#8a570d"/></linearGradient>
+ <radialGradient id="halo"><stop stop-color="#0c67ff" stop-opacity=".24"/><stop offset="1" stop-color="#0c67ff" stop-opacity="0"/></radialGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<rect width="1920" height="640" fill="url(#bg)"/>
+<circle cx="220" cy="176" r="260" fill="url(#halo)"/><circle cx="1540" cy="250" r="330" fill="url(#halo)" opacity=".45"/>
+<g opacity=".18" stroke="#2e6cae" stroke-width="1"><path d="M0 510 Q220 380 430 490 T850 460 T1260 500 T1920 390" fill="none"/><path d="M0 545 Q250 430 500 535 T1020 520 T1450 540 T1920 455" fill="none"/></g>
+<g transform="translate(62 60)">
+ <circle cx="128" cy="128" r="104" fill="none" stroke="url(#gold)" stroke-width="3"/><circle cx="128" cy="128" r="86" fill="none" stroke="#166fda" stroke-width="2" stroke-dasharray="4 10"/>
+ <path d="M47 228L116 42Q128 17 140 42L213 228H177L158 181H96L78 228ZM109 145H145L127 94Z" fill="#0d3f96" stroke="url(#gold)" stroke-width="3"/>
+ <path d="M82 176C122 159 166 128 222 58" fill="none" stroke="url(#gold)" stroke-width="9" stroke-linecap="round"/><path d="M211 63L228 49L227 71" fill="none" stroke="#ffdf7b" stroke-width="7"/>
+ <g stroke="#49caff" stroke-width="2"><path d="M73 95L101 76L128 103L98 130L71 121M101 76L147 70L165 100L128 103M98 130L128 103L154 132L119 157"/></g>
+ <g fill="#62e3ff" filter="url(#glow)"><circle cx="73" cy="95" r="4"/><circle cx="101" cy="76" r="4"/><circle cx="128" cy="103" r="5"/><circle cx="98" cy="130" r="4"/><circle cx="71" cy="121" r="4"/><circle cx="147" cy="70" r="4"/><circle cx="165" cy="100" r="4"/><circle cx="154" cy="132" r="4"/><circle cx="119" cy="157" r="4"/></g>
+</g>
+<g transform="translate(300 76)">
+ <text x="0" y="92" fill="#f7fbff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="92" font-weight="800" letter-spacing="-4"><tspan fill="#2b75e8">AI</tspan><tspan fill="url(#gold)">T</tspan><tspan>radra</tspan></text>
+ <text x="4" y="143" fill="#d8ae52" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="27" font-weight="700" letter-spacing="5">AI TRADING INTELLIGENCE</text>
+ <text x="4" y="181" fill="#e5edf9" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="600">Safety-first automation. Evidence-backed decisions.</text>
+ <text x="4" y="220" fill="#8da4c5" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="18">Live data • Multi-agent research • Risk manager • Empirical precision gate • Paper-by-default execution</text>
+</g>
+<g font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="600">
+ <g transform="translate(62 330)"><rect width="165" height="72" rx="14" fill="#08162b" stroke="#1c69b8"/><text x="18" y="31" fill="#64cfff">LIVE DATA</text><text x="18" y="53" fill="#dbe8f8">Provenance + freshness</text></g>
+ <g transform="translate(240 330)"><rect width="165" height="72" rx="14" fill="#08162b" stroke="#216ee0"/><text x="18" y="31" fill="#6d9fff">MULTI-AGENT</text><text x="18" y="53" fill="#dbe8f8">Consensus + critique</text></g>
+ <g transform="translate(418 330)"><rect width="165" height="72" rx="14" fill="#08162b" stroke="#1aa889"/><text x="18" y="31" fill="#4ce3b4">RISK FIRST</text><text x="18" y="53" fill="#dbe8f8">Fail-closed execution</text></g>
+ <g transform="translate(596 330)"><rect width="180" height="72" rx="14" fill="#08162b" stroke="#b3832f"/><text x="18" y="31" fill="#f3c765">PRECISION GATE</text><text x="18" y="53" fill="#dbe8f8">Measured evidence only</text></g>
+</g>
+<g transform="translate(850 42)" font-family="Inter,Segoe UI,Arial,sans-serif">
+ <rect width="465" height="250" rx="18" fill="#061427" stroke="#1f4c78"/>
+ <text x="22" y="34" fill="#f2f7ff" font-size="17" font-weight="700">MARKET INTELLIGENCE</text><circle cx="422" cy="28" r="5" fill="#20e29d"/><text x="435" y="33" fill="#54e7b6" font-size="12">LIVE</text>
+ <g transform="translate(22 58)"><text fill="#91a9c7" font-size="13">BTC / ETH / EQUITIES / ETFs</text><text y="30" fill="#f7fbff" font-size="24" font-weight="700">Unified market context</text></g>
+ <polyline points="22,196 70,183 108,190 145,160 178,168 220,137 262,145 310,110 360,124 415,82" fill="none" stroke="#18d99a" stroke-width="4" filter="url(#glow)"/>
+ <g fill="#16d88f"><rect x="77" y="164" width="10" height="30"/><rect x="138" y="145" width="10" height="39"/><rect x="214" y="122" width="10" height="48"/><rect x="303" y="98" width="10" height="51"/><rect x="392" y="72" width="10" height="48"/></g>
+</g>
+<g transform="translate(1335 42)" font-family="Inter,Segoe UI,Arial,sans-serif">
+ <rect width="520" height="250" rx="18" fill="#061427" stroke="#1f4c78"/>
+ <text x="22" y="34" fill="#f2f7ff" font-size="17" font-weight="700">MULTI-AGENT DECISION STACK</text>
+ <g font-size="14"><text x="28" y="75" fill="#cfe1f7">Technical</text><text x="220" y="75" fill="#4de0b1">ANALYZE</text><text x="28" y="108" fill="#cfe1f7">Fundamental / Macro</text><text x="220" y="108" fill="#75a9ff">ANALYZE</text><text x="28" y="141" fill="#cfe1f7">News / Sentiment</text><text x="220" y="141" fill="#f3c764">EVIDENCE</text><text x="28" y="174" fill="#cfe1f7">Signal Aggregator</text><text x="220" y="174" fill="#76b8ff">CONSENSUS</text><text x="28" y="207" fill="#cfe1f7">Risk Manager</text><text x="220" y="207" fill="#4de0b1">VETO POWER</text></g>
+ <g transform="translate(352 70)"><circle cx="58" cy="58" r="54" fill="#071b35" stroke="#1e7cdf" stroke-width="2"/><rect x="35" y="35" width="46" height="46" rx="8" fill="#0c2e5b" stroke="#4bc9ff"/><text x="58" y="65" text-anchor="middle" fill="#73ddff" font-size="22" font-weight="800">AI</text><g fill="#45d7ff"><circle cx="58" cy="5" r="5"/><circle cx="111" cy="58" r="5"/><circle cx="58" cy="111" r="5"/><circle cx="5" cy="58" r="5"/></g><g stroke="#3ba5ff"><line x1="58" y1="10" x2="58" y2="35"/><line x1="106" y1="58" x2="81" y2="58"/><line x1="58" y1="106" x2="58" y2="81"/><line x1="10" y1="58" x2="35" y2="58"/></g></g>
+</g>
+<g transform="translate(850 314)" font-family="Inter,Segoe UI,Arial,sans-serif">
+ <rect width="1005" height="210" rx="18" fill="#061427" stroke="#1d496f"/>
+ <text x="22" y="34" fill="#f2f7ff" font-size="17" font-weight="700">SAFETY &amp; HEALTH MONITORING</text>
+ <g transform="translate(22 58)" font-size="14"><text fill="#9db2cb">Execution mode</text><text x="0" y="28" fill="#f0c55e" font-weight="700">PAPER DEFAULT</text><text y="63" fill="#9db2cb">Live execution</text><text x="0" y="91" fill="#48dbad" font-weight="700">FAIL-CLOSED</text></g>
+ <g transform="translate(205 58)" font-size="14"><text fill="#9db2cb">Current signal gate</text><text y="28" fill="#eaf3ff" font-weight="700">≥ 90% CONFIDENCE</text><text y="63" fill="#9db2cb">Empirical target</text><text y="91" fill="#f1c45d" font-weight="700">99% OBSERVED PRECISION*</text></g>
+ <g transform="translate(455 58)" font-size="14"><text fill="#9db2cb">Evidence minimum</text><text y="28" fill="#eaf3ff" font-weight="700">100 RESOLVED SIGNALS</text><text y="63" fill="#9db2cb">Statistical lower bound</text><text y="91" fill="#48dbad" font-weight="700">≥ 95% WILSON</text></g>
+ <g transform="translate(720 58)" font-size="14"><text fill="#9db2cb">Health monitor</text><text y="28" fill="#48dbad" font-weight="700">HOURLY STATUS</text><text y="63" fill="#9db2cb">CI + live smoke</text><text y="91" fill="#48dbad" font-weight="700">VERIFIED WORKFLOWS</text></g>
+ <line x1="22" y1="171" x2="983" y2="171" stroke="#294e74"/><text x="22" y="196" fill="#758ca8" font-size="13">* Eligibility target, not a guarantee of future profitability. Live orders still require risk, strategy, authorization and protection gates.</text>
+</g>
+<g transform="translate(62 548)" font-family="Inter,Segoe UI,Arial,sans-serif"><rect width="1710" height="54" rx="13" fill="#07162a" stroke="url(#gold)" opacity=".95"/><text x="855" y="34" text-anchor="middle" fill="#f2cc72" font-size="19" font-weight="700" letter-spacing="2">EVIDENCE FIRST  •  EXPLANATION SECOND  •  RISK BEFORE EXECUTION  •  MEASURE EVERY PREDICTION</text></g>
+</svg>
