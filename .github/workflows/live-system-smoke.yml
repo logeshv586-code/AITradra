@@ -1,7 +1,12 @@
 name: Live System Smoke
 
 on:
+  push:
+    branches: [main]
   pull_request:
+  schedule:
+    # Every four hours. GitHub cron is UTC.
+    - cron: "20 */4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -35,12 +40,13 @@ jobs:
       - name: Compile smoke-tested modules
         run: |
           python -m compileall -q \
-            core/config.py core/scoring.py core/trading_safety.py \
+            core/config.py core/scoring.py core/trading_safety.py core/precision_gate.py \
             gateway/cache.py gateway/data_engine.py gateway/knowledge_store.py gateway/simulation_engine.py \
             gateway/scrapers/rss_scraper.py gateway/scrapers/social_scraper.py \
             agents/collector_agent.py agents/base_agent.py agents/specialist_agents.py \
             agents/signal_aggregator.py agents/risk_manager.py \
-            brokers/customer_hyperliquid_broker.py
+            brokers/customer_hyperliquid_broker.py \
+            self_improvement/accuracy_store.py self_improvement/precision_store.py
       - name: Run real-network market, agent and practice-trade smoke
         run: python scripts/live_system_smoke.py
       - name: Run live news, social provenance and autonomous decision guard smoke
