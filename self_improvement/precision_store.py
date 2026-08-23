@@ -8,7 +8,7 @@ remain in their old table and are intentionally excluded from v2 statistics.
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from core.config import settings
@@ -116,11 +116,11 @@ class DirectionalPrecisionStore:
         live_gate_eligible: bool,
         scored_at: str | None = None,
     ) -> bool:
-        """Insert immutable live-gate evidence.
+        """Insert immutable, independently valid live-gate evidence.
 
-        Returns True only when a new eligible row is inserted. Invalid,
-        incomplete, stale/untrusted evidence should be kept in research history
-        instead of being written here.
+        The store re-validates chronology and provenance rather than trusting a
+        caller-provided eligibility flag. Returns True only when a new compliant
+        row is inserted.
         """
         normalized_direction = str(direction or "").upper()
         if normalized_direction not in {"BULLISH", "BEARISH"}:
@@ -146,7 +146,17 @@ class DirectionalPrecisionStore:
         ):
             return False
 
+        horizon_end = prediction_dt + timedelta(hours=horizon)
+        if evaluated_dt < horizon_end or observed_dt < horizon_end:
+            return False
+        if observed_dt > evaluated_dt + timedelta(minutes=5):
+            return False
+
         scored_at = scored_at or evaluated_at
+        scored_dt = _parse_timestamp(scored_at)
+        if scored_dt is None or scored_dt < horizon_end:
+            return False
+
         created_at = datetime.now(timezone.utc).isoformat()
         try:
             conn = self._connect()
@@ -174,7 +184,7 @@ class DirectionalPrecisionStore:
                     horizon,
                     evaluated_dt.isoformat(),
                     observed_dt.isoformat(),
-                    str(scored_at),
+                    scored_dt.isoformat(),
                     created_at,
                 ),
             )

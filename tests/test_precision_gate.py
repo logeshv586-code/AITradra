@@ -54,6 +54,31 @@ def test_precision_store_tracks_only_eligible_directional_outcomes(tmp_path):
     assert stats["correct_scored"] == 9
 
 
+def test_precision_store_rejects_pre_horizon_observation_even_if_caller_marks_eligible(tmp_path):
+    store = DirectionalPrecisionStore(str(tmp_path / "precision.db"))
+    now = datetime.now(timezone.utc)
+    prediction_at = now - timedelta(hours=25)
+    assert not store.record_outcome(
+        prediction_id="too-early",
+        ticker="BTC",
+        model="SignalAggregatorAgent",
+        provider="test_feed",
+        upstream_provider="test_feed",
+        direction="BULLISH",
+        correct=True,
+        continuous_accuracy=1.0,
+        prediction_timestamp=prediction_at.isoformat(),
+        horizon_hours=24,
+        evaluated_at=now.isoformat(),
+        observed_at=(prediction_at + timedelta(hours=23)).isoformat(),
+        live_gate_eligible=True,
+    )
+    stats = store.get_precision_stats(
+        ticker="BTC", model="SignalAggregatorAgent", direction="BULLISH"
+    )
+    assert stats["total_directional"] == 0
+
+
 def test_precision_gate_blocks_when_evidence_is_insufficient(tmp_path, monkeypatch):
     import self_improvement.precision_store as precision_module
 
