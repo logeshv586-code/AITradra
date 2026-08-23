@@ -1,10 +1,8 @@
-"""Advanced intelligence endpoints — debate, reflection lessons, skill optimizer.
+"""Advanced intelligence endpoints — research council, debate, lessons and skill optimizer.
 
-Surfaces the TradingAgents-inspired adversarial research layer and the
-SkillOpt-inspired self-training loop to the UI:
-  - bull/bear debates with risk-bench sizing
-  - trade lessons learned from resolved predictions
-  - learned-skill training status, epochs, and validation results
+The Research Council V2 adds point-in-time, provenance-weighted evidence and a
+structured research-manager decision on top of the existing TradingAgents-inspired
+bull/bear debate.  All outputs are advisory and carry no execution authority.
 """
 
 from __future__ import annotations
@@ -18,7 +16,52 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/advanced", tags=["Advanced Intelligence"])
 
 
-# ── Bull/Bear debate ──────────────────────────────────────────────────────────
+# ── Research Council V2 ──────────────────────────────────────────────────────
+
+@router.post("/research/{ticker}")
+async def run_research_council(
+    ticker: str,
+    as_of: str | None = Query(
+        None,
+        description="Optional ISO-8601 point-in-time cutoff. Evidence newer than this is excluded.",
+    ),
+    use_llm_debate: bool = Query(True),
+):
+    """Run leakage-safe research synthesis with optional bounded bull/bear debate."""
+    from agents.research_council import get_research_council
+
+    result = await get_research_council().analyze(
+        ticker,
+        as_of=as_of,
+        use_llm_debate=use_llm_debate,
+        persist=True,
+    )
+    return result.to_dict()
+
+
+@router.get("/research/{ticker}/evidence")
+async def get_research_evidence(
+    ticker: str,
+    as_of: str | None = Query(
+        None,
+        description="Optional ISO-8601 point-in-time cutoff. Evidence newer than this is excluded.",
+    ),
+):
+    """Inspect the exact deduplicated evidence pack used by Research Council V2."""
+    from agents.research_council import get_research_council
+
+    pack = get_research_council().build_evidence_pack(ticker, as_of=as_of)
+    return {
+        "ticker": pack["ticker"],
+        "as_of": pack["as_of"],
+        "benchmark_context": pack["benchmark_context"],
+        "evidence_count": len(pack["items"]),
+        "items": [item.to_dict() for item in pack["items"]],
+        "execution_authority": False,
+    }
+
+
+# ── Bull/Bear debate ─────────────────────────────────────────────────────────
 
 @router.post("/debate/{ticker}")
 async def run_debate(ticker: str, use_llm: bool = Query(True)):
@@ -30,12 +73,12 @@ async def run_debate(ticker: str, use_llm: bool = Query(True)):
 
 @router.get("/debate/records")
 async def get_debate_records(ticker: str | None = Query(None), limit: int = Query(20, ge=1, le=100)):
-    """Recent debate records (all tickers, or filtered)."""
+    """Recent debate/research records (all tickers, or filtered)."""
     records = knowledge_store.get_recent_debates(ticker=ticker, limit=limit)
     return {"count": len(records), "records": records}
 
 
-# ── Reflection memory (trade lessons) ─────────────────────────────────────────
+# ── Reflection memory (trade lessons) ────────────────────────────────────────
 
 @router.get("/lessons/{ticker}")
 async def get_lessons(ticker: str, limit: int = Query(10, ge=1, le=50)):
@@ -59,7 +102,7 @@ async def get_agent_report_card(agent_name: str):
     return get_memory().get_agent_report_card(agent_name)
 
 
-# ── Skill optimizer ───────────────────────────────────────────────────────────
+# ── Skill optimizer ──────────────────────────────────────────────────────────
 
 @router.get("/skills/status")
 async def get_skill_optimizer_status():
