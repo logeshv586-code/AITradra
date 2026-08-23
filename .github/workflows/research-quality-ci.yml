@@ -1,0 +1,38 @@
+name: Research Quality CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  point-in-time-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install focused research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio pydantic pydantic-settings httpx requests cryptography feedparser
+      - name: Compile research-critical modules
+        run: |
+          python -m py_compile agents/research_council.py
+          python -m py_compile agents/debate_engine.py
+          python -m py_compile memory/reflection_memory.py
+          python -m py_compile self_improvement/research_scorecard.py
+          python -m py_compile core/market_scheduler.py
+          python -m py_compile scripts/research_replay.py
+      - name: Run adversarial research, leakage and scorecard regressions
+        run: |
+          python -m pytest -q \
+            tests/test_research_council.py \
+            tests/test_research_point_in_time_price.py \
+            tests/test_research_scorecard.py \
+            tests/test_advanced_intelligence.py
