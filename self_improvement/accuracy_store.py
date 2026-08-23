@@ -1,9 +1,9 @@
-"""AccuracyStore — SQLite-backed aggregate accuracy persistence.
+"""AccuracyStore — SQLite-backed research/history accuracy persistence.
 
-Tracks rolling accuracy by ticker, model, provider, and direction for
-long-term model comparison and auto-improvement decisions. Directional
-predictions are also mirrored into the binary precision evidence store used by
-the autonomous live-trading precision gate.
+This store is intentionally separate from autonomous live-trading evidence.
+A research score may use cached or otherwise non-live-grade observations for
+analysis, but only the provenance-aware DirectionalPrecisionStore v2 may feed
+the empirical live-entry precision gate.
 """
 
 import sqlite3
@@ -18,7 +18,7 @@ DB_PATH = settings.KNOWLEDGE_DB_PATH
 
 
 class AccuracyStore:
-    """Persists aggregate prediction accuracy keyed by (ticker, model, provider, direction)."""
+    """Persists aggregate prediction accuracy keyed by ticker/model/provider/direction."""
 
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
@@ -65,21 +65,12 @@ class AccuracyStore:
         direction: str,
         accuracy: float,
     ) -> None:
-        """Upsert a continuous score and mirror conservative binary precision.
+        """Upsert a continuous research/history score.
 
-        For BULLISH/BEARISH predictions the scorer returns a positive continuous
-        score only when price moved in the predicted direction; therefore
-        ``accuracy > 0`` is the binary directional-correctness flag used by the
-        precision gate.
-
-        The existing scorer can revisit the same unresolved KnowledgeStore
-        insight more than once. To prevent that rescoring cadence from inflating
-        the live precision metric, the binary precision evidence uses one stable
-        UTC-day bucket per ticker/model/provider/direction. Repeated scores in
-        that bucket update the same row rather than creating fake extra samples.
-        This is intentionally conservative: multiple same-direction predictions
-        in one day may collapse into one evidence sample rather than being
-        over-counted.
+        This method deliberately does NOT create empirical live-gate evidence.
+        The scoring engine must independently validate freshness, provenance,
+        immutable prediction identity and evaluation horizon before writing to
+        DirectionalPrecisionStore.
         """
         try:
             accuracy = max(0.0, min(float(accuracy or 0.0), 1.0))
@@ -117,29 +108,6 @@ class AccuracyStore:
                 )
             conn.commit()
             conn.close()
-
-            normalized_direction = str(direction or "").upper()
-            if normalized_direction in {"BULLISH", "BEARISH"}:
-                try:
-                    from self_improvement.precision_store import DirectionalPrecisionStore
-
-                    precision = DirectionalPrecisionStore(self.db_path)
-                    utc_day = now[:10]
-                    precision.record_outcome(
-                        prediction_id=(
-                            f"daily:{str(ticker).upper()}:{model}:{provider}:"
-                            f"{normalized_direction}:{utc_day}"
-                        ),
-                        ticker=ticker,
-                        model=model,
-                        provider=provider,
-                        direction=normalized_direction,
-                        correct=accuracy > 0.0,
-                        continuous_accuracy=accuracy,
-                        scored_at=now,
-                    )
-                except Exception as exc:
-                    logger.warning("Precision evidence mirror failed: %s", exc)
         except Exception as e:
             logger.warning(f"AccuracyStore record_outcome failed: {e}")
 
@@ -148,10 +116,7 @@ class AccuracyStore:
         group_by: str = "ticker",
         limit: int = 20,
     ) -> List[Dict[str, Any]]:
-        """Return top performers grouped by the chosen dimension.
-
-        group_by can be 'ticker', 'model', 'provider', or 'direction'.
-        """
+        """Return top performers grouped by the chosen dimension."""
         valid_columns = {"ticker", "model", "provider", "direction"}
         if group_by not in valid_columns:
             group_by = "ticker"
@@ -162,7 +127,8 @@ class AccuracyStore:
             rows = conn.execute(
                 f"""SELECT {group_by},
                            SUM(total_scored) AS total_scored,
-                           ROUND(SUM(sum_accuracy) / MAX(SUM(total_scored), 1), 4) AS avg_accuracy,
+                           ROUND(SUM(sum_accuracy) / MAX(SUM(total_scored), 1), 4)
+                                AS avg_accuracy,
                            MAX(best_score)   AS best_score,
                            MIN(worst_score)  AS worst_score,
                            MAX(last_updated) AS last_updated
@@ -180,7 +146,6 @@ class AccuracyStore:
             return []
 
     def get_ticker_breakdown(self, ticker: str) -> List[Dict[str, Any]]:
-        """Return all rows for a specific ticker."""
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -197,7 +162,6 @@ class AccuracyStore:
             return []
 
     def get_summary(self) -> Dict[str, Any]:
-        """Global summary stats across all rows."""
         try:
             conn = sqlite3.connect(self.db_path)
             row = conn.execute(
