@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from core.precision_gate import EmpiricalPrecisionGate, wilson_lower_bound
@@ -19,15 +20,22 @@ def _precision_settings(**overrides):
 
 
 def _seed(store: DirectionalPrecisionStore, *, correct: int, total: int):
+    now = datetime.now(timezone.utc)
     for i in range(total):
-        store.record_outcome(
+        assert store.record_outcome(
             prediction_id=f"pred-{i}",
             ticker="BTC",
             model="SignalAggregatorAgent",
-            provider="test",
+            provider="test_feed",
+            upstream_provider="test_feed",
             direction="BULLISH",
             correct=i < correct,
             continuous_accuracy=1.0 if i < correct else 0.0,
+            prediction_timestamp=(now - timedelta(hours=25)).isoformat(),
+            horizon_hours=24,
+            evaluated_at=now.isoformat(),
+            observed_at=(now - timedelta(minutes=1)).isoformat(),
+            live_gate_eligible=True,
         )
 
 
@@ -36,7 +44,7 @@ def test_wilson_lower_bound_penalizes_small_samples():
     assert wilson_lower_bound(10, 10) < wilson_lower_bound(100, 100)
 
 
-def test_precision_store_tracks_directional_outcomes(tmp_path):
+def test_precision_store_tracks_only_eligible_directional_outcomes(tmp_path):
     store = DirectionalPrecisionStore(str(tmp_path / "precision.db"))
     _seed(store, correct=9, total=10)
     stats = store.get_precision_stats(
@@ -44,6 +52,31 @@ def test_precision_store_tracks_directional_outcomes(tmp_path):
     )
     assert stats["total_directional"] == 10
     assert stats["correct_scored"] == 9
+
+
+def test_precision_store_rejects_pre_horizon_observation_even_if_caller_marks_eligible(tmp_path):
+    store = DirectionalPrecisionStore(str(tmp_path / "precision.db"))
+    now = datetime.now(timezone.utc)
+    prediction_at = now - timedelta(hours=25)
+    assert not store.record_outcome(
+        prediction_id="too-early",
+        ticker="BTC",
+        model="SignalAggregatorAgent",
+        provider="test_feed",
+        upstream_provider="test_feed",
+        direction="BULLISH",
+        correct=True,
+        continuous_accuracy=1.0,
+        prediction_timestamp=prediction_at.isoformat(),
+        horizon_hours=24,
+        evaluated_at=now.isoformat(),
+        observed_at=(prediction_at + timedelta(hours=23)).isoformat(),
+        live_gate_eligible=True,
+    )
+    stats = store.get_precision_stats(
+        ticker="BTC", model="SignalAggregatorAgent", direction="BULLISH"
+    )
+    assert stats["total_directional"] == 0
 
 
 def test_precision_gate_blocks_when_evidence_is_insufficient(tmp_path, monkeypatch):
@@ -92,27 +125,79 @@ def test_precision_gate_rejects_99_of_100_when_statistical_bound_is_weak(
     assert result["stats"]["wilson_lower_bound"] < 0.95
 
 
-def test_repeated_same_day_scoring_does_not_inflate_precision_samples(tmp_path):
+def test_research_accuracy_no_longer_creates_live_precision_evidence(tmp_path):
     db_path = str(tmp_path / "accuracy.db")
     accuracy = AccuracyStore(db_path)
     accuracy.record_outcome(
         ticker="BTC",
         model="SignalAggregatorAgent",
-        provider="test",
+        provider="cache",
         direction="BULLISH",
-        accuracy=0.4,
-    )
-    accuracy.record_outcome(
-        ticker="BTC",
-        model="SignalAggregatorAgent",
-        provider="test",
-        direction="BULLISH",
-        accuracy=0.0,
+        accuracy=1.0,
     )
 
     precision = DirectionalPrecisionStore(db_path)
     stats = precision.get_precision_stats(
         ticker="BTC", model="SignalAggregatorAgent", direction="BULLISH"
     )
-    assert stats["total_directional"] == 1
-    assert stats["correct_scored"] == 0
+    assert stats["total_directional"] == 0
+
+
+def test_live_precision_evidence_is_immutable_and_deduped(tmp_path):
+    store = DirectionalPrecisionStore(str(tmp_path / "precision.db"))
+    now = datetime.now(timezone.utc)
+    common = {
+        "prediction_id": "immutable-prediction",
+        "ticker": "BTC",
+        "model": "SignalAggregatorAgent",
+        "direction": "BULLISH",
+        "prediction_timestamp": (now - timedelta(hours=25)).isoformat(),
+        "horizon_hours": 24,
+        "evaluated_at": now.isoformat(),
+        "observed_at": (now - timedelta(minutes=1)).isoformat(),
+        "live_gate_eligible": True,
+    }
+
+    assert store.record_outcome(
+        **common,
+        provider="feed_a",
+        upstream_provider="feed_a",
+        correct=True,
+        continuous_accuracy=1.0,
+    )
+    assert not store.record_outcome(
+        **common,
+        provider="feed_b",
+        upstream_provider="feed_b",
+        correct=False,
+        continuous_accuracy=0.0,
+    )
+
+    rows = store.export_evidence(ticker="BTC")
+    assert len(rows) == 1
+    assert rows[0]["provider"] == "feed_a"
+    assert rows[0]["correct"] == 1
+
+
+def test_cache_evidence_requires_upstream_provider(tmp_path):
+    store = DirectionalPrecisionStore(str(tmp_path / "precision.db"))
+    now = datetime.now(timezone.utc)
+    base = {
+        "prediction_id": "cache-pred",
+        "ticker": "BTC",
+        "model": "SignalAggregatorAgent",
+        "provider": "cache",
+        "direction": "BULLISH",
+        "correct": True,
+        "continuous_accuracy": 1.0,
+        "prediction_timestamp": (now - timedelta(hours=25)).isoformat(),
+        "horizon_hours": 24,
+        "evaluated_at": now.isoformat(),
+        "observed_at": (now - timedelta(minutes=1)).isoformat(),
+        "live_gate_eligible": True,
+    }
+    assert not store.record_outcome(**base, upstream_provider="")
+    assert store.record_outcome(
+        **{**base, "prediction_id": "cache-pred-valid"},
+        upstream_provider="yfinance",
+    )
