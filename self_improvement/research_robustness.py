@@ -24,7 +24,7 @@ from typing import Any, Iterable, Optional
 
 from core.config import settings
 from core.logger import get_logger
-from core.precision_gate import wilson_lower_bound
+from core.statistical_bounds import wilson_lower_bound
 
 logger = get_logger(__name__)
 
