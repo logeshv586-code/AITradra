@@ -1,8 +1,12 @@
 """Hyperliquid autonomous trading service with fail-closed execution gates.
 
 Flow: account state -> protective exits -> indicators -> AI decision -> signal
-fusion -> deterministic risk gate -> strategy validation -> empirical precision
-validation -> protected execution.
+fusion -> deterministic risk gate -> centralized trade qualification -> protected
+execution.
+
+Research Council output is intentionally not accepted by the qualification or
+execution boundary. Research can inform upstream analysis, but cannot grant
+order permission.
 """
 
 from __future__ import annotations
@@ -12,12 +16,11 @@ import pandas as pd
 
 from core.config import settings
 from core.logger import get_logger
-from core.precision_gate import empirical_precision_gate
+from core.trade_qualification import trade_qualification_service
 from core.trading_safety import (
     DailyEquityTracker,
     get_execution_status,
     normalize_candles_latest_first,
-    strategy_validation_store,
 )
 from brokers.hyperliquid_broker import HyperliquidBroker
 from brokers.broker_router import Order, OrderSide, OrderType
@@ -225,22 +228,6 @@ class HyperliquidTradingService:
                     "take_profit": 0,
                 }
 
-                # A high model confidence is not the same as historical accuracy,
-                # but autonomous live mode should still reject weak current signals.
-                if execution["live_execution_allowed"]:
-                    min_live_confidence = float(
-                        getattr(settings, "AUTOTRADE_MIN_SIGNAL_CONFIDENCE", 90.0)
-                    )
-                    current_confidence = float(signal_result.get("confidence", 0) or 0)
-                    if current_confidence < min_live_confidence:
-                        logger.critical(
-                            "[%s] LIVE trade blocked: current signal confidence %.1f%% < %.1f%%.",
-                            ticker,
-                            current_confidence,
-                            min_live_confidence,
-                        )
-                        continue
-
                 risk_context = AgentContext(
                     task=f"Risk evaluation for {ticker} trade", ticker=ticker
                 )
@@ -286,8 +273,33 @@ class HyperliquidTradingService:
                     portfolio_context, positions = await self._portfolio_context()
                     continue
 
-                if risk_decision != "APPROVE":
+                qualification = trade_qualification_service.qualify(
+                    ticker,
+                    signal_result,
+                    risk_result,
+                    execution_status=execution,
+                    settings_obj=settings,
+                    strategy_id=settings.LIVE_STRATEGY_ID,
+                )
+                if not qualification.execution_allowed:
+                    reasons = qualification.execution_blockers + qualification.live_blockers
+                    logger.critical(
+                        "[%s] Trade blocked by qualification firewall: %s",
+                        ticker,
+                        "; ".join(reasons) or "qualification failed closed",
+                    )
                     continue
+
+                if qualification.live_execution_allowed:
+                    precision = qualification.gates.get("empirical_precision", {})
+                    stats = precision.get("stats") or {}
+                    logger.info(
+                        "[%s] Live qualification passed: observed=%.2f%% lower_bound=%.2f%% samples=%s",
+                        ticker,
+                        float(stats.get("observed_precision", 0)) * 100,
+                        float(stats.get("wilson_lower_bound", 0)) * 100,
+                        stats.get("total_directional", 0),
+                    )
 
                 suggested_size = float(
                     risk_result.get("suggested_position_size", 0) or 0
@@ -298,37 +310,6 @@ class HyperliquidTradingService:
                         "[%s] Suggested quantity is too small; skipping.", ticker
                     )
                     continue
-
-                if execution["live_execution_allowed"]:
-                    validation = strategy_validation_store.check(
-                        ticker, settings.LIVE_STRATEGY_ID
-                    )
-                    if not validation["eligible"]:
-                        logger.critical(
-                            "[%s] LIVE trade blocked by strategy validation: %s",
-                            ticker,
-                            "; ".join(validation["reasons"]),
-                        )
-                        continue
-
-                    precision = empirical_precision_gate.check(
-                        ticker,
-                        direction=signal_result.get("direction"),
-                    )
-                    if not precision["eligible"]:
-                        logger.critical(
-                            "[%s] LIVE trade blocked by empirical precision gate: %s",
-                            ticker,
-                            "; ".join(precision["reasons"]),
-                        )
-                        continue
-                    logger.info(
-                        "[%s] Empirical precision gate passed: observed=%.2f%% lower_bound=%.2f%% samples=%s",
-                        ticker,
-                        float(precision["stats"].get("observed_precision", 0)) * 100,
-                        float(precision["stats"].get("wilson_lower_bound", 0)) * 100,
-                        precision["stats"].get("total_directional", 0),
-                    )
 
                 stop_loss = float(risk_result.get("stop_loss", 0) or 0)
                 take_profit = float(risk_result.get("take_profit", 0) or 0)
@@ -344,17 +325,18 @@ class HyperliquidTradingService:
                 )
 
                 logger.info(
-                    "[%s] %s %s %.6f units ($%.2f) | SL=%.4f TP=%.4f mode=%s",
+                    "[%s] %s %s %.6f units ($%.2f) | SL=%.4f TP=%.4f mode=%s contract=%s",
                     ticker,
                     "Executing"
-                    if execution["live_execution_allowed"]
+                    if qualification.live_execution_allowed
                     else "Paper executing",
                     decision,
                     suggested_qty,
                     suggested_size,
                     stop_loss,
                     take_profit,
-                    execution["mode"],
+                    qualification.mode,
+                    qualification.contract_version,
                 )
                 exec_result = await self.broker.place_order(order)
                 if exec_result.get("status") not in {"FILLED", "PARTIALLY_FILLED"}:
@@ -380,6 +362,8 @@ class HyperliquidTradingService:
             "daily_pnl_pct": portfolio_context.get("daily_pnl_pct", 0),
             "positions": len(positions),
             "assets_checked": len(self.active_tickers),
+            "qualification_contract": "aitradra.trade_qualification.v1",
+            "research_execution_dependency": False,
         }
 
 

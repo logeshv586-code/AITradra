@@ -11,25 +11,11 @@ enough, and statistically strong enough for the configured target.
 
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone
 from typing import Any
 
 from core.config import settings
-
-
-def wilson_lower_bound(successes: int, total: int, z: float = 1.959963984540054) -> float:
-    """Return the Wilson-score lower confidence bound for a binomial proportion."""
-    if total <= 0:
-        return 0.0
-    successes = max(0, min(int(successes), int(total)))
-    total = int(total)
-    p = successes / total
-    z2 = z * z
-    denominator = 1.0 + z2 / total
-    centre = p + z2 / (2.0 * total)
-    margin = z * math.sqrt((p * (1.0 - p) + z2 / (4.0 * total)) / total)
-    return max(0.0, min(1.0, (centre - margin) / denominator))
+from core.statistical_bounds import wilson_lower_bound
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
