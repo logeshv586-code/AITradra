@@ -5,7 +5,8 @@ The scheduler uses configurable cadences rather than UI-driven refreshes:
   * prices refresh while any tracked market is open;
   * news refreshes continuously from lightweight public RSS feeds;
   * startup performs an immediate catch-up if the local knowledge store is empty;
-  * heavier browser work remains outside the high-frequency scheduler path.
+  * heavier browser work remains outside the high-frequency scheduler path;
+  * research sweeps use Research Council V2 for point-in-time/provenance checks.
 """
 
 import asyncio
@@ -28,6 +29,7 @@ class MarketScheduler:
         self._last_news_scrape = None
         self._last_price_update = None
         self._last_commodity_scan = None
+        self._last_research_sweep = None
         self._startup_scrape_done = False
         self._running = False
 
@@ -131,21 +133,49 @@ class MarketScheduler:
             logger.error(f"Commodity scan failed: {e}")
 
     async def run_debate_sweep(self):
-        logger.info("⚖️ Debate sweep: challenging current research suggestions...")
+        """Challenge research suggestions through the provenance-aware council.
+
+        The method name is kept for scheduler compatibility, but the scheduled
+        path now uses Research Council V2.  The council may recommend research
+        exposure or HOLD, yet it has no execution authority; actual order flow
+        remains Signal Aggregator -> Risk Manager -> strategy/precision gates.
+        """
+        logger.info("⚖️ Research Council sweep: challenging current suggestions...")
         try:
             from gateway.knowledge_store import knowledge_store
-            from agents.debate_engine import get_engine
-            suggestions = knowledge_store.get_latest_research_suggestions(limit=5)
-            tickers = list({s["ticker"] for s in suggestions if s.get("ticker")})
+            from agents.research_council import get_research_council
+
+            suggestions = knowledge_store.get_latest_research_suggestions(limit=8)
+            tickers = list(dict.fromkeys(
+                str(s["ticker"]).upper()
+                for s in suggestions
+                if s.get("ticker")
+            ))
             if not tickers:
-                logger.info("⚖️ Debate sweep: no research suggestions to challenge")
+                logger.info("⚖️ Research Council sweep: no research suggestions to challenge")
                 return
-            engine = get_engine()
+
+            council = get_research_council()
             for ticker in tickers:
-                result = await engine.run_debate(ticker)
-                logger.info(f"⚖️ Debate {ticker}: {result.verdict} ({result.confidence}%) — {result.winning_side} won")
+                result = await council.analyze(
+                    ticker,
+                    use_llm_debate=True,
+                    persist=True,
+                )
+                logger.info(
+                    "⚖️ Research %s: %s (%s%%), quality=%.2f contradiction=%.2f "
+                    "coverage=%.2f execution_authority=%s",
+                    ticker,
+                    result.rating,
+                    result.confidence,
+                    result.evidence_quality,
+                    result.contradiction_score,
+                    result.coverage_score,
+                    result.execution_authority,
+                )
+            self._last_research_sweep = datetime.now()
         except Exception as e:
-            logger.error(f"Debate sweep failed: {e}")
+            logger.error(f"Research Council sweep failed: {e}")
 
     async def run_skill_training_epoch(self):
         logger.info("🎓 Skill training epoch starting...")
@@ -179,6 +209,9 @@ class MarketScheduler:
             "last_news_scrape": self._last_news_scrape.isoformat() if self._last_news_scrape else None,
             "last_commodity_scan": self._last_commodity_scan.isoformat() if self._last_commodity_scan else None,
             "last_price_update": self._last_price_update.isoformat() if self._last_price_update else None,
+            "last_research_sweep": self._last_research_sweep.isoformat() if self._last_research_sweep else None,
+            "research_engine": "ResearchCouncilV2",
+            "research_execution_authority": False,
             "startup_catchup_done": self._startup_scrape_done,
             "should_scrape_news_now": self.should_scrape_news(),
             "should_scrape_prices_now": self.should_scrape_prices(),
