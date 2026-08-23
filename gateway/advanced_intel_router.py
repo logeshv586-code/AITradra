@@ -1,4 +1,9 @@
-"""Advanced intelligence endpoints — research council, scorecard, debate and lessons."""
+"""Advanced intelligence endpoints — research council, scorecard, robustness and lessons.
+
+All research endpoints are advisory. They can inspect evidence, replay decisions,
+measure forward outcomes and stress-test robustness, but none can authorize or
+submit an order.
+"""
 
 from __future__ import annotations
 
@@ -55,6 +60,8 @@ async def get_research_evidence(
     }
 
 
+# ── Forward research scorecard ───────────────────────────────────────────────
+
 @router.post("/research/scorecard/evaluate")
 async def evaluate_research_scorecard():
     """Resolve audit-grade research outcomes from later market sessions.
@@ -87,7 +94,45 @@ async def get_research_scorecard(
             "Research scorecard metrics are forward research evidence, not a "
             "profitability guarantee and not autonomous-live permission."
         ),
+        "execution_authority": False,
     }
+
+
+# ── Research robustness lab ──────────────────────────────────────────────────
+
+@router.get("/research/robustness")
+async def get_research_robustness(
+    horizon_sessions: int = Query(5, ge=1, le=120),
+    min_train: int = Query(30, ge=10, le=10000),
+    test_size: int = Query(10, ge=1, le=1000),
+):
+    """Return walk-forward, regime and calibration robustness diagnostics."""
+    from self_improvement.research_robustness import research_robustness_lab
+
+    return research_robustness_lab.report(
+        horizon_sessions=horizon_sessions,
+        min_train=min_train,
+        test_size=test_size,
+    )
+
+
+@router.get("/research/{ticker}/robustness/ablation")
+async def get_research_ablation(
+    ticker: str,
+    as_of: str | None = Query(
+        None,
+        description="Optional ISO-8601 point-in-time cutoff for the evidence pack.",
+    ),
+    max_sources: int = Query(8, ge=1, le=20),
+):
+    """Remove evidence categories/sources one at a time to expose fragile ratings."""
+    from self_improvement.research_robustness import research_robustness_lab
+
+    return research_robustness_lab.ablation(
+        ticker,
+        as_of=as_of,
+        max_sources=max_sources,
+    )
 
 
 # ── Bull/Bear debate ─────────────────────────────────────────────────────────
