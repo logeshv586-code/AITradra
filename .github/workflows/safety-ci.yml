@@ -4,15 +4,28 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: safety-ci-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   trading-safety:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Record exact tested SHA
+        run: |
+          echo "tested_sha=${GITHUB_SHA}" | tee safety-ci-head.txt
+          echo "### Safety CI exact-head evidence" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ref: \`${GITHUB_REF}\`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -32,21 +45,49 @@ jobs:
           python -m compileall -q core brokers gateway agents self_improvement
           python -m py_compile scripts/export_precision_evidence.py
       - name: Run trading and customer safety regression suites
-        run: python -m pytest -q tests/test_trading_safety.py tests/test_precision_gate.py tests/test_self_improvement.py tests/test_customer_experience.py tests/test_live_integrity.py
+        run: >-
+          python -m pytest -q
+          tests/test_trading_safety.py
+          tests/test_precision_gate.py
+          tests/test_precision_audit.py
+          tests/test_strict_live_price_session.py
+          tests/test_self_improvement.py
+          tests/test_customer_experience.py
+          tests/test_live_integrity.py
+      - name: Publish exact-head evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-ci-head-${{ github.sha }}
+          path: safety-ci-head.txt
+          if-no-files-found: error
+          retention-days: 30
 
   frontend-build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ui
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Record frontend exact tested SHA
+        run: |
+          echo "frontend_tested_sha=${GITHUB_SHA}" | tee frontend-build-head.txt
+          echo "### Frontend exact-head evidence" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - name: Install frontend dependencies
+        working-directory: ui
         run: npm ci
       - name: Build customer UI
+        working-directory: ui
         run: npm run build
+      - name: Publish frontend exact-head evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-head-${{ github.sha }}
+          path: frontend-build-head.txt
+          if-no-files-found: error
+          retention-days: 30
