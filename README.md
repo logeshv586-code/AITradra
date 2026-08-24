@@ -4,22 +4,20 @@
 
 # AITradra
 
-### AI Trading Intelligence with Safety-First Automation
+### Evidence-first AI market intelligence with fail-closed trading automation
 
-**Live evidence → Multi-agent research → Consensus → Risk veto → Precision validation → Protected execution**
+**Real evidence → Multi-agent research → Signal → Risk veto → Empirical validation → Protected execution**
 
-<p>
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white">
-  <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white">
-  <img alt="React" src="https://img.shields.io/badge/UI-React%2019-61DAFB?logo=react&logoColor=black">
-  <img alt="Safety CI" src="https://img.shields.io/badge/Safety%20CI-Enabled-22C55E?logo=githubactions&logoColor=white">
-  <img alt="Paper Default" src="https://img.shields.io/badge/Execution-Paper%20Default-F3C75F">
-  <img alt="Live Gate" src="https://img.shields.io/badge/Live%20Trading-Fail--Closed-10B981">
-  <img alt="Precision Gate" src="https://img.shields.io/badge/Empirical%20Precision%20Gate-Enabled-2563EB">
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-blue.svg">
-</p>
+[![Safety CI](https://github.com/logeshv586-code/AITradra/actions/workflows/safety-ci.yml/badge.svg?branch=main)](https://github.com/logeshv586-code/AITradra/actions/workflows/safety-ci.yml)
+[![Live System Smoke](https://github.com/logeshv586-code/AITradra/actions/workflows/live-system-smoke.yml/badge.svg?branch=main)](https://github.com/logeshv586-code/AITradra/actions/workflows/live-system-smoke.yml)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/UI-React%2019-61DAFB?logo=react&logoColor=black)
+![Execution](https://img.shields.io/badge/Default-Paper%20Trading-F3C75F)
+![Live Gate](https://img.shields.io/badge/Live%20Entries-Fail--Closed-10B981)
+![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-[Product](#product) · [Architecture](#architecture) · [Trading Safety](#trading-safety) · [Precision Gate](#empirical-precision-gate) · [Monitoring](#operations--health-monitoring) · [Quick Start](#quick-start) · [Contribute](#community--contributors) · [Investors](#investor--startup-materials)
+[Product](#product) · [Architecture](#architecture) · [Real-time data contract](#strict-real-time-data-contract) · [Safety](#trading-safety) · [Precision](#empirical-precision-gate) · [Health](#operations--health-evidence) · [Quick start](#quick-start) · [Contribute](#community)
 
 </div>
 
@@ -28,132 +26,162 @@
 </p>
 
 > [!IMPORTANT]
-> **AITradra does not guarantee profit, returns, 99% future trade accuracy, or investment outcomes.** The configured 99% value is an **empirical directional-precision eligibility target** for autonomous live entries. Practice trading remains the default and real-money execution is fail-closed.
+> **AITradra does not guarantee profit, investment returns, or 99% future trade accuracy.** A configured precision target is an execution-eligibility threshold based on measured historical outcomes, not a promise about future trades. Paper trading is the safe default and funded execution is fail-closed.
 
 ---
 
 ## Product
 
-AITradra is an open-source **AI-native market intelligence and trading engineering platform** that combines real market data, news evidence, multi-agent analysis, prediction measurement, risk controls, practice execution and explicitly gated live execution.
+AITradra is an open-source **AI-native market intelligence and trading engineering platform** for source-aware research, multi-agent analysis, prediction measurement, portfolio/risk controls, paper trading and explicitly gated live execution.
 
-The product is designed around one principle:
+The core design principle is simple:
 
-> **AI should explain the evidence and survive the risk checks before it can reach an execution path.**
+> **Research can inform a decision, but only measured data quality, deterministic risk controls and explicit execution gates can authorize an order.**
 
-### What customers can do
+### What the platform provides
 
-| Capability | Customer outcome |
+| Capability | Purpose |
 |---|---|
-| **Market Intelligence** | Understand price action, context, evidence and key risks |
-| **Multi-Agent Research** | Compare technical, fundamental, macro, sentiment, sector and catalyst views |
-| **Prediction Tracking** | See direction, confidence, target, timestamp and later measured outcome |
-| **News Evidence** | Inspect recent headlines, sources and likely market impact |
-| **Risk Dynamics** | Review volatility, drawdown, position risk and protective levels |
-| **AI Expert Chat** | Ask plain-language questions using the shared research stack |
-| **Paper Trading** | Practice with reference prices, slippage, fees and persistent positions |
-| **Manual Live Trading** | Use a separately authorized Hyperliquid execution path |
-| **Autonomous Trading** | Remains separately gated by strategy, risk, precision and authorization controls |
-| **Health Monitoring** | CI and recurring live-network smoke checks validate critical data/decision paths |
-
-### Customer decision flow
-
-```text
-WHAT HAPPENED
-      ↓
-WHY IT MAY HAVE HAPPENED
-      ↓
-EVIDENCE + SOURCE PROVENANCE
-      ↓
-MULTI-AGENT VIEW
-      ↓
-SIGNAL AGGREGATION
-      ↓
-RISK MANAGER VETO
-      ↓
-EMPIRICAL PRECISION GATE
-      ↓
-PAPER OR EXPLICITLY AUTHORIZED EXECUTION
-      ↓
-MEASURED OUTCOME
-```
+| Market intelligence | Price action, context, provenance and freshness |
+| Multi-agent research | Technical, fundamental, macro, sentiment, sector and catalyst views |
+| News evidence | Source-aware recent headlines and market context |
+| Prediction tracking | Direction, confidence, timestamp and later measured outcome |
+| Risk Manager | Deterministic veto before a new entry can qualify |
+| Empirical precision gate | Uses resolved outcomes and statistical bounds, not displayed confidence alone |
+| Paper trading | Practice fills with adverse slippage, fees and persistent positions |
+| Manual live path | Separately authorized Hyperliquid-focused execution |
+| Autonomous path | Separately gated by signal, risk, strategy, precision and authorization |
+| Health evidence | Safety CI, frontend build, recurring live-network smoke and exact-SHA ledger |
 
 ---
 
-## Why AITradra Is Different
+## Why AITradra is different
 
-AITradra is not designed as a black-box “AI says BUY” interface.
+AITradra deliberately separates concerns that are often mixed together in trading prototypes:
 
-It separates:
+- **research data** vs **decision-grade live price data**;
+- **agent confidence** vs **measured empirical precision**;
+- **research quality** vs **execution permission**;
+- **paper execution** vs **funded execution**;
+- **manual live permission** vs **autonomous live permission**;
+- **primary execution price** vs **independent validation price**;
+- **historical evidence** vs **fresh execution-time evidence**.
 
-- **data collection** from interpretation;
-- **specialist analysis** from signal aggregation;
-- **confidence** from measured historical precision;
-- **research** from execution permission;
-- **manual live trading** from autonomous trading;
-- **new entries** from reduce-only safety exits;
-- **paper evidence collection** from funded execution.
-
-That separation makes the system easier to inspect, test and improve without weakening the safety boundary.
+This separation makes failure visible and allows the system to block instead of silently substituting weaker data.
 
 ---
 
 ## Architecture
 
-<p align="center">
-  <img src="docs/architecture/axiom_power_agent_mythic_architecture.svg" alt="AITradra multi-agent architecture" width="96%" />
-</p>
-
 ```mermaid
-flowchart LR
-    U[Customer / Ticker] --> D[Live Market Data]
-    U --> N[News + Evidence]
-    U --> M[Research Memory]
+flowchart TD
+    U[User / Ticker]
 
-    D --> O[Multi-Agent Orchestrator]
-    N --> O
-    M --> O
+    U --> RD[Research Data Engine]
+    RD --> PUB[Public / connected research sources]
+    RD --> NEWS[News / RSS / social evidence]
+    RD --> RES[Research Council + Specialists]
 
-    O --> T[Technical]
-    O --> F[Fundamental]
-    O --> MA[Macro]
-    O --> S[Sentiment]
-    O --> C[Sector / Catalyst / Regime]
+    U --> LP[Strict Live Price Session]
+    P1[Authoritative real-time provider] --> LP
+    P2[Independent real-time verifier] --> V[Cross-check only]
+    V --> LP
+    V -. never substitutes primary .-> X[No fallback]
 
-    T --> A[Signal Aggregator]
-    F --> A
-    MA --> A
-    S --> A
-    C --> A
+    RES --> SA[Signal Aggregator]
+    LP --> SA
+    SA --> RM[Risk Manager]
+    RM -->|BLOCK| STOP[No new entry]
+    RM --> Q[Trade Qualification Firewall]
 
-    A --> R[Risk Manager]
-    R -->|BLOCK| X[No New Entry]
-    R --> P[Empirical Precision Gate]
-    P -->|BLOCK| X
-    P --> V[Strategy + Authorization Gates]
-    V -->|Paper| PB[Practice Broker]
-    V -->|Explicit Live Authorization| LB[Protected Broker Execution]
+    PS[Resolved precision evidence] --> AUDIT[Tamper-evident audit chain]
+    AUDIT --> Q
+    SV[Strategy validation] --> Q
+    AUTH[Execution authorization] --> Q
 
-    PB --> H[Prediction / Trade History]
-    LB --> H
+    Q -->|EXECUTE_PAPER| PAPER[Practice execution]
+    Q -->|EXECUTE_LIVE| LIVE[Protected live adapter]
+    Q -->|BLOCK| STOP
 ```
 
-### Core layers
+### Boundary ownership
 
-| Layer | Main responsibility |
+| Layer | Responsibility |
 |---|---|
-| Customer UI | Research, portfolio, connections, trading and operational views |
-| Data Engine | Market price, OHLCV, customer APIs, cache/freshness and fallbacks |
-| Evidence | RSS, news, social provenance and source-aware research context |
-| Agent Network | Specialist analysis, critique, aggregation and reasoning |
-| Risk | Position limits, daily-loss breaker, reserve, leverage and protection checks |
-| Precision | Resolved directional evidence and statistical execution eligibility |
-| Execution | Practice broker, manual Hyperliquid adapter and autonomous Hyperliquid path |
-| Measurement | Prediction outcomes, accuracy store, reflection and self-improvement telemetry |
-| Operations | Safety CI, frontend build, recurring live-system smoke and artifacts |
+| Research | Collect and explain evidence; never grants execution authority |
+| Strict live price | Produce fresh decision-grade price provenance or fail closed |
+| Signal Aggregator | Convert specialist evidence into current BUY/SELL/HOLD state |
+| Risk Manager | Deterministic capital/risk veto |
+| Precision store | Preserve resolved directional evidence eligible for live gating |
+| Precision audit | Detect edits, deletions or unaudited evidence rows |
+| Qualification firewall | Single pre-order permission boundary |
+| Execution adapter | May submit only after qualification says execution is allowed |
+
+See [`docs/RESEARCH_EXECUTION_BOUNDARY.md`](docs/RESEARCH_EXECUTION_BOUNDARY.md) for the full contract.
 
 ---
 
-## Multi-Agent Intelligence
+## Strict real-time data contract
+
+AITradra now has a dedicated **decision-grade live-price path** in `gateway/live_price_session.py`.
+
+### No execution-provider fallback
+
+For qualification-sensitive price use:
+
+1. The **first enabled market-data connection** is the authoritative provider.
+2. Its observation may be reused only inside a short validity window.
+3. After expiry, AITradra must fetch a new observation from that same provider.
+4. If the authoritative provider fails, AITradra **blocks** instead of switching to another provider.
+5. Historical SQLite data, stale cache and research-source fallbacks are not promoted to decision-grade data.
+
+Default validity:
+
+```env
+LIVE_PRICE_VALIDITY_SECONDS=120
+```
+
+Allowed range is clamped by code to 5–900 seconds.
+
+### Independent verification without fallback
+
+By default, a second independently configured live provider is required to validate the primary price:
+
+```env
+LIVE_PRICE_REQUIRE_CROSSCHECK=true
+LIVE_PRICE_MAX_CROSSCHECK_DIFF_PCT=1.0
+```
+
+The verifier is **not a backup execution source**. It only validates the primary quote.
+
+The decision path blocks when:
+
+- no live provider is configured;
+- the primary provider fails;
+- the primary returns an unusable price;
+- cross-checking is required but no independent verifier exists;
+- the verifier fails;
+- the providers disagree beyond the configured threshold;
+- the previously validated observation has expired and cannot be refreshed.
+
+Accepted observations include provenance such as:
+
+- `source_used`
+- `connection_id`
+- `observed_at`
+- `expires_at`
+- `freshness_seconds`
+- `validity_seconds`
+- `decision_grade=true`
+- `fallback_used=false`
+- independent cross-check metadata
+
+> [!NOTE]
+> The broader Research Data Engine may still use public sources and clearly labelled historical/cache data for research and display. That is intentionally separate from the strict execution-grade price contract.
+
+---
+
+## Multi-agent intelligence
 
 The research stack can include:
 
@@ -161,7 +189,6 @@ The research stack can include:
 - Fundamental Specialist
 - Macro Specialist
 - Sentiment Specialist
-- FinBERT sentiment refinement
 - Sector Specialist
 - Catalyst Specialist
 - Breakout / Momentum analysis
@@ -169,55 +196,13 @@ The research stack can include:
 - Signal Aggregator
 - Risk Manager
 - Critique / Reflection
-- Optional Quantic validation
-- Optional Swarm consensus
+- Optional FinBERT, Quantic and swarm-style validation layers
 
-### Research modes
-
-| Mode | Purpose |
-|---|---|
-| **QUICK** | Fast market questions and lightweight analysis |
-| **DEEP** | Broader research, comparison, risk and pre-trade analysis |
-| **INSTITUTIONAL** | Heavier orchestration and additional validation where available |
-
-Manual real-money entry requests require a fresh **DEEP** pre-trade analysis before submission.
+Research outputs remain advisory. A persuasive agent debate or high research score cannot bypass Risk Manager or the qualification firewall.
 
 ---
 
-## Market Data & Evidence
-
-AITradra supports a source-priority model rather than pretending every result has the same quality.
-
-```mermaid
-flowchart LR
-    A[Customer API] --> E[Data Engine]
-    B[Built-in Public Sources] --> E
-    C[Knowledge Store] --> E
-    D[RSS / Web / Social] --> E
-    E --> F[Provenance + Freshness]
-    F --> G[Research Context]
-```
-
-Supported connection presets include:
-
-- Alpha Vantage
-- Finnhub
-- Twelve Data
-- NewsAPI
-- GNews
-- Hyperliquid
-- Custom JSON REST APIs with nested field mapping
-
-Customer credentials are stored locally in an encrypted runtime database and are not returned to the UI after saving.
-
-> [!CAUTION]
-> Host-level access can still expose runtime secrets. Serious deployments should use hardened hosts and dedicated secret management.
-
----
-
-## Trading Safety
-
-AITradra follows a **fail-closed** model.
+## Trading safety
 
 ### Safe defaults
 
@@ -230,40 +215,39 @@ REQUIRE_STRATEGY_VALIDATION=true
 REQUIRE_EMPIRICAL_PRECISION_VALIDATION=true
 ```
 
-### Existing safety controls
+### Important controls
 
 - Paper trading by default
-- Autonomous startup disabled by default
-- Separate manual and autonomous authorization
+- Separate manual-live and autonomous-live permissions
 - Explicit live acknowledgement
-- Maximum position percentage
-- Maximum daily loss breaker
-- Maximum open positions
+- Position-size limits
+- Daily-loss breaker
 - Cash reserve requirement
+- Maximum open positions
 - Leverage cap
-- Current-signal confidence gate
-- Stop-loss / take-profit validation
+- Stop-loss / take-profit geometry validation
 - Protective-order enforcement
 - Reduce-only close support
 - Existing-position add-ons disabled by default
-- Strategy validation before autonomous live execution
-- Empirical precision validation before autonomous live execution
-- Emergency flatten attempt when exchange-side protection fails
-- Secret scanning in CI
+- Fresh strategy validation for autonomous live entries
+- Current-signal confidence threshold
+- Empirical precision threshold
+- Tamper-evident precision evidence audit
+- Decision-grade live-price freshness gate
+- Independent live-price disagreement gate
+- Secret scanning in Safety CI
 
-### Manual live trading
+Manual and autonomous live permissions are independent. Adding broker credentials does **not** silently enable autonomous trading.
 
-Current customer-connected real execution is **Hyperliquid-focused**. It should not be represented as direct live equity-broker execution.
-
-Manual live and autonomous live are independent permissions. Adding a wallet or broker credential does **not** silently enable autonomous trading.
+Current customer-connected funded execution is **Hyperliquid-focused**; the repository should not be represented as direct funded equity-broker execution.
 
 ---
 
-## Empirical Precision Gate
+## Empirical precision gate
 
-AITradra now distinguishes **model confidence** from **measured directional precision**.
+Displayed model confidence is not treated as measured accuracy.
 
-Current default autonomous-live evidence requirements:
+Default autonomous-live evidence settings:
 
 ```env
 AUTOTRADE_TARGET_PRECISION=0.99
@@ -274,89 +258,57 @@ PRECISION_LOOKBACK_DAYS=90
 PRECISION_VALIDATION_MAX_AGE_DAYS=30
 ```
 
-### What this means
+A new autonomous live entry requires, among other controls:
 
-A live autonomous entry is not unlocked because an agent displays “99% confidence.”
+1. an actionable non-HOLD signal;
+2. Risk Manager `APPROVE`;
+3. valid protective levels;
+4. live execution authorization;
+5. current signal confidence above the configured live minimum;
+6. approved/fresh strategy validation;
+7. enough resolved directional observations;
+8. observed precision at or above the configured target;
+9. a Wilson lower bound at or above the configured threshold;
+10. recent precision evidence;
+11. a valid tamper-evident audit chain.
 
-The system requires:
+The precision store is append-only through the application API and rejects evidence with invalid chronology or blocked/stale provenance. Accepted rows are chained by SHA-256 audit hashes; the gate fails closed if evidence is edited, deleted or inserted outside the audit chain.
 
-1. a non-HOLD actionable signal;
-2. current signal confidence at or above the configured live threshold;
-3. Risk Manager approval;
-4. valid entry / stop / target geometry;
-5. approved out-of-sample strategy validation;
-6. enough resolved directional outcomes for the ticker and direction;
-7. observed directional precision at or above the configured target;
-8. a Wilson statistical lower bound at or above the configured threshold;
-9. recent enough precision evidence;
-10. all existing live authorization and protective-order gates.
-
-If any requirement fails, **the new live entry is blocked**.
-
-> [!NOTE]
-> A 99% historical directional target is deliberately difficult to satisfy and is not a promise that future funded trades will be 99% correct or profitable. Spreads, fees, slippage, gaps, latency, regime change and target/stop geometry still affect realized results.
+> [!WARNING]
+> A 99% configured target is deliberately difficult. Even historical evidence that satisfies the gate does not guarantee future accuracy, positive P&L, or protection from slippage, fees, gaps, latency or regime change.
 
 ---
 
-## Strategy Validation
+## Operations & health evidence
 
-Autonomous live trading also requires a separately approved strategy record.
+AITradra uses **measured workflow evidence**, not a hard-coded README claim, to show health.
 
-Default thresholds:
+### Safety CI
 
-```env
-STRATEGY_VALIDATION_MAX_AGE_DAYS=30
-MIN_BACKTEST_SHARPE=1.0
-MAX_BACKTEST_DRAWDOWN_PCT=20.0
-MIN_BACKTEST_WIN_RATE=0.52
-MIN_BACKTEST_TRADES=30
-MIN_BACKTEST_PROFIT_FACTOR=1.20
-```
+`.github/workflows/safety-ci.yml` runs on pushes to `main`, pull requests and manual dispatch. It verifies:
 
-Backtests are validation evidence—not proof of future profitability.
+- critical Python compilation;
+- secret scanning;
+- trading-safety regressions;
+- strict live-price tests;
+- precision gate and precision-audit tests;
+- customer/live-integrity regressions;
+- production React build.
 
-Recommended progression:
+It publishes exact-SHA artifacts for both the backend safety suite and frontend build.
 
-```text
-Unit / Safety Tests
-        ↓
-Historical Backtest
-        ↓
-Out-of-Sample Validation
-        ↓
-Stress / Sensitivity Tests
-        ↓
-Paper Forward Test
-        ↓
-Small Manual Canary
-        ↓
-Measured Live Track Record
-        ↓
-Gradual Scaling
-```
-
----
-
-## Operations & Health Monitoring
-
-AITradra now has two complementary monitoring layers.
-
-### 1. Safety CI
-
-`.github/workflows/safety-ci.yml` validates critical Python modules, trading/customer safety regressions, secret scanning and the production React build.
-
-### 2. Live System Smoke
+### Live System Smoke
 
 `.github/workflows/live-system-smoke.yml` runs:
 
-- on every pull request;
-- on every push to `main`;
-- every **4 hours** on a GitHub Actions schedule;
-- manually through `workflow_dispatch`.
+- on pushes to `main`;
+- on pull requests;
+- every four hours;
+- on manual dispatch.
 
-It verifies real-network market collection, agent consumption, paper execution mechanics, news provenance, social-data fail-closed behavior and autonomous decision gating. Smoke artifacts are uploaded for evidence review.
+It verifies real public-network market collection, agent consumption, practice-trade mechanics, news/social provenance, autonomous-decision guards and the strict decision-grade boundary tests.
 
-The smoke environment explicitly keeps:
+The smoke workflow always forces:
 
 ```env
 PAPER_TRADE_MODE=true
@@ -364,36 +316,42 @@ AUTOTRADE_ENABLED=false
 MANUAL_LIVE_TRADING_ENABLED=false
 ```
 
-So recurring monitoring does **not** submit a funded live order.
+Therefore the smoke workflow itself does **not** submit a funded live trade.
 
-### External status monitoring
+### Exact-SHA health ledger
 
-An hourly status monitor can inspect the latest GitHub health evidence and report:
+Both workflows append their measured conclusion to:
 
-- Safety CI state
-- Live System Smoke state
-- data freshness / provenance
-- agent and Risk Manager decision state
-- empirical precision-gate readiness
-- paper-vs-live mode
-- frontend build state
-- new failures or regressions
+**[Issue #41 — automated CI and live-smoke health ledger](https://github.com/logeshv586-code/AITradra/issues/41)**
+
+Each ledger entry records:
+
+- workflow name;
+- exact tested SHA;
+- ref/event;
+- job conclusions;
+- run URL;
+- funded-execution state for live smoke.
+
+This provides an external monitoring surface even when a client cannot enumerate push-triggered GitHub Actions runs through the Checks API.
+
+> **Status rule:** a missing run is never converted to PASS. Use the dynamic workflow badges, GitHub Actions run and health-ledger entry for measured status. “Implemented” and “measured PASS” are different claims.
 
 ---
 
-## Practice Trading
+## Practice trading
 
 Practice mode models:
 
-- live/reference market prices when available;
+- reference market prices when available;
 - adverse slippage;
 - fees;
 - cash and positions;
-- realized and unrealized P&L;
-- stop-loss and take-profit behavior;
-- persistent local practice state.
+- realized/unrealized P&L;
+- protective exits;
+- persistent practice state.
 
-Default assumptions:
+Defaults:
 
 ```env
 PAPER_STARTING_BALANCE=100000
@@ -401,19 +359,19 @@ PAPER_SLIPPAGE_BPS=5
 PAPER_FEE_BPS=4
 ```
 
+Paper results are evidence about the simulation assumptions used; they are not guaranteed live results.
+
 ---
 
-## Quick Start
+## Quick start
 
 ### Requirements
 
 - Python 3.12+
 - Node.js 22+
 - Git
-- Optional: Docker
-- Optional: NVIDIA NIM / OpenAI-compatible API / Ollama / LM Studio / local model
 
-### Clone
+### 1. Clone
 
 ```bash
 git clone https://github.com/logeshv586-code/AITradra.git
@@ -421,18 +379,15 @@ cd AITradra
 cp .env.example .env
 ```
 
-Keep safe defaults for development:
+Keep the safe execution defaults unless you intentionally configure and validate a live environment:
 
 ```env
 PAPER_TRADE_MODE=true
 AUTOTRADE_ENABLED=false
 MANUAL_LIVE_TRADING_ENABLED=false
-REQUIRE_PROTECTIVE_ORDERS=true
-REQUIRE_STRATEGY_VALIDATION=true
-REQUIRE_EMPIRICAL_PRECISION_VALIDATION=true
 ```
 
-### Backend
+### 2. Backend
 
 ```bash
 python -m venv venv
@@ -450,14 +405,14 @@ Windows PowerShell:
 .\venv\Scripts\Activate.ps1
 ```
 
-Then:
+Install and run:
 
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
 
-### Frontend
+### 3. Frontend
 
 ```bash
 cd ui
@@ -471,24 +426,27 @@ Production build:
 npm run build
 ```
 
-### Docker
+### 4. Decision-grade live data
 
-```bash
-docker compose up --build
-```
+Research/public-data features can operate independently, but qualification-sensitive agents using the strict live-price session require configured market-data connections.
+
+For the default independent cross-check policy, configure **two independent live market-data connections** in the application. The first is authoritative; the second validates it and is never used as fallback.
 
 ---
 
 ## Testing
 
-Focused safety suites:
+Focused safety suite:
 
 ```bash
 python -m pytest -q \
   tests/test_trading_safety.py \
+  tests/test_precision_gate.py \
+  tests/test_precision_audit.py \
+  tests/test_strict_live_price_session.py \
+  tests/test_self_improvement.py \
   tests/test_customer_experience.py \
-  tests/test_live_integrity.py \
-  tests/test_precision_gate.py
+  tests/test_live_integrity.py
 ```
 
 Frontend:
@@ -499,107 +457,94 @@ npm ci
 npm run build
 ```
 
+Live-network smoke is intentionally paper-only:
+
+```bash
+python scripts/live_system_smoke.py
+python scripts/live_news_decision_smoke.py
+```
+
 ---
 
-## Project Structure
+## Project structure
 
 ```text
 AITradra/
-├── agents/                 # Specialist, orchestration, signal and risk agents
-├── brokers/                # Paper + Hyperliquid execution adapters
-├── core/                   # Config, scoring, safety and empirical precision gate
-├── docs/                   # Architecture, brand, investor and community assets
-├── gateway/                # FastAPI, data engine, runtime and market services
-├── memory/                 # Episodic, semantic and prediction memory
-├── scheduler/              # Runtime scheduling support
-├── self_improvement/       # Outcome scoring, accuracy and precision evidence
-├── tests/                  # Safety, customer, live-integrity and precision tests
-├── ui/                     # React + Vite application
-├── .github/workflows/      # Safety CI + recurring live smoke
-├── .env.example
-├── docker-compose.yml
-├── main.py
-└── requirements.txt
+├── agents/                    # Specialist, data, signal and risk agents
+├── brokers/                   # Practice + protected execution adapters
+├── core/                      # Config, safety, statistics, qualification, precision gate
+├── gateway/                   # API, research data engine, strict live-price session
+├── self_improvement/          # Outcome scoring, precision store and audit chain
+├── tests/                     # Safety, data integrity, precision and customer regressions
+├── ui/                        # React + Vite customer application
+├── scripts/                   # Live smoke and evidence utilities
+├── docs/                      # Architecture, development and investor material
+└── .github/workflows/         # Safety CI, research-quality CI, live-system smoke
 ```
 
 ---
 
-## Current Safety Position
+## Safety position
 
-| Area | Status |
-|---|:---:|
-| Customer-facing market research | ✅ |
-| Source-aware live market collection | ✅ |
-| Multi-agent signal aggregation | ✅ |
-| Risk Manager veto | ✅ |
-| Prediction measurement | ✅ |
-| Practice execution with fees/slippage | ✅ |
-| Manual/autonomous permission separation | ✅ |
-| Strategy validation gate | ✅ |
-| Empirical precision gate | ✅ |
-| Scheduled live-system smoke | ✅ |
-| Production frontend build CI | ✅ |
-| Autonomous live trading enabled by default | **No** |
+| Area | Repository policy |
+|---|---|
+| Research-source provenance | Source/freshness metadata preserved |
+| Decision-grade live price | Strict connected provider path |
+| Execution-provider fallback | **Disabled** |
+| Independent price verification | Cross-check only; never substitutes primary |
+| Stale/cache execution substitution | **Blocked** |
+| Risk Manager veto | Enforced before qualification |
+| Protective orders | Required by default |
+| Empirical precision gate | Required by default for autonomous live entries |
+| Precision evidence integrity | Tamper-evident audit chain |
+| Practice execution | Default |
+| Autonomous funded execution | Disabled by default |
+| Manual funded execution | Disabled by default |
+| CI / smoke funded order submission | **No** |
 | Guaranteed profitability | **No** |
-| Guaranteed 99% future trade accuracy | **No** |
+| Guaranteed future 99% accuracy | **No** |
+
+Measured CI/smoke status should be read from the workflow badges, run pages and [health ledger](https://github.com/logeshv586-code/AITradra/issues/41), not inferred from this table.
 
 ---
 
-## Community & Contributors
+## Community
 
-AITradra is MIT licensed and contributor-friendly.
-
-- [Contribution Guide](CONTRIBUTING.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Roadmap](ROADMAP.md)
+- [Development guide](docs/DEVELOPMENT.md)
+- [Security policy](SECURITY.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Security Policy](SECURITY.md)
-- [Public Roadmap](ROADMAP.md)
-- GitHub issues include `good first issue` and `help wanted` opportunities
+- [Research → Qualification → Execution boundary](docs/RESEARCH_EXECUTION_BOUNDARY.md)
 
-Useful contribution areas include broker/data adapters, India-market coverage, model evaluation, Playwright E2E testing, portfolio intelligence and explainability.
+Good-first and help-wanted tasks are tracked in GitHub Issues.
 
 ---
 
-## Investor & Startup Materials
+## Investor / evidence policy
 
-The repository includes investor-ready project material:
+AITradra should be evaluated through reproducible evidence:
 
-- [Investor One-Pager](docs/INVESTOR_ONE_PAGER.md)
-- [Pitch Deck Outline](docs/PITCH_DECK_OUTLINE.md)
-- [90-Second Demo Script](docs/DEMO_SCRIPT_90_SECONDS.md)
-- [Investor Data Room Index](docs/INVESTOR_DATA_ROOM_INDEX.md)
-- [Launch Posts](docs/LAUNCH_POSTS.md)
-- [GitHub Growth Checklist](docs/GITHUB_GROWTH_CHECKLIST.md)
+- exact-source market observations;
+- forward prediction outcomes;
+- blocked decisions as well as executed paper decisions;
+- fees/slippage-aware paper results;
+- statistical precision bounds;
+- CI/smoke artifacts tied to exact SHAs;
+- clear separation between research, simulation and funded execution.
 
-AITradra should be positioned as **AI-native financial intelligence and risk-gated execution infrastructure**, not as a guaranteed-profit trading bot.
-
----
-
-## Product Principles
-
-```text
-Evidence first.
-Explanation second.
-Risk before execution.
-Practice before live.
-Explicit authorization before real money.
-Measure every prediction.
-Do not manufacture accuracy claims.
-```
+Backtests, research scores, paper results and historical precision do **not** guarantee future profitability.
 
 ---
 
-## Disclaimer
+## License
 
-AITradra is provided for software development, research, education and experimentation. Market data can be delayed, incomplete or wrong. News attribution can be uncertain. Models can fail. Broker APIs can reject, delay or partially execute orders. Stop-loss orders cannot guarantee a specific exit price during gaps, outages or extreme volatility.
-
-Nothing in this repository is financial, investment, legal or tax advice. Anyone enabling real-money trading is responsible for independent review, testing, security, regulation and capital risk.
+[MIT License](LICENSE)
 
 ---
 
 <div align="center">
 
-### AITradra
-
-**Open-source AI trading intelligence built to explain, measure and protect before it executes.**
+**Build evidence. Measure outcomes. Block unsafe execution.**
 
 </div>
