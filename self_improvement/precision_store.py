@@ -1,8 +1,9 @@
 """Immutable, provenance-aware directional evidence for live precision gating.
 
 Research/history accuracy is stored elsewhere. This store contains only evidence
-that is eligible to influence autonomous live-entry gating. Legacy precision rows
-remain in their old table and are intentionally excluded from v2 statistics.
+eligible to influence autonomous live-entry gating. Every accepted row is also
+written into a SHA-256 audit chain; live qualification can therefore detect edits,
+deletions, or unaudited insertions before trusting empirical precision evidence.
 """
 
 from __future__ import annotations
@@ -13,18 +14,13 @@ from typing import Any
 
 from core.config import settings
 from core.logger import get_logger
+from self_improvement.precision_audit import append_evidence, ensure_schema, verify_chain
 
 logger = get_logger(__name__)
 
 _BLOCKED_PROVIDERS = {
-    "",
-    "none",
-    "unknown",
-    "default",
-    "fallback",
-    "cache_stale",
-    "stale_cache",
-    "knowledge_store",
+    "", "none", "unknown", "default", "fallback",
+    "cache_stale", "stale_cache", "knowledge_store",
 }
 
 
@@ -39,8 +35,6 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 class DirectionalPrecisionStore:
-    """Store one immutable live-gate evidence row per prediction/model/horizon."""
-
     TABLE = "directional_precision_evidence_v2"
 
     def __init__(self, db_path: str | None = None):
@@ -81,22 +75,20 @@ class DirectionalPrecisionStore:
             conn.execute(
                 f"""
                 CREATE INDEX IF NOT EXISTS idx_precision_v2_lookup
-                ON {self.TABLE}
-                    (ticker, model, direction, live_gate_eligible, evaluated_at)
+                ON {self.TABLE} (ticker, model, direction, live_gate_eligible, evaluated_at)
                 """
             )
+            ensure_schema(conn)
             conn.commit()
             conn.close()
         except Exception as exc:
-            logger.warning("DirectionalPrecisionStore v2 init failed: %s", exc)
+            logger.warning("DirectionalPrecisionStore init failed: %s", exc)
 
     @staticmethod
     def _effective_provider(provider: str, upstream_provider: str) -> str:
         raw = str(provider or "").strip().lower()
         upstream = str(upstream_provider or "").strip()
-        if raw == "cache":
-            return upstream
-        return str(provider or "").strip()
+        return upstream if raw == "cache" else str(provider or "").strip()
 
     def record_outcome(
         self,
@@ -116,12 +108,6 @@ class DirectionalPrecisionStore:
         live_gate_eligible: bool,
         scored_at: str | None = None,
     ) -> bool:
-        """Insert immutable, independently valid live-gate evidence.
-
-        The store re-validates chronology and provenance rather than trusting a
-        caller-provided eligibility flag. Returns True only when a new compliant
-        row is inserted.
-        """
         normalized_direction = str(direction or "").upper()
         if normalized_direction not in {"BULLISH", "BEARISH"}:
             return False
@@ -138,11 +124,8 @@ class DirectionalPrecisionStore:
 
         effective_provider = self._effective_provider(provider, upstream_provider)
         if (
-            prediction_dt is None
-            or evaluated_dt is None
-            or observed_dt is None
-            or horizon < 0
-            or effective_provider.lower() in _BLOCKED_PROVIDERS
+            prediction_dt is None or evaluated_dt is None or observed_dt is None
+            or horizon < 0 or effective_provider.lower() in _BLOCKED_PROVIDERS
         ):
             return False
 
@@ -165,36 +148,48 @@ class DirectionalPrecisionStore:
                 f"""
                 INSERT INTO {self.TABLE}
                     (prediction_id, ticker, model, provider, upstream_provider,
-                     direction, correct, continuous_accuracy,
-                     prediction_timestamp, horizon_hours, evaluated_at,
-                     observed_at, scored_at, live_gate_eligible, created_at)
+                     direction, correct, continuous_accuracy, prediction_timestamp,
+                     horizon_hours, evaluated_at, observed_at, scored_at,
+                     live_gate_eligible, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
                 ON CONFLICT(prediction_id, model, horizon_hours) DO NOTHING
                 """,
                 (
-                    str(prediction_id),
-                    str(ticker).upper(),
-                    str(model),
-                    str(provider or ""),
-                    str(upstream_provider or effective_provider),
-                    normalized_direction,
+                    str(prediction_id), str(ticker).upper(), str(model), str(provider or ""),
+                    str(upstream_provider or effective_provider), normalized_direction,
                     1 if correct else 0,
                     max(0.0, min(float(continuous_accuracy or 0.0), 1.0)),
-                    prediction_dt.isoformat(),
-                    horizon,
-                    evaluated_dt.isoformat(),
-                    observed_dt.isoformat(),
-                    scored_dt.isoformat(),
-                    created_at,
+                    prediction_dt.isoformat(), horizon, evaluated_dt.isoformat(),
+                    observed_dt.isoformat(), scored_dt.isoformat(), created_at,
                 ),
             )
             inserted = conn.total_changes > before
+            if inserted:
+                row = conn.execute(
+                    f"SELECT * FROM {self.TABLE} WHERE prediction_id = ? AND model = ? AND horizon_hours = ?",
+                    (str(prediction_id), str(model), horizon),
+                ).fetchone()
+                if row is None:
+                    conn.rollback()
+                    conn.close()
+                    return False
+                append_evidence(conn, int(row["id"]), dict(row))
             conn.commit()
             conn.close()
             return inserted
         except Exception as exc:
-            logger.warning("DirectionalPrecisionStore v2 record failed: %s", exc)
+            logger.warning("DirectionalPrecisionStore record failed: %s", exc)
             return False
+
+    def verify_audit_integrity(self) -> dict[str, Any]:
+        try:
+            conn = self._connect()
+            result = verify_chain(conn, self.TABLE)
+            conn.close()
+            return result
+        except Exception as exc:
+            logger.warning("Directional precision audit verification failed: %s", exc)
+            return {"valid": False, "audited_rows": 0, "reason": type(exc).__name__}
 
     def get_precision_stats(
         self,
@@ -205,14 +200,10 @@ class DirectionalPrecisionStore:
         lookback_days: int = 90,
     ) -> dict[str, Any]:
         clauses = [
-            "ticker = ?",
-            "live_gate_eligible = 1",
+            "ticker = ?", "live_gate_eligible = 1",
             "datetime(evaluated_at) >= datetime('now', ?)",
         ]
-        params: list[Any] = [
-            str(ticker).upper(),
-            f"-{max(1, int(lookback_days))} days",
-        ]
+        params: list[Any] = [str(ticker).upper(), f"-{max(1, int(lookback_days))} days"]
         if model:
             clauses.append("model = ?")
             params.append(str(model))
@@ -231,30 +222,27 @@ class DirectionalPrecisionStore:
                 f"""
                 SELECT COUNT(*) AS total_directional,
                        COALESCE(SUM(correct), 0) AS correct_scored,
-                       COALESCE(AVG(continuous_accuracy), 0.0)
-                           AS avg_continuous_accuracy,
+                       COALESCE(AVG(continuous_accuracy), 0.0) AS avg_continuous_accuracy,
                        MAX(evaluated_at) AS last_updated
                 FROM {self.TABLE}
                 WHERE {' AND '.join(clauses)}
                 """,
                 params,
             ).fetchone()
+            audit = verify_chain(conn, self.TABLE)
             conn.close()
-            if not row:
-                return {
-                    "total_directional": 0,
-                    "correct_scored": 0,
-                    "avg_continuous_accuracy": 0.0,
-                    "last_updated": None,
-                }
-            return dict(row)
+            result = dict(row) if row else {
+                "total_directional": 0, "correct_scored": 0,
+                "avg_continuous_accuracy": 0.0, "last_updated": None,
+            }
+            result["audit_integrity"] = audit
+            return result
         except Exception as exc:
-            logger.warning("DirectionalPrecisionStore v2 query failed: %s", exc)
+            logger.warning("DirectionalPrecisionStore query failed: %s", exc)
             return {
-                "total_directional": 0,
-                "correct_scored": 0,
-                "avg_continuous_accuracy": 0.0,
-                "last_updated": None,
+                "total_directional": 0, "correct_scored": 0,
+                "avg_continuous_accuracy": 0.0, "last_updated": None,
+                "audit_integrity": {"valid": False, "reason": type(exc).__name__},
             }
 
     def export_evidence(
@@ -264,7 +252,6 @@ class DirectionalPrecisionStore:
         model: str | None = None,
         limit: int = 1000,
     ) -> list[dict[str, Any]]:
-        """Return audit-ready immutable evidence rows."""
         clauses = ["live_gate_eligible = 1"]
         params: list[Any] = []
         if ticker:
@@ -274,26 +261,23 @@ class DirectionalPrecisionStore:
             clauses.append("model = ?")
             params.append(str(model))
         params.append(max(1, min(int(limit), 10_000)))
-
         try:
             conn = self._connect()
             rows = conn.execute(
                 f"""
-                SELECT prediction_id, ticker, model, provider,
-                       upstream_provider, direction, correct,
-                       continuous_accuracy, prediction_timestamp,
-                       horizon_hours, evaluated_at, observed_at, scored_at
+                SELECT prediction_id, ticker, model, provider, upstream_provider,
+                       direction, correct, continuous_accuracy, prediction_timestamp,
+                       horizon_hours, evaluated_at, observed_at, scored_at, created_at
                 FROM {self.TABLE}
                 WHERE {' AND '.join(clauses)}
-                ORDER BY datetime(evaluated_at) DESC
-                LIMIT ?
+                ORDER BY datetime(evaluated_at) DESC LIMIT ?
                 """,
                 params,
             ).fetchall()
             conn.close()
             return [dict(row) for row in rows]
         except Exception as exc:
-            logger.warning("DirectionalPrecisionStore v2 export failed: %s", exc)
+            logger.warning("DirectionalPrecisionStore export failed: %s", exc)
             return []
 
 
