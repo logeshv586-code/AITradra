@@ -5,12 +5,15 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Every four hours. GitHub cron is UTC.
     - cron: "20 */4 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: live-system-smoke-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   live-market-agent-paper-trade:
@@ -25,6 +28,14 @@ jobs:
       PYTHONPATH: "."
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Record exact tested SHA
+        run: |
+          echo "tested_sha=${GITHUB_SHA}" | tee live-smoke-head.txt
+          echo "### Live System Smoke exact-head evidence" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Funded execution enabled: \`false\`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -41,12 +52,14 @@ jobs:
         run: |
           python -m compileall -q \
             core/config.py core/scoring.py core/trading_safety.py core/precision_gate.py \
-            gateway/cache.py gateway/data_engine.py gateway/knowledge_store.py gateway/simulation_engine.py \
+            gateway/cache.py gateway/data_engine.py gateway/live_price_session.py gateway/knowledge_store.py gateway/simulation_engine.py \
             gateway/scrapers/rss_scraper.py gateway/scrapers/social_scraper.py \
             agents/collector_agent.py agents/base_agent.py agents/specialist_agents.py \
             agents/signal_aggregator.py agents/risk_manager.py \
             brokers/customer_hyperliquid_broker.py \
-            self_improvement/accuracy_store.py self_improvement/precision_store.py
+            self_improvement/accuracy_store.py self_improvement/precision_store.py self_improvement/precision_audit.py
+      - name: Verify strict decision-grade price and precision audit boundaries
+        run: python -m pytest -q tests/test_strict_live_price_session.py tests/test_precision_audit.py tests/test_precision_gate.py
       - name: Run real-network market, agent and practice-trade smoke
         run: python scripts/live_system_smoke.py
       - name: Run live news, social provenance and autonomous decision guard smoke
@@ -55,8 +68,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: live-system-smoke-report
+          name: live-system-smoke-report-${{ github.sha }}
           path: |
+            live-smoke-head.txt
             live-smoke-report.json
             live-news-decision-report.json
           if-no-files-found: warn
+          retention-days: 30
