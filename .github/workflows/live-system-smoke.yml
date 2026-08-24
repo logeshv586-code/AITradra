@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: live-system-smoke-${{ github.ref }}
@@ -75,3 +76,31 @@ jobs:
             live-news-decision-report.json
           if-no-files-found: warn
           retention-days: 30
+
+  publish-health-ledger:
+    if: always()
+    needs: [live-market-agent-paper-trade]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Append Live System Smoke result to health ledger
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const smoke = '${{ needs.live-market-agent-paper-trade.result }}';
+            const overall = smoke === 'success' ? 'SUCCESS' : 'FAILURE';
+            const body = [
+              `### Live System Smoke — ${overall}`,
+              `- Exact SHA: \`${context.sha}\``,
+              `- Ref: \`${context.ref}\``,
+              `- Event: \`${context.eventName}\``,
+              `- Market/news/agent smoke job: **${smoke.toUpperCase()}**`,
+              `- Funded live execution enabled by this workflow: **NO**`,
+              `- Run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `- Evidence policy: measured workflow result only; no profitability or future-accuracy claim.`
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 41,
+              body
+            });
