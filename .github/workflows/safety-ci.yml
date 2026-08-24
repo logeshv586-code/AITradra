@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: safety-ci-${{ github.ref }}
@@ -55,6 +56,7 @@ jobs:
           tests/test_customer_experience.py
           tests/test_live_integrity.py
       - name: Publish exact-head evidence artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: safety-ci-head-${{ github.sha }}
@@ -85,9 +87,39 @@ jobs:
         working-directory: ui
         run: npm run build
       - name: Publish frontend exact-head evidence artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build-head-${{ github.sha }}
           path: frontend-build-head.txt
           if-no-files-found: error
           retention-days: 30
+
+  publish-health-ledger:
+    if: always()
+    needs: [trading-safety, frontend-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Append Safety CI result to health ledger
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const trading = '${{ needs.trading-safety.result }}';
+            const frontend = '${{ needs.frontend-build.result }}';
+            const overall = trading === 'success' && frontend === 'success' ? 'SUCCESS' : 'FAILURE';
+            const body = [
+              `### Safety CI — ${overall}`,
+              `- Exact SHA: \`${context.sha}\``,
+              `- Ref: \`${context.ref}\``,
+              `- Event: \`${context.eventName}\``,
+              `- Trading safety: **${trading.toUpperCase()}**`,
+              `- Frontend build: **${frontend.toUpperCase()}**`,
+              `- Run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              `- Evidence policy: measured workflow result only; no profitability or future-accuracy claim.`
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 41,
+              body
+            });
