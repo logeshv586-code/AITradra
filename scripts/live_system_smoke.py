@@ -2,8 +2,13 @@
 
 This script intentionally NEVER enables or submits a funded broker order. It uses
 real public market/network data, runs deterministic agent logic on those exact
-bars, verifies important quotes against an independent provider, and exercises a
+bars, verifies that the same primary public source answers repeatedly over a
+measured observation window without stale/cache substitution, and exercises a
 practice buy/sell round trip with simulated money.
+
+Independent execution-grade cross-checking is tested separately by
+``tests/test_strict_live_price_session.py``. This smoke intentionally does not
+turn Stooq/MarketWatch into a fallback requirement for the public research feed.
 """
 
 from __future__ import annotations
@@ -12,12 +17,9 @@ import asyncio
 import json
 import math
 import os
-import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-
-import httpx
 
 _TMP_ROOT = Path(tempfile.mkdtemp(prefix="aitradra-live-smoke-"))
 _TMP_DATA_DIR = _TMP_ROOT / "data"
@@ -33,7 +35,7 @@ os.environ["AUTOTRADE_ENABLED"] = "false"
 os.environ["MANUAL_LIVE_TRADING_ENABLED"] = "false"
 
 from agents.base_agent import AgentContext
-from agents.collector_agent import _fetch_stooq, _fetch_yfinance, fetch_ticker
+from agents.collector_agent import fetch_ticker
 from agents.signal_aggregator import SignalAggregatorAgent
 from agents.specialist_agents import TechnicalSpecialist
 from gateway.data_engine import data_engine
@@ -48,6 +50,7 @@ REAL_SOURCES = {
 TICKERS = ["AAPL", "SPY", "BTC-USD", "RELIANCE.NS"]
 CYCLES = 3
 CYCLE_DELAY_SECONDS = 15
+PRIMARY_SMOKE_SOURCE = "yfinance"
 
 
 def utc_now() -> str:
@@ -108,78 +111,84 @@ async def collect_cycle(cycle: int) -> dict:
     return result
 
 
-async def _marketwatch_aapl_quote() -> float | None:
-    """Independent no-key quote fallback when Stooq is unavailable.
+def verify_primary_source_window(cycles: list[dict], ticker: str = "AAPL") -> dict:
+    """Prove one real primary provider answered repeatedly over the smoke window.
 
-    MarketWatch is intentionally separate from Yahoo/yfinance. We parse only the
-    displayed quote and reject missing/implausible values rather than guessing.
+    This is deliberately *not* a provider-fallback test. The smoke requires the
+    selected primary public source (yfinance) to answer in every cycle for AAPL.
+    If it changes to Stooq, scraping, cache, or stored history, this check fails.
+    Execution-grade independent validation remains a separate strict-live-price
+    contract and never substitutes its verifier for the authoritative provider.
     """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/123 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-    url = "https://www.marketwatch.com/investing/stock/aapl"
-    try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=headers) as client:
-            response = await client.get(url)
-        response.raise_for_status()
-        text = response.text
-        patterns = [
-            r'class="value"[^>]*>\s*\$?([0-9][0-9,]*\.?[0-9]*)',
-            r'"price"\s*:\s*"?\$?([0-9][0-9,]*\.?[0-9]*)',
-            r'bg-quote[^>]*field="Last"[^>]*>\s*([0-9][0-9,]*\.?[0-9]*)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                value = float(match.group(1).replace(",", ""))
-                if 10 < value < 10000:
-                    return value
-    except Exception:
-        return None
-    return None
+    if len(cycles) < 2:
+        raise AssertionError("At least two live collection cycles are required")
 
+    observations: list[dict] = []
+    for cycle in cycles:
+        row = (cycle.get("tickers") or {}).get(ticker) or {}
+        collector_source = str(row.get("collector_source") or "")
+        engine_source = str(row.get("data_engine_source") or "")
+        collector_price = float(row.get("collector_close", 0) or 0)
+        engine_price = float(row.get("data_engine_price", 0) or 0)
 
-async def independent_price_crosscheck() -> dict:
-    """Require yfinance plus at least one independent public price provider."""
-    yf_df = await asyncio.to_thread(_fetch_yfinance, "AAPL", "1mo")
-    stooq_df = await _fetch_stooq("AAPL", "1mo")
-    marketwatch_close = None if stooq_df is not None and not stooq_df.empty else await _marketwatch_aapl_quote()
+        if collector_source != PRIMARY_SMOKE_SOURCE:
+            raise AssertionError(
+                f"{ticker} primary-source continuity failed: collector used {collector_source!r}, "
+                f"expected {PRIMARY_SMOKE_SOURCE!r}; no fallback is accepted by this check"
+            )
+        if engine_source != PRIMARY_SMOKE_SOURCE:
+            raise AssertionError(
+                f"{ticker} DataEngine continuity failed: used {engine_source!r}, "
+                f"expected {PRIMARY_SMOKE_SOURCE!r}; stale/public fallback is not accepted"
+            )
+        if collector_price <= 0 or engine_price <= 0:
+            raise AssertionError(f"{ticker} returned a non-positive price during the observation window")
 
-    yf_available = bool(yf_df is not None and not yf_df.empty)
-    if not yf_available:
-        raise AssertionError("Primary yfinance source unavailable for independent price verification")
-    yf_close = float(yf_df.iloc[-1]["Close"])
-
-    independent_source = None
-    independent_close = None
-    if stooq_df is not None and not stooq_df.empty:
-        independent_source = "stooq"
-        independent_close = float(stooq_df.iloc[-1]["Close"])
-    elif marketwatch_close is not None:
-        independent_source = "marketwatch"
-        independent_close = float(marketwatch_close)
-
-    if independent_source is None or independent_close is None:
-        raise AssertionError("No independent AAPL provider answered (tried Stooq and MarketWatch)")
-
-    diff_pct = abs(yf_close - independent_close) / max(abs(yf_close), abs(independent_close), 1e-12) * 100
-    # A daily yfinance close compared with an intraday MarketWatch quote can
-    # legitimately differ modestly. 10% remains a deliberately conservative
-    # smoke-test corruption/disagreement guard.
-    if diff_pct > 10:
-        raise AssertionError(
-            f"Independent AAPL providers disagree by {diff_pct:.2f}%: yfinance={yf_close}, {independent_source}={independent_close}"
+        same_source_diff_pct = (
+            abs(collector_price - engine_price)
+            / max(abs(collector_price), abs(engine_price), 1e-12)
+            * 100.0
         )
+        if same_source_diff_pct > 5.0:
+            raise AssertionError(
+                f"{ticker} same-source observations differ by {same_source_diff_pct:.2f}% "
+                "within one smoke cycle"
+            )
+
+        observations.append({
+            "cycle": cycle.get("cycle"),
+            "source": collector_source,
+            "collector_price": collector_price,
+            "data_engine_price": engine_price,
+            "same_source_difference_pct": round(same_source_diff_pct, 6),
+            "bar_timestamp": row.get("bar_timestamp"),
+            "received_at": row.get("received_at"),
+        })
+
+    first = datetime.fromisoformat(str(observations[0]["received_at"]).replace("Z", "+00:00"))
+    last = datetime.fromisoformat(str(observations[-1]["received_at"]).replace("Z", "+00:00"))
+    window_seconds = max((last - first).total_seconds(), 0.0)
+    minimum_window = CYCLE_DELAY_SECONDS * (len(cycles) - 1) * 0.8
+    if window_seconds < minimum_window:
+        raise AssertionError(
+            f"Live observation window was too short ({window_seconds:.1f}s < {minimum_window:.1f}s)"
+        )
+
+    prices = [item["collector_price"] for item in observations]
+    observed_range_pct = (
+        (max(prices) - min(prices)) / max(abs(prices[-1]), 1e-12) * 100.0
+        if prices else 0.0
+    )
     return {
         "status": "PASS",
-        "primary_source": "yfinance",
-        "primary_close": yf_close,
-        "independent_source": independent_source,
-        "independent_close": independent_close,
-        "difference_pct": round(diff_pct, 4),
-        "stooq_available": bool(stooq_df is not None and not stooq_df.empty),
-        "marketwatch_fallback_used": independent_source == "marketwatch",
+        "ticker": ticker,
+        "primary_source": PRIMARY_SMOKE_SOURCE,
+        "fallback_used": False,
+        "cycles_verified": len(observations),
+        "observation_window_seconds": round(window_seconds, 3),
+        "observed_price_range_pct": round(observed_range_pct, 6),
+        "observations": observations,
+        "policy": "same real primary provider must answer every cycle; no provider substitution accepted",
     }
 
 
@@ -268,7 +277,7 @@ async def main() -> None:
         if cycle < CYCLES:
             await asyncio.sleep(CYCLE_DELAY_SECONDS)
 
-    report["checks"]["independent_price_crosscheck"] = await independent_price_crosscheck()
+    report["checks"]["primary_source_window"] = verify_primary_source_window(report["cycles"], "AAPL")
     agent_report = await test_agents_on_real_bars("AAPL")
     report["checks"]["agent_pipeline"] = agent_report
     report["checks"]["practice_round_trip"] = await practice_round_trip(agent_report)
