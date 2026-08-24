@@ -1,12 +1,10 @@
 """Empirical precision gate for autonomous live trading.
 
-This module does not claim or manufacture a 99% win rate. It converts a
+This module does not claim or manufacture a future win rate. It converts a
 configured precision target into a fail-closed execution requirement based on
-resolved directional predictions that were scored against later market data.
-
-Paper trading remains available so the system can continue collecting evidence.
-Autonomous live entries are blocked until the evidence is large enough, recent
-enough, and statistically strong enough for the configured target.
+resolved directional predictions scored against later market data. Evidence must
+also pass the precision store's tamper-evident audit chain when that audit is
+present.
 """
 
 from __future__ import annotations
@@ -70,6 +68,12 @@ class EmpiricalPrecisionGate:
         max_age_days = int(getattr(settings_obj, "PRECISION_VALIDATION_MAX_AGE_DAYS", 30))
 
         reasons: list[str] = []
+        audit = stats.get("audit_integrity")
+        if audit is not None and not bool(audit.get("valid")):
+            reasons.append(
+                "Precision evidence audit integrity failed: "
+                + str(audit.get("reason") or "unknown audit failure")
+            )
         if total < min_samples:
             reasons.append(
                 f"Only {total} resolved directional signals are available; {min_samples} are required"
