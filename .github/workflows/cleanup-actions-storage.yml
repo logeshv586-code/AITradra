@@ -1,0 +1,43 @@
+name: Cleanup Actions Storage
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/cleanup-actions-storage.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete all Actions artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" --jq '.artifacts[].id' || true)
+          count=0
+          for id in $ids; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}" || true
+            count=$((count + 1))
+          done
+          echo "Deleted ${count} artifact(s)."
+      - name: Delete all Actions caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ids=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/caches?per_page=100" --jq '.actions_caches[].id' || true)
+          count=0
+          for id in $ids; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/caches/${id}" || true
+            count=$((count + 1))
+          done
+          echo "Deleted ${count} cache(s)."
