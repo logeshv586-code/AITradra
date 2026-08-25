@@ -48,6 +48,7 @@ jobs:
       - name: Run trading and customer safety regression suites
         run: >-
           python -m pytest -q
+          tests/test_data_validation.py
           tests/test_trading_safety.py
           tests/test_precision_gate.py
           tests/test_precision_audit.py
