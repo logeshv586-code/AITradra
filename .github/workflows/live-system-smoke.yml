@@ -1,11 +1,6 @@
 name: Live System Smoke
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-  schedule:
-    - cron: "20 */4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -14,7 +9,7 @@ permissions:
 
 concurrency:
   group: live-system-smoke-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   live-market-agent-paper-trade:
@@ -47,7 +42,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
       - name: Install live smoke dependencies
         run: |
           python -m pip install --upgrade pip
@@ -80,18 +74,15 @@ jobs:
       - name: Run live news, social provenance and autonomous decision guard smoke
         if: always()
         run: python scripts/live_news_decision_smoke.py
-      - name: Upload smoke evidence
+      - name: Summarize reports without storing artifacts
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-system-smoke-report-${{ github.sha }}
-          path: |
-            live-smoke-head.txt
-            live-smoke-report.json
-            live-smoke-error-report.json
-            live-news-decision-report.json
-          if-no-files-found: warn
-          retention-days: 30
+        run: |
+          echo "### Smoke reports" >> "$GITHUB_STEP_SUMMARY"
+          for file in live-smoke-head.txt live-smoke-report.json live-smoke-error-report.json live-news-decision-report.json; do
+            if [ -f "$file" ]; then
+              echo "- $file generated during this run (not uploaded as an artifact)." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
 
   publish-health-ledger:
     if: always()
@@ -111,8 +102,8 @@ jobs:
               `- Event: \`${context.eventName}\``,
               `- Market/news/agent smoke job: **${smoke.toUpperCase()}**`,
               `- Primary-source recovery: **bounded retry of the same authoritative source; fallback never accepted**`,
-              `- Error telemetry artifact: \`live-smoke-error-report.json\``,
               `- Funded live execution enabled by this workflow: **NO**`,
+              `- Artifact storage: **DISABLED**`,
               `- Run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               `- Evidence policy: measured workflow result only; no profitability or future-accuracy claim.`
             ].join('\n');
