@@ -25,7 +25,13 @@ jobs:
       AUTOTRADE_ENABLED: "false"
       MANUAL_LIVE_TRADING_ENABLED: "false"
       LIVE_SMOKE_REPORT: live-smoke-report.json
+      LIVE_SMOKE_ERROR_REPORT: live-smoke-error-report.json
       LIVE_NEWS_DECISION_REPORT: live-news-decision-report.json
+      LIVE_SMOKE_REQUIRED_PRIMARY_SOURCE: yfinance
+      LIVE_SMOKE_PRIMARY_TICKER: AAPL
+      LIVE_SMOKE_PRIMARY_MAX_ATTEMPTS: "4"
+      LIVE_SMOKE_PRIMARY_RETRY_BASE_SECONDS: "5"
+      LIVE_SMOKE_PRIMARY_RETRY_MAX_SECONDS: "20"
       PYTHONPATH: "."
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +43,7 @@ jobs:
           echo "### Live System Smoke exact-head evidence" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`${GITHUB_SHA}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Funded execution enabled: \`false\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Primary-source policy: \`yfinance only; bounded retry; fallback never accepted\`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -52,23 +59,26 @@ jobs:
       - name: Compile smoke-tested modules
         run: |
           python -m compileall -q \
-            core/config.py core/scoring.py core/trading_safety.py core/precision_gate.py core/data_validation.py \
+            core/config.py core/scoring.py core/trading_safety.py core/precision_gate.py core/data_validation.py core/primary_source_retry.py \
             gateway/cache.py gateway/data_engine.py gateway/live_price_session.py gateway/knowledge_store.py gateway/simulation_engine.py \
             gateway/scrapers/rss_scraper.py gateway/scrapers/social_scraper.py \
             agents/collector_agent.py agents/base_agent.py agents/specialist_agents.py \
             agents/signal_aggregator.py agents/risk_manager.py \
             brokers/customer_hyperliquid_broker.py \
-            self_improvement/accuracy_store.py self_improvement/precision_store.py self_improvement/precision_audit.py
-      - name: Verify strict decision-grade price and precision audit boundaries
+            self_improvement/accuracy_store.py self_improvement/precision_store.py self_improvement/precision_audit.py \
+            scripts/live_system_smoke.py scripts/live_system_smoke_resilient.py scripts/live_news_decision_smoke.py
+      - name: Verify strict decision-grade price, retry and precision boundaries
         run: >-
           python -m pytest -q
           tests/test_data_validation.py
+          tests/test_primary_source_retry.py
           tests/test_strict_live_price_session.py
           tests/test_precision_audit.py
           tests/test_precision_gate.py
-      - name: Run real-network market, agent and practice-trade smoke
-        run: python scripts/live_system_smoke.py
+      - name: Run resilient real-network market, agent and practice-trade smoke
+        run: python scripts/live_system_smoke_resilient.py
       - name: Run live news, social provenance and autonomous decision guard smoke
+        if: always()
         run: python scripts/live_news_decision_smoke.py
       - name: Upload smoke evidence
         if: always()
@@ -78,6 +88,7 @@ jobs:
           path: |
             live-smoke-head.txt
             live-smoke-report.json
+            live-smoke-error-report.json
             live-news-decision-report.json
           if-no-files-found: warn
           retention-days: 30
@@ -99,6 +110,8 @@ jobs:
               `- Ref: \`${context.ref}\``,
               `- Event: \`${context.eventName}\``,
               `- Market/news/agent smoke job: **${smoke.toUpperCase()}**`,
+              `- Primary-source recovery: **bounded retry of the same authoritative source; fallback never accepted**`,
+              `- Error telemetry artifact: \`live-smoke-error-report.json\``,
               `- Funded live execution enabled by this workflow: **NO**`,
               `- Run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               `- Evidence policy: measured workflow result only; no profitability or future-accuracy claim.`
