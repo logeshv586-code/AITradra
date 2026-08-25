@@ -52,7 +52,7 @@ jobs:
       - name: Compile smoke-tested modules
         run: |
           python -m compileall -q \
-            core/config.py core/scoring.py core/trading_safety.py core/precision_gate.py \
+            core/config.py core/scoring.py core/trading_safety.py core/precision_gate.py core/data_validation.py \
             gateway/cache.py gateway/data_engine.py gateway/live_price_session.py gateway/knowledge_store.py gateway/simulation_engine.py \
             gateway/scrapers/rss_scraper.py gateway/scrapers/social_scraper.py \
             agents/collector_agent.py agents/base_agent.py agents/specialist_agents.py \
@@ -60,7 +60,12 @@ jobs:
             brokers/customer_hyperliquid_broker.py \
             self_improvement/accuracy_store.py self_improvement/precision_store.py self_improvement/precision_audit.py
       - name: Verify strict decision-grade price and precision audit boundaries
-        run: python -m pytest -q tests/test_strict_live_price_session.py tests/test_precision_audit.py tests/test_precision_gate.py
+        run: >-
+          python -m pytest -q
+          tests/test_data_validation.py
+          tests/test_strict_live_price_session.py
+          tests/test_precision_audit.py
+          tests/test_precision_gate.py
       - name: Run real-network market, agent and practice-trade smoke
         run: python scripts/live_system_smoke.py
       - name: Run live news, social provenance and autonomous decision guard smoke
