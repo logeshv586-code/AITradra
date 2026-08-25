@@ -9,6 +9,7 @@ practice buy/sell round trip with simulated money.
 Independent execution-grade cross-checking is tested separately by
 ``tests/test_strict_live_price_session.py``. This smoke intentionally does not
 turn Stooq/MarketWatch into a fallback requirement for the public research feed.
+All numeric evidence is fail-closed: NaN and +/-infinity are rejected.
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ from agents.base_agent import AgentContext
 from agents.collector_agent import fetch_ticker
 from agents.signal_aggregator import SignalAggregatorAgent
 from agents.specialist_agents import TechnicalSpecialist
+from core.data_validation import require_finite_number, require_positive_finite
 from gateway.data_engine import data_engine
 from gateway.knowledge_store import knowledge_store
 import gateway.simulation_engine as simulation_module
@@ -62,18 +64,17 @@ def latest_first(price_data: dict) -> list[dict]:
     for row in price_data.get("ohlcv", []) or []:
         bars.append({
             "timestamp": row.get("t", row.get("timestamp", row.get("date"))),
-            "open": float(row.get("o", row.get("open", 0)) or 0),
-            "high": float(row.get("h", row.get("high", 0)) or 0),
-            "low": float(row.get("l", row.get("low", 0)) or 0),
-            "close": float(row.get("c", row.get("close", 0)) or 0),
-            "volume": float(row.get("v", row.get("volume", 0)) or 0),
+            "open": require_finite_number(row.get("o", row.get("open", 0)), "OHLCV open"),
+            "high": require_finite_number(row.get("h", row.get("high", 0)), "OHLCV high"),
+            "low": require_finite_number(row.get("l", row.get("low", 0)), "OHLCV low"),
+            "close": require_positive_finite(row.get("c", row.get("close", 0)), "OHLCV close"),
+            "volume": require_finite_number(row.get("v", row.get("volume", 0)), "OHLCV volume"),
         })
     return list(reversed(bars))
 
 
 def assert_finite(value, label: str) -> None:
-    if not math.isfinite(float(value)):
-        raise AssertionError(f"{label} is not finite: {value}")
+    require_finite_number(value, label)
 
 
 async def collect_cycle(cycle: int) -> dict:
@@ -84,16 +85,19 @@ async def collect_cycle(cycle: int) -> dict:
             raise AssertionError(f"No live public data returned for {ticker}")
         if source not in REAL_SOURCES:
             raise AssertionError(f"{ticker} returned non-live source {source!r}")
+
         latest = df.iloc[-1]
-        price = float(latest.get("Close", 0) or 0)
-        if price <= 0:
-            raise AssertionError(f"{ticker} returned invalid close {price}")
+        price = require_positive_finite(latest.get("Close", 0), f"{ticker} collector close")
 
         payload = await data_engine.get_price_data(ticker, allow_scrape=True)
-        if float(payload.get("px", 0) or 0) <= 0:
-            raise AssertionError(f"DataEngine returned no usable price for {ticker}")
+        engine_price = require_positive_finite(payload.get("px", 0), f"{ticker} DataEngine price")
+        engine_change_pct = require_finite_number(
+            payload.get("pct_chg", 0), f"{ticker} DataEngine change percentage"
+        )
         if payload.get("source_used") in {"none", "knowledge_store", "cache_stale", "stale_cache"}:
-            raise AssertionError(f"DataEngine did not obtain current public data for {ticker}: {payload.get('source_used')}")
+            raise AssertionError(
+                f"DataEngine did not obtain current public data for {ticker}: {payload.get('source_used')}"
+            )
         if payload.get("is_stale") or payload.get("syncing"):
             raise AssertionError(f"DataEngine incorrectly marked the fresh {ticker} response stale")
 
@@ -102,8 +106,8 @@ async def collect_cycle(cycle: int) -> dict:
             "collector_close": price,
             "collector_rows": int(len(df)),
             "data_engine_source": payload.get("source_used"),
-            "data_engine_price": float(payload.get("px", 0) or 0),
-            "data_engine_change_pct": float(payload.get("pct_chg", 0) or 0),
+            "data_engine_price": engine_price,
+            "data_engine_change_pct": engine_change_pct,
             "bar_timestamp": str(df.index[-1]),
             "received_at": utc_now(),
         }
@@ -128,8 +132,12 @@ def verify_primary_source_window(cycles: list[dict], ticker: str = "AAPL") -> di
         row = (cycle.get("tickers") or {}).get(ticker) or {}
         collector_source = str(row.get("collector_source") or "")
         engine_source = str(row.get("data_engine_source") or "")
-        collector_price = float(row.get("collector_close", 0) or 0)
-        engine_price = float(row.get("data_engine_price", 0) or 0)
+        collector_price = require_positive_finite(
+            row.get("collector_close", 0), f"{ticker} collector observation price"
+        )
+        engine_price = require_positive_finite(
+            row.get("data_engine_price", 0), f"{ticker} DataEngine observation price"
+        )
 
         if collector_source != PRIMARY_SMOKE_SOURCE:
             raise AssertionError(
@@ -141,14 +149,13 @@ def verify_primary_source_window(cycles: list[dict], ticker: str = "AAPL") -> di
                 f"{ticker} DataEngine continuity failed: used {engine_source!r}, "
                 f"expected {PRIMARY_SMOKE_SOURCE!r}; stale/public fallback is not accepted"
             )
-        if collector_price <= 0 or engine_price <= 0:
-            raise AssertionError(f"{ticker} returned a non-positive price during the observation window")
 
         same_source_diff_pct = (
             abs(collector_price - engine_price)
             / max(abs(collector_price), abs(engine_price), 1e-12)
             * 100.0
         )
+        require_finite_number(same_source_diff_pct, f"{ticker} same-source difference percentage")
         if same_source_diff_pct > 5.0:
             raise AssertionError(
                 f"{ticker} same-source observations differ by {same_source_diff_pct:.2f}% "
@@ -179,6 +186,7 @@ def verify_primary_source_window(cycles: list[dict], ticker: str = "AAPL") -> di
         (max(prices) - min(prices)) / max(abs(prices[-1]), 1e-12) * 100.0
         if prices else 0.0
     )
+    require_finite_number(observed_range_pct, f"{ticker} observed price range percentage")
     return {
         "status": "PASS",
         "ticker": ticker,
@@ -197,9 +205,13 @@ async def test_agents_on_real_bars(ticker: str = "AAPL") -> dict:
     history = latest_first(price_data)
     if len(history) < 3:
         raise AssertionError(f"Not enough live bars for agent test: {ticker}")
-    latest_close = float(history[0]["close"])
-    if abs(latest_close - float(price_data.get("close", price_data.get("px", 0)))) > max(latest_close * 0.02, 0.05):
-        raise AssertionError(f"Latest-first agent history mismatch: history[0]={latest_close}, price={price_data.get('close')}")
+
+    latest_close = require_positive_finite(history[0]["close"], f"{ticker} latest agent close")
+    current_price = require_positive_finite(
+        price_data.get("close", price_data.get("px", 0)), f"{ticker} current agent price"
+    )
+    if abs(latest_close - current_price) > max(latest_close * 0.02, 0.05):
+        raise AssertionError(f"Latest-first agent history mismatch: history[0]={latest_close}, price={current_price}")
 
     technical = TechnicalSpecialist()._compute_technicals(history, price_data)
     if technical.get("signal") not in {"BULLISH", "BEARISH", "NEUTRAL"}:
@@ -214,59 +226,98 @@ async def test_agents_on_real_bars(ticker: str = "AAPL") -> dict:
         raise AssertionError(f"Unexpected signal verdict: {signal}")
     assert_finite(signal.get("confidence", 0), "signal confidence")
 
-    entry = float(signal.get("entry_point", 0) or 0)
-    if entry and abs(entry - latest_close) > max(latest_close * 0.001, 0.01):
+    entry_raw = signal.get("entry_point", 0)
+    entry = require_finite_number(entry_raw, "signal entry point") if entry_raw is not None else 0.0
+    if entry > 0 and abs(entry - latest_close) > max(latest_close * 0.001, 0.01):
         raise AssertionError(f"Signal entry {entry} is not using latest real close {latest_close}")
-    if signal.get("direction") == "BUY" and entry > 0 and not (float(signal["stop_loss"]) < entry < float(signal["take_profit"])):
-        raise AssertionError(f"Invalid BUY stop/target from real bars: {signal}")
-    if signal.get("direction") == "SELL" and entry > 0 and not (float(signal["take_profit"]) < entry < float(signal["stop_loss"])):
-        raise AssertionError(f"Invalid SELL stop/target from real bars: {signal}")
+    if signal.get("direction") == "BUY" and entry > 0:
+        stop = require_positive_finite(signal.get("stop_loss"), "BUY stop loss")
+        target = require_positive_finite(signal.get("take_profit"), "BUY take profit")
+        if not (stop < entry < target):
+            raise AssertionError(f"Invalid BUY stop/target from real bars: {signal}")
+    if signal.get("direction") == "SELL" and entry > 0:
+        stop = require_positive_finite(signal.get("stop_loss"), "SELL stop loss")
+        target = require_positive_finite(signal.get("take_profit"), "SELL take profit")
+        if not (target < entry < stop):
+            raise AssertionError(f"Invalid SELL stop/target from real bars: {signal}")
 
-    return {"ticker": ticker, "price_source": price_data.get("source_used"), "latest_close": latest_close,
-            "bars_used": len(history), "technical": technical, "signal": signal}
+    return {
+        "ticker": ticker,
+        "price_source": price_data.get("source_used"),
+        "latest_close": latest_close,
+        "bars_used": len(history),
+        "technical": technical,
+        "signal": signal,
+    }
 
 
 async def practice_round_trip(agent_report: dict) -> dict:
     ticker = agent_report["ticker"]
     signal = agent_report["signal"]
     price_before = await data_engine.get_price_data(ticker, allow_scrape=True)
-    reference_before = float(price_before.get("px", 0) or 0)
-    if reference_before <= 0:
-        raise AssertionError("Practice test has no real reference price")
+    reference_before = require_positive_finite(price_before.get("px", 0), "Practice reference price")
     simulation_module.DATA_FILE = str(_TMP_ROOT / "practice-state.json")
 
     recommendation = signal.get("verdict", "HOLD")
     customer_recommendation = "BUY" if "BUY" in recommendation else "AVOID" if "SELL" in recommendation else "HOLD"
     direction = signal.get("direction", "HOLD")
     snapshot = {
-        "ticker": ticker, "recommendation": customer_recommendation,
-        "prediction_direction": direction, "confidence_score": float(signal.get("confidence", 0) or 0),
+        "ticker": ticker,
+        "recommendation": customer_recommendation,
+        "prediction_direction": direction,
+        "confidence_score": require_finite_number(signal.get("confidence", 0), "signal confidence"),
         "risk_level": signal.get("metadata", {}).get("risk_level", "MEDIUM"),
-        "primary_driver": "technical", "updated_at": utc_now(), "as_of": utc_now(), "price_data": price_before,
+        "primary_driver": "technical",
+        "updated_at": utc_now(),
+        "as_of": utc_now(),
+        "price_data": price_before,
     }
     knowledge_store.store_ticker_intelligence(ticker, snapshot)
 
     engine = SimulationEngine(data_engine)
     engine.initialize_account(10_000)
-    bought = await engine.buy_stock(ticker, 0.1, prediction=direction, confidence_score=float(signal.get("confidence", 0) or 0))
+    bought = await engine.buy_stock(
+        ticker,
+        0.1,
+        prediction=direction,
+        confidence_score=require_finite_number(signal.get("confidence", 0), "signal confidence"),
+    )
     buy_trade = bought["history"][-1]
-    if buy_trade["type"] != "BUY" or buy_trade["reference_price"] <= 0 or buy_trade["price"] <= buy_trade["reference_price"]:
+    buy_reference = require_positive_finite(buy_trade.get("reference_price"), "Practice buy reference price")
+    buy_price = require_positive_finite(buy_trade.get("price"), "Practice buy execution price")
+    buy_fee = require_positive_finite(buy_trade.get("fee"), "Practice buy fee")
+    if buy_trade["type"] != "BUY" or buy_price <= buy_reference:
         raise AssertionError(f"Practice buy validation failed: {buy_trade}")
-    if buy_trade["fee"] <= 0 or buy_trade["signal_context"]["recommendation"] != customer_recommendation:
-        raise AssertionError(f"Practice buy provenance/fee validation failed: {buy_trade}")
+    if buy_trade["signal_context"]["recommendation"] != customer_recommendation:
+        raise AssertionError(f"Practice buy provenance validation failed: {buy_trade}")
 
     sold = await engine.sell_stock(ticker)
     sell_trade = sold["history"][-1]
-    if sell_trade["type"] != "SELL" or sell_trade["reference_price"] <= 0 or sell_trade["price"] >= sell_trade["reference_price"]:
+    sell_reference = require_positive_finite(sell_trade.get("reference_price"), "Practice sell reference price")
+    sell_price = require_positive_finite(sell_trade.get("price"), "Practice sell execution price")
+    sell_fee = require_positive_finite(sell_trade.get("fee"), "Practice sell fee")
+    require_finite_number(sell_trade.get("profit_loss", 0), "Practice realized P&L")
+    require_finite_number(sell_trade.get("profit_loss_pct", 0), "Practice realized P&L percentage")
+    if sell_trade["type"] != "SELL" or sell_price >= sell_reference:
         raise AssertionError(f"Practice sell validation failed: {sell_trade}")
-    if sell_trade["fee"] <= 0 or sold["positions"]:
+    if sold["positions"]:
         raise AssertionError(f"Practice close validation failed: {sell_trade}")
 
+    ending_balance = require_positive_finite(sold.get("total_balance"), "Practice ending balance")
+    total_profit_loss = require_finite_number(sold.get("total_profit_loss", 0), "Practice total P&L")
+    fees_paid = require_finite_number(sold.get("fees_paid", buy_fee + sell_fee), "Practice fees paid")
+
     return {
-        "uses_real_money": False, "ticker": ticker, "agent_recommendation": customer_recommendation,
-        "agent_direction": direction, "agent_confidence": float(signal.get("confidence", 0) or 0),
-        "buy": buy_trade, "sell": sell_trade, "ending_balance": sold["total_balance"],
-        "total_profit_loss": sold["total_profit_loss"], "fees_paid": sold["fees_paid"],
+        "uses_real_money": False,
+        "ticker": ticker,
+        "agent_recommendation": customer_recommendation,
+        "agent_direction": direction,
+        "agent_confidence": require_finite_number(signal.get("confidence", 0), "signal confidence"),
+        "buy": buy_trade,
+        "sell": sell_trade,
+        "ending_balance": ending_balance,
+        "total_profit_loss": total_profit_loss,
+        "fees_paid": fees_paid,
     }
 
 
