@@ -2,6 +2,18 @@ name: Live System Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "core/**"
+      - "gateway/**"
+      - "agents/**"
+      - "brokers/**"
+      - "self_improvement/**"
+      - "scripts/live_system_smoke*.py"
+      - "scripts/live_news_decision_smoke.py"
+      - "tests/**"
+      - ".github/workflows/live-system-smoke.yml"
 
 permissions:
   contents: read
