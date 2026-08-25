@@ -1,9 +1,6 @@
 name: Safety CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -12,7 +9,7 @@ permissions:
 
 concurrency:
   group: safety-ci-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   trading-safety:
@@ -30,7 +27,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
       - name: Reject embedded NVIDIA API keys
         run: |
           if grep -R --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv -n "nvapi-" core agents gateway brokers ui; then
@@ -57,14 +53,10 @@ jobs:
           tests/test_self_improvement.py
           tests/test_customer_experience.py
           tests/test_live_integrity.py
-      - name: Publish exact-head evidence artifact
+      - name: Summarize exact-head evidence without artifact upload
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: safety-ci-head-${{ github.sha }}
-          path: safety-ci-head.txt
-          if-no-files-found: error
-          retention-days: 30
+        run: |
+          echo "- Exact-head file generated during this run; artifact upload disabled." >> "$GITHUB_STEP_SUMMARY"
 
   frontend-build:
     runs-on: ubuntu-latest
@@ -80,22 +72,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
       - name: Install frontend dependencies
         working-directory: ui
         run: npm ci
       - name: Build customer UI
         working-directory: ui
         run: npm run build
-      - name: Publish frontend exact-head evidence artifact
+      - name: Summarize frontend evidence without artifact upload
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build-head-${{ github.sha }}
-          path: frontend-build-head.txt
-          if-no-files-found: error
-          retention-days: 30
+        run: |
+          echo "- Frontend exact-head file generated during this run; artifact upload disabled." >> "$GITHUB_STEP_SUMMARY"
 
   publish-health-ledger:
     if: always()
@@ -116,6 +102,7 @@ jobs:
               `- Event: \`${context.eventName}\``,
               `- Trading safety: **${trading.toUpperCase()}**`,
               `- Frontend build: **${frontend.toUpperCase()}**`,
+              `- Artifact storage: **DISABLED**`,
               `- Run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
               `- Evidence policy: measured workflow result only; no profitability or future-accuracy claim.`
             ].join('\n');
