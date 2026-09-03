@@ -171,6 +171,20 @@ class Settings(BaseSettings):
     MIN_BACKTEST_TRADES: int = 30
     MIN_BACKTEST_PROFIT_FACTOR: float = 1.20
 
+    # Systematic strategy discovery. These gates select research candidates only;
+    # they never bypass the deterministic live-entry qualification firewall.
+    SYSTEMATIC_RESEARCH_ENABLED: bool = True
+    SYSTEMATIC_RESEARCH_MIN_HISTORY: int = 260
+    SYSTEMATIC_RESEARCH_MAX_CANDIDATES: int = 40
+    SYSTEMATIC_RESEARCH_TOP_K: int = 5
+    SYSTEMATIC_RESEARCH_MIN_ROBUSTNESS_SCORE: float = 60.0
+    SYSTEMATIC_RESEARCH_MIN_TEST_SHARPE: float = 0.25
+    SYSTEMATIC_RESEARCH_MAX_TEST_DRAWDOWN_PCT: float = 25.0
+    SYSTEMATIC_RESEARCH_MIN_TRIAL_ADJUSTED_PROBABILITY: float = 0.70
+    SYSTEMATIC_RESEARCH_MAX_SIGNFLIP_P_VALUE: float = 0.20
+    SYSTEMATIC_BOOTSTRAP_SAMPLES: int = 400
+    SYSTEMATIC_SIGNFLIP_SAMPLES: int = 400
+
     # Paper execution assumptions
     PAPER_STARTING_BALANCE: float = 100000.0
     PAPER_SLIPPAGE_BPS: float = 5.0
