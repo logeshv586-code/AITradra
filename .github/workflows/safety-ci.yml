@@ -40,7 +40,7 @@ jobs:
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio pydantic pydantic-settings httpx requests cryptography feedparser beautifulsoup4
+          pip install pytest pytest-asyncio pydantic pydantic-settings httpx requests cryptography feedparser beautifulsoup4 numpy==1.26.4 "pandas>=2.2.3"
       - name: Compile critical Python modules
         run: |
           python -m compileall -q core brokers gateway agents self_improvement
@@ -57,6 +57,8 @@ jobs:
           tests/test_self_improvement.py
           tests/test_customer_experience.py
           tests/test_live_integrity.py
+          tests/test_systematic_research.py
+          tests/test_portfolio_risk_cap.py
       - name: Summarize exact-head evidence without artifact upload
         if: always()
         run: |
