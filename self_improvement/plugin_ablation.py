@@ -6,27 +6,14 @@ confidence only after enough out-of-sample observations show that adding it
 improves calibration and/or directional accuracy without materially increasing
 error.
 
-Expected decision shape::
-
-    {
-      "actual_up": True,
-      "core_probability_up": 0.61,
-      "plugins": {
-          "finbert": {"probability_up": 0.68},
-          "quantic": {"probability_up": 0.55},
-      },
-      "regime": "BULL_TRENDING",
-    }
-
-Plugin probabilities are blended with the core probability using the configured
-plugin weight. This mirrors the real question: did the plugin add signal beyond
-what the core model already knew?
+ShadowTradeStore keeps the core probability inside the immutable ``evidence``
+payload, so this evaluator accepts both flattened research rows and persisted
+shadow rows.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from math import sqrt
 from typing import Any, Iterable
 
 
@@ -52,7 +39,7 @@ def _clip_probability(value: Any) -> float | None:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if number > 1.0 and number <= 100.0:
+    if 1.0 < number <= 100.0:
         number /= 100.0
     if not 0.0 <= number <= 1.0:
         return None
@@ -68,6 +55,16 @@ def _actual_up(row: dict[str, Any]) -> bool | None:
     if direction in {"DOWN", "BEARISH", "SELL", "SHORT"}:
         return False
     return None
+
+
+def _core_probability(row: dict[str, Any]) -> float | None:
+    evidence = row.get("evidence") if isinstance(row.get("evidence"), dict) else {}
+    value = row.get("core_probability_up")
+    if value is None:
+        value = row.get("probability_up")
+    if value is None:
+        value = evidence.get("core_probability_up")
+    return _clip_probability(value)
 
 
 def _brier(probabilities: list[float], actual: list[bool]) -> float:
@@ -120,17 +117,14 @@ class PluginAblationLab:
             result = self._evaluate_one(rows, plugin)
             results[plugin] = result.to_dict()
 
-        keep = [name for name, row in results.items() if row["policy"] == "KEEP"]
-        advisory = [name for name, row in results.items() if row["policy"] == "ADVISORY"]
-        disabled = [name for name, row in results.items() if row["policy"] == "DISABLE"]
         return {
             "sample_rows": len(rows),
             "minimum_samples": self.min_samples,
             "plugin_weight": self.plugin_weight,
             "results": results,
-            "keep": keep,
-            "advisory": advisory,
-            "disable": disabled,
+            "keep": [name for name, row in results.items() if row["policy"] == "KEEP"],
+            "advisory": [name for name, row in results.items() if row["policy"] == "ADVISORY"],
+            "disable": [name for name, row in results.items() if row["policy"] == "DISABLE"],
             "execution_authority": False,
         }
 
@@ -141,9 +135,7 @@ class PluginAblationLab:
 
         for row in rows:
             outcome = _actual_up(row)
-            core = _clip_probability(
-                row.get("core_probability_up", row.get("probability_up"))
-            )
+            core = _core_probability(row)
             payload = row.get("plugins") or row.get("plugin_snapshot") or {}
             plugin_payload = payload.get(plugin, {}) if isinstance(payload, dict) else {}
             if isinstance(plugin_payload, dict):
@@ -205,14 +197,9 @@ class PluginAblationLab:
         )
 
     def confidence_multiplier(self, decisions: Iterable[dict[str, Any]], plugin: str) -> float:
-        """Return a bounded plugin confidence multiplier derived from measured history."""
-        result = self._evaluate_one(
-            [row for row in decisions if isinstance(row, dict)], plugin
-        )
+        result = self._evaluate_one([row for row in decisions if isinstance(row, dict)], plugin)
         if result.policy != "KEEP":
             return 1.0
-        # Incremental boosts are intentionally tiny. Measured plugins validate a
-        # signal; they never manufacture high confidence from a successful call.
         benefit = max(0.0, result.brier_improvement) + max(0.0, result.hit_rate_delta)
         return round(min(1.05, 1.0 + benefit), 6)
 
