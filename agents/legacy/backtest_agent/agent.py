@@ -1,8 +1,14 @@
-"""Backtest Agent — validation gate for autonomous trading strategies.
+"""Backtest Agent — systematic discovery + realistic deployment validation.
 
-A strategy is never marked deployable from in-sample return alone. The agent now
-checks realistic friction, minimum trade count, profit factor, drawdown, win rate,
-and a held-out out-of-sample window before registering live eligibility.
+A strategy is never marked deployable from in-sample return alone. When dated
+signals are not supplied, the agent now runs AITradra's SystematicResearchEngine
+to discover a candidate using train/validation/test separation, walk-forward
+checks, block-bootstrap Sharpe bounds, a sign-flip null test, multiple-testing
+adjustment and regime stability. The surviving candidate is then replayed through
+Backtrader with fees/slippage before strategy eligibility can be recorded.
+
+This agent only creates strategy-validation evidence. It does not bypass the
+Risk Manager, empirical precision gate or trade-qualification firewall.
 """
 
 from __future__ import annotations
@@ -13,13 +19,14 @@ from typing import Any
 from agents.base_agent import BaseAgent, AgentContext
 from core.config import settings
 from core.logger import get_logger
+from core.systematic_research import SystematicResearchEngine
 from core.trading_safety import strategy_validation_store
 
 logger = get_logger(__name__)
 
 
 class BacktestAgent(BaseAgent):
-    """Replay dated signals and register an auditable strategy-validation result."""
+    """Discover/replay strategies and register auditable validation evidence."""
 
     def __init__(self, memory=None):
         super().__init__("BacktestAgent", memory)
@@ -30,14 +37,20 @@ class BacktestAgent(BaseAgent):
         context.observations["backtest_period_days"] = context.observations.get(
             "period_days", 730
         )
-        self._add_thought(
-            context, f"Received {len(signals)} dated signals for validation"
-        )
+        if signals:
+            self._add_thought(
+                context, f"Received {len(signals)} dated signals for validation"
+            )
+        else:
+            self._add_thought(
+                context,
+                "No dated signals supplied; systematic candidate discovery will run before replay.",
+            )
         return context
 
     async def think(self, context: AgentContext) -> AgentContext:
         count = int(context.observations.get("signal_count", 0) or 0)
-        if count < settings.MIN_BACKTEST_TRADES:
+        if count and count < settings.MIN_BACKTEST_TRADES:
             self._add_thought(
                 context,
                 f"Signal sample is small ({count}); live validation requires at least "
@@ -45,17 +58,20 @@ class BacktestAgent(BaseAgent):
             )
         self._add_thought(
             context,
-            "Validation uses a chronological 70/30 train/out-of-sample split with fees and slippage.",
+            "Validation combines systematic train/validation/test robustness with a separate "
+            "event-driven 70/30 replay using realistic friction.",
         )
         return context
 
     async def plan(self, context: AgentContext) -> AgentContext:
         context.plan = [
-            "1. Download historical OHLCV data",
-            "2. Replay signals with commission and slippage",
-            "3. Measure return, Sharpe, drawdown, win rate and profit factor",
-            "4. Re-run only the held-out final 30% of history",
-            "5. Register strategy as eligible only if full and out-of-sample gates pass",
+            "1. Download chronological historical OHLCV data",
+            "2. If signals are absent, screen systematic momentum, trend, mean-reversion and breakout candidates",
+            "3. Challenge the winner with untouched test, walk-forward, bootstrap, null-test and regime checks",
+            "4. Replay dated BUY/SELL/EXIT signals in Backtrader with commission and slippage",
+            "5. Measure return, Sharpe, drawdown, win rate, profit factor and completed trades",
+            "6. Re-run the final 30% as an event-driven out-of-sample replay",
+            "7. Register eligibility only when every applicable validation gate passes",
         ]
         return context
 
@@ -74,11 +90,20 @@ class BacktestAgent(BaseAgent):
             return {"error": "Insufficient historical data"}
 
         cerebro = bt.Cerebro(stdstats=False)
-        cerebro.addstrategy(AXIOMReplayStrategy, signals=signals)
+        cerebro.addstrategy(
+            AXIOMReplayStrategy,
+            signals=signals,
+            position_pct=max(0.001, min(float(settings.MAX_POSITION_PCT), 0.25)),
+        )
         cerebro.adddata(bt.feeds.PandasData(dataname=df))
         initial_cash = 100_000.0
         cerebro.broker.setcash(initial_cash)
-        cerebro.broker.setcommission(commission=0.001)
+        # Keep the event-driven replay conservative. Fees and slippage are both
+        # charged here even when the vectorized systematic screen already charged
+        # its own friction; these are independent validation engines.
+        cerebro.broker.setcommission(
+            commission=max(0.0, float(settings.PAPER_FEE_BPS)) / 10_000
+        )
         cerebro.broker.set_slippage_perc(
             perc=max(0.0, settings.PAPER_SLIPPAGE_BPS / 10_000),
             slip_open=True,
@@ -178,9 +203,9 @@ class BacktestAgent(BaseAgent):
             context.observations.get("strategy_id", settings.LIVE_STRATEGY_ID)
         )
 
-        if not ticker or not signals:
+        if not ticker:
             context.result = {
-                "error": "Ticker and dated signals are required",
+                "error": "Ticker is required",
                 "recommendation": "NO_DATA",
             }
             return context
@@ -208,6 +233,39 @@ class BacktestAgent(BaseAgent):
                 df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
             df = df.sort_index().dropna(subset=["Open", "High", "Low", "Close"])
 
+            systematic_research: dict[str, Any] | None = None
+            signal_source = "provided"
+            systematic_enabled = bool(
+                getattr(settings, "SYSTEMATIC_RESEARCH_ENABLED", True)
+            )
+            if not signals and systematic_enabled:
+                engine = SystematicResearchEngine()
+                discovered = engine.discover(df, ticker=ticker)
+                signals = list(discovered.get("signals", []) or [])
+                systematic_research = {
+                    key: value for key, value in discovered.items() if key != "signals"
+                }
+                if signals:
+                    strategy_id = str(discovered.get("strategy_id") or strategy_id)
+                    context.observations["signals"] = signals
+                    context.observations["strategy_id"] = strategy_id
+                    signal_source = "systematic_discovery"
+                    self._add_thought(
+                        context,
+                        f"Systematic research selected {strategy_id} with robustness "
+                        f"score {systematic_research.get('robustness_score', 0)}.",
+                    )
+
+            if not signals:
+                context.result = {
+                    "ticker": ticker,
+                    "strategy_id": strategy_id,
+                    "error": "No dated signals available after systematic discovery",
+                    "recommendation": "NO_DATA",
+                    "systematic_research": systematic_research,
+                }
+                return context
+
             split_index = max(1, int(len(df) * 0.70))
             split_date = df.index[split_index]
             oos_df = df.iloc[split_index:].copy()
@@ -222,20 +280,33 @@ class BacktestAgent(BaseAgent):
             oos_metrics = self._run_backtest(oos_df, oos_signals)
             full_pass, full_reasons = self._passes_full(full_metrics)
             oos_pass, oos_reasons = self._passes_oos(oos_metrics)
-            approved = full_pass and oos_pass
+
+            systematic_pass = True
+            systematic_failures: list[str] = []
+            if systematic_research is not None:
+                systematic_pass = bool(
+                    systematic_research.get("systematic_gate_passed", False)
+                )
+                systematic_failures = list(
+                    systematic_research.get("gate_failures", []) or []
+                )
+
+            approved = full_pass and oos_pass and systematic_pass
 
             validation_metrics = {
                 **full_metrics,
                 "out_of_sample": oos_metrics,
                 "split_date": split_iso,
                 "period_days": period_days,
+                "signal_source": signal_source,
+                "systematic_research": systematic_research,
             }
             validation_record = strategy_validation_store.record(
                 ticker=ticker,
                 strategy_id=strategy_id,
                 metrics=validation_metrics,
                 approved=approved,
-                out_of_sample_passed=oos_pass,
+                out_of_sample_passed=oos_pass and systematic_pass,
             )
 
             if approved:
@@ -248,8 +319,13 @@ class BacktestAgent(BaseAgent):
             context.result = {
                 "ticker": ticker,
                 "strategy_id": strategy_id,
+                "signal_source": signal_source,
+                "signal_count": len(signals),
                 "recommendation": recommendation,
                 "meets_criteria": approved,
+                "systematic_gate_passed": systematic_pass,
+                "systematic_gate_failures": systematic_failures,
+                "systematic_research": systematic_research,
                 "full_sample": full_metrics,
                 "out_of_sample": oos_metrics,
                 "full_sample_failures": full_reasons,
@@ -260,9 +336,11 @@ class BacktestAgent(BaseAgent):
             }
             context.actions_taken.append(
                 {
-                    "action": "backtest_validation",
+                    "action": "systematic_backtest_validation",
                     "approved": approved,
+                    "signal_source": signal_source,
                     "trades": full_metrics.get("total_trades", 0),
+                    "systematic_gate_passed": systematic_pass,
                 }
             )
         except ImportError as exc:
@@ -278,17 +356,28 @@ class BacktestAgent(BaseAgent):
     async def reflect(self, context: AgentContext) -> AgentContext:
         result = context.result or {}
         rec = result.get("recommendation", "ERROR")
+        systematic = result.get("systematic_research") or {}
+        robustness = systematic.get("robustness_score")
+        robustness_text = (
+            f" Systematic robustness score: {robustness}." if robustness is not None else ""
+        )
         if rec == "DEPLOY":
             context.reflection = (
-                "Validation passed both full-sample and out-of-sample gates. "
-                "This permits live eligibility but does not guarantee future profitability."
+                "Strategy passed systematic robustness, full-sample and event-driven "
+                "out-of-sample gates. This permits strategy eligibility but does not "
+                f"guarantee future profitability.{robustness_text}"
             )
-            context.confidence = 0.85
+            context.confidence = 0.88
         elif rec == "REFINE":
-            context.reflection = "Positive history was found, but one or more deployment gates failed."
+            context.reflection = (
+                "Positive history was found, but one or more robustness/deployment gates "
+                f"failed.{robustness_text}"
+            )
             context.confidence = 0.45
         elif rec == "REJECT":
-            context.reflection = "Strategy failed the validation gate and is not live-eligible."
+            context.reflection = (
+                f"Strategy failed validation and is not live-eligible.{robustness_text}"
+            )
             context.confidence = 0.25
         else:
             context.reflection = "Backtest could not be completed. Live validation remains blocked."
@@ -300,7 +389,7 @@ try:
     import backtrader as bt
 
     class AXIOMReplayStrategy(bt.Strategy):
-        """Replay dated long/short signals with confidence gating."""
+        """Replay dated long/short/exit signals with target-position orders."""
 
         params = (
             ("signals", []),
@@ -334,25 +423,29 @@ try:
                 return
 
             action = str(signal.get("action", signal.get("decision", "HOLD"))).upper()
-            desired = 1 if action in {"BUY", "LONG", "STRONG BUY"} else -1 if action in {"SELL", "SHORT", "STRONG SELL"} else 0
+            if action in {"EXIT", "FLAT", "CLOSE"}:
+                if self.position.size != 0:
+                    self.pending_order = self.order_target_percent(target=0.0)
+                return
+
+            desired = (
+                1
+                if action in {"BUY", "LONG", "STRONG BUY"}
+                else -1
+                if action in {"SELL", "SHORT", "STRONG SELL"}
+                else 0
+            )
             if desired == 0:
                 return
 
+            target = desired * max(0.001, min(float(self.params.position_pct), 0.25))
             current = 1 if self.position.size > 0 else -1 if self.position.size < 0 else 0
             if current == desired:
                 return
-            if current != 0:
-                self.pending_order = self.close()
-                return
 
-            price = float(self.datas[0].close[0])
-            if price <= 0:
-                return
-            notional = self.broker.getvalue() * self.params.position_pct
-            size = int(notional / price)
-            if size <= 0:
-                return
-            self.pending_order = self.buy(size=size) if desired > 0 else self.sell(size=size)
+            # order_target_percent can close and reverse the position in one target
+            # operation, avoiding the previous close-only flip bug.
+            self.pending_order = self.order_target_percent(target=target)
 
 except ImportError:
     pass
