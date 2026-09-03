@@ -55,9 +55,13 @@ openai>=1.12.0
 
 # Trading & Analysis Upgrades
 pandas-ta>=0.3.14b0
-vectorbt>=0.28.5
 backtrader>=1.9.78.123
 pyportfolioopt>=1.5.5
+ccxt>=4.4.0
 PyGithub>=2.5.0
 hyperliquid-python-sdk>=0.1.0
 vibe-trading-ai
+
+# Note: vectorbt is not an AITradra core dependency. Vibe Trading AI may expose
+# vectorbt as one of its external backtest engines, but AITradra's native
+# systematic screen is NumPy/Pandas + independent Backtrader replay.
