@@ -86,7 +86,10 @@ class BenchmarkScorecard:
         beats_sharpe = float(strategy_metrics.get("sharpe_ratio", 0.0)) > float(benchmark_metrics.get("sharpe_ratio", 0.0))
         strategy_dd = float(strategy_metrics.get("max_drawdown_pct", 100.0))
         benchmark_dd = float(benchmark_metrics.get("max_drawdown_pct", 100.0))
-        drawdown_not_worse = strategy_dd <= benchmark_dd * 1.10 + 1e-9
+        # Relative comparison alone breaks when the benchmark is almost flat and
+        # reports ~0 drawdown. Permit at most a 2 percentage-point absolute
+        # tolerance in addition to the 10% relative allowance.
+        drawdown_not_worse = strategy_dd <= benchmark_dd * 1.10 + 2.0
         status = "BEATS_BENCHMARK" if beats_return and beats_sharpe and drawdown_not_worse else "DOES_NOT_BEAT_BENCHMARK"
         return status, {
             "higher_total_return": beats_return,
