@@ -59,6 +59,9 @@ jobs:
           tests/test_live_integrity.py
           tests/test_systematic_research.py
           tests/test_portfolio_risk_cap.py
+          tests/test_trading_plugin_accuracy.py
+          tests/test_shadow_benchmark_portfolio.py
+          tests/test_broker_routing_accuracy.py
       - name: Summarize exact-head evidence without artifact upload
         if: always()
         run: |
