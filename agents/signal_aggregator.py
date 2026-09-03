@@ -2,9 +2,9 @@
 
 Optional plugins do not receive positive confidence credit merely because they
 returned successfully. FinBERT/Quantic/Swarm outputs are captured into the shadow
-ledger for forward ablation. Until a plugin has enough resolved evidence and the
-Plugin Ablation Lab marks it KEEP, it is advisory-only. Quantic disagreement may
-still reduce confidence as a conservative veto.
+ledger for forward ablation. Mature shadow decisions are resolved against later
+measured prices before plugin policies are recalculated. Until a plugin has enough
+resolved evidence and the Plugin Ablation Lab marks it KEEP, it is advisory-only.
 """
 
 from __future__ import annotations
@@ -83,7 +83,6 @@ class SignalAggregatorAgent(BaseAgent):
 
     @staticmethod
     def _plugin_report() -> dict:
-        """Return measured plugin policies from resolved shadow decisions."""
         try:
             from self_improvement.plugin_ablation import plugin_ablation_lab
             from self_improvement.shadow_trade_store import shadow_trade_store
@@ -112,12 +111,12 @@ class SignalAggregatorAgent(BaseAgent):
 
     async def plan(self, context: AgentContext) -> AgentContext:
         context.plan = [
+            "Resolve matured shadow decisions against later measured prices",
             "Normalize core specialist signals",
             "Read empirical plugin-ablation policy",
             "Keep unproven plugins advisory-only",
             "Apply conservative contradiction vetoes",
-            "Calibrate confidence and risk levels",
-            "Write active decisions to the immutable shadow ledger",
+            "Calibrate confidence and write active decisions to the immutable shadow ledger",
         ]
         return context
 
@@ -131,6 +130,20 @@ class SignalAggregatorAgent(BaseAgent):
             or {}
         )
         news_items = context.observations.get("news", []) or []
+
+        shadow_resolution = {
+            "due": 0,
+            "resolved": 0,
+            "failed": 0,
+            "execution_authority": False,
+        }
+        try:
+            from self_improvement.shadow_resolver import resolve_due_shadow_decisions
+
+            shadow_resolution = await resolve_due_shadow_decisions(limit=50)
+        except Exception as exc:
+            logger.debug("Shadow resolution unavailable: %s", exc)
+
         plugin_report = self._plugin_report()
         plugin_results = plugin_report.get("results", {})
 
@@ -220,12 +233,10 @@ class SignalAggregatorAgent(BaseAgent):
                 "probability_up": _probability_from_direction(smc_signal, smc_conf),
                 "policy": plugin_results.get("quantic", {}).get("policy", "ADVISORY"),
             }
-            # Conservative veto is allowed before a plugin earns positive weight.
             if smc_dir != 0 and consensus_dir != 0 and smc_dir != consensus_dir:
                 confidence *= 0.65
                 self._add_thought(context, f"Quantic/SMC contradiction: {smc_signal} vs {consensus['direction']} — confidence reduced")
             elif institutional_alignment and quantic_snapshot["policy"] == "KEEP":
-                # Even measured plugins receive only a small bounded confirmation boost.
                 confidence *= 1.02
             context.metadata["quantic_validated"] = True
             context.metadata["smart_money_score"] = smc_conf
@@ -237,8 +248,6 @@ class SignalAggregatorAgent(BaseAgent):
                 "policy": plugin_results.get("swarm", {}).get("policy", "ADVISORY"),
                 "advisory_only": True,
             }
-            # Successful swarm execution never raises confidence. Explicitly
-            # reported divergence may still reduce it.
             if self._swarm_consensus.get("divergence"):
                 confidence *= 0.80
                 self._add_thought(context, "Swarm divergence reported — confidence reduced")
@@ -304,6 +313,7 @@ class SignalAggregatorAgent(BaseAgent):
                 "risk_level": risk_level,
                 "configured_min_confidence": configured_min,
                 "plugin_policies": {name: data.get("policy", "ADVISORY") for name, data in plugin_results.items()},
+                "shadow_resolution": shadow_resolution,
             },
             "execution_authority": False,
         }
