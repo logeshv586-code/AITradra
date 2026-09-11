@@ -1,6 +1,6 @@
 """AXIOM Core Configuration — all settings from environment variables."""
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 from typing import Optional
 from pathlib import Path
@@ -137,6 +137,11 @@ class Settings(BaseSettings):
     # Risk Controls
     PAPER_TRADE_MODE: bool = True
     MAX_POSITION_PCT: float = 0.05
+    # Planned loss at the stop, including estimated friction; not a loss guarantee.
+    MAX_TRADE_RISK_PCT: float = Field(default=0.005, gt=0, le=0.05, allow_inf_nan=False)
+    TRADE_FEE_BPS: float = Field(default=6.0, ge=0, lt=10000, allow_inf_nan=False)
+    TRADE_SLIPPAGE_BPS: float = Field(default=10.0, ge=0, lt=10000, allow_inf_nan=False)
+    MIN_NET_REWARD_RISK: float = Field(default=1.5, gt=0, allow_inf_nan=False)
     MAX_DAILY_LOSS_PCT: float = 0.02
     MAX_OPEN_POSITIONS: int = 5
     MIN_SIGNAL_CONFIDENCE: float = 0.70

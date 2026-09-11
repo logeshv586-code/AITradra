@@ -16,6 +16,7 @@ from agents.orchestrator import mythic_orchestrator
 from brokers.broker_router import Order, OrderSide, OrderType
 from brokers.customer_hyperliquid_broker import CustomerHyperliquidBroker
 from core.config import settings
+from core.trade_plan import finite_number, build_trade_guidance, economics_for_settings
 from core.logger import get_logger
 from core.trading_safety import DailyEquityTracker, get_execution_status
 from gateway.connected_source_adapter import connected_sources
@@ -55,15 +56,16 @@ class ConnectionRequest(BaseModel):
 class ResearchRequest(BaseModel):
     query: str = "Give me a complete customer-friendly analysis. What happened, why, prediction, risk and what should I watch next?"
     mode: Literal["QUICK", "DEEP", "INSTITUTIONAL"] = "DEEP"
+    paper_account_value: float | None = Field(default=None, gt=0, le=1e12, allow_inf_nan=False)
 
 
 class ManualOrderRequest(BaseModel):
     connection_id: str
     ticker: str = Field(min_length=1, max_length=20)
     side: Literal["buy", "sell"]
-    qty: float = Field(gt=0)
-    stop_loss: float | None = Field(default=None, gt=0)
-    take_profit: float | None = Field(default=None, gt=0)
+    qty: float = Field(gt=0, allow_inf_nan=False)
+    stop_loss: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    take_profit: float | None = Field(default=None, gt=0, allow_inf_nan=False)
     leverage: int = Field(default=1, ge=1, le=10)
     reduce_only: bool = False
     confirm_live: bool = False
@@ -71,15 +73,15 @@ class ManualOrderRequest(BaseModel):
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
-        return float(value if value not in (None, "") else default)
-    except (TypeError, ValueError):
+        return finite_number(value if value not in (None, "") else default)
+    except (TypeError, ValueError, OverflowError):
         return default
 
 
 def _price_is_actionable(price: dict[str, Any]) -> bool:
     """Only current, directly usable prices may drive BUY/entry decisions."""
     source = str(price.get("source_used", "")).lower()
-    stale_source = source in {"none", "knowledge_store", "cache_stale", "stale_cache"}
+    stale_source = source in {"", "unknown", "none", "knowledge_store", "cache_stale", "stale_cache"}
     return (
         _safe_float(price.get("px")) > 0
         and not stale_source
@@ -169,7 +171,17 @@ def _customer_brief(snapshot: dict[str, Any], news: list[dict[str, Any]], deep_r
     if deep_result and isinstance(deep_result.get("specialist_details"), dict):
         agent_payloads = deep_result["specialist_details"]
 
+    guidance = build_trade_guidance(
+        agent_payloads.get("signal_aggregator"), agent_payloads.get("risk_manager"),
+        current_price=price.get("px"), price_fresh=price_actionable, settings_obj=settings,
+    )
+    if guidance["action"] == "WAIT":
+        prediction = {**prediction, "recommendation": "HOLD", "should_invest": False}
+    else:
+        prediction = {**prediction, "recommendation": guidance["action"]}
+
     return {
+        "trade_guidance": guidance,
         "ticker": snapshot.get("ticker"),
         "name": snapshot.get("name", snapshot.get("ticker")),
         "as_of": snapshot.get("as_of") or snapshot.get("updated_at"),
@@ -185,7 +197,7 @@ def _customer_brief(snapshot: dict[str, Any], news: list[dict[str, Any]], deep_r
             "confidence": prediction.get("confidence_score", 0), "current_price": prediction.get("current_price", 0),
             "target_price": prediction.get("predicted_price", 0), "expected_move_pct": prediction.get("expected_move_percent", 0),
             "primary_driver": prediction.get("primary_driver", "technical"), "reason": prediction.get("reasoning_summary", ""),
-            "actionable": price_actionable,
+            "actionable": guidance["action"] != "WAIT",
         },
         "risk": {
             "level": snapshot.get("risk_level", risk.get("risk_level", "MEDIUM")),
@@ -222,6 +234,12 @@ async def _run_customer_research(ticker: str, request: ResearchRequest, record_h
         "intelligence_snapshot": snapshot,
         "intelligence_profile": snapshot.get("intelligence_profile", {}),
     }
+    if request.paper_account_value is not None:
+        # Explicit hypothetical account only; never inferred from a real account.
+        gathered_data["portfolio"] = {
+            "total_value": request.paper_account_value, "cash": request.paper_account_value,
+            "daily_pnl_pct": 0.0, "open_positions": [], "scope": "paper_scenario",
+        }
     deep_result: dict[str, Any] | None = None
     try:
         deep_result = await mythic_orchestrator.orchestrate(
@@ -234,7 +252,12 @@ async def _run_customer_research(ticker: str, request: ResearchRequest, record_h
         )
     except Exception as exc:
         logger.error(f"Customer deep research failed for {ticker}: {exc}")
+    if request.paper_account_value is not None and isinstance(deep_result, dict):
+        details = deep_result.get("specialist_details", {})
+        if isinstance(details.get("risk_manager"), dict):
+            details["risk_manager"]["review_scope"] = "paper_scenario"
     brief = _customer_brief(snapshot, news, deep_result=deep_result)
+    brief["trade_guidance"]["paper_account_value"] = request.paper_account_value
     if record_history:
         customer_runtime.record_history(
             event_type="research", ticker=ticker, title=f"Researched {ticker}",
@@ -429,17 +452,33 @@ async def manual_trading_order(request: ManualOrderRequest):
 
     balance = await broker.get_balance()
     total_equity = _safe_float(balance.get("total"))
+    if total_equity <= 0:
+        raise HTTPException(status_code=503, detail="A finite positive account equity is required")
     daily_pnl = DailyEquityTracker(scope=f"manual:{request.connection_id}").update(total_equity)
     if daily_pnl <= -settings.MAX_DAILY_LOSS_PCT:
         raise HTTPException(status_code=403, detail=f"Daily loss stop is active ({daily_pnl * 100:.2f}%)")
 
     positions = await broker.get_positions()
     existing = next((p for p in positions if str(p.get("ticker", "")).upper() == normalized), None)
+    if existing and not settings.ALLOW_POSITION_ADDONS:
+        raise HTTPException(status_code=403, detail="Position add-ons are disabled; use a reduce-only exit to close a holding")
     if not existing and len(positions) >= settings.MAX_OPEN_POSITIONS:
         raise HTTPException(status_code=403, detail="Maximum number of open positions has been reached")
 
-    estimated_notional = current_price * request.qty
+    economics = economics_for_settings(request.side.upper(), current_price, request.stop_loss, request.take_profit, settings)
+    if not economics["eligible"]:
+        raise HTTPException(status_code=403, detail={"message": "Trade costs or protective levels failed review", "reasons": economics["reasons"]})
+    try:
+        estimated_notional = finite_number(current_price * request.qty)
+        planned_loss = finite_number(estimated_notional * economics["stop_scenario_loss_pct"] / 100)
+        available_cash = finite_number(balance.get("available"))
+    except (ValueError, TypeError, OverflowError):
+        raise HTTPException(status_code=503, detail="Valid position sizing and available balance are required")
+    if planned_loss > total_equity * settings.MAX_TRADE_RISK_PCT:
+        raise HTTPException(status_code=403, detail="Order exceeds the planned loss budget at the stop")
     estimated_margin = estimated_notional / leverage
+    if available_cash - estimated_margin < total_equity * settings.BALANCE_RESERVE_PCT:
+        raise HTTPException(status_code=403, detail="Order would use the required cash reserve")
     max_margin = total_equity * settings.MAX_POSITION_PCT
     if total_equity > 0 and estimated_margin > max_margin:
         raise HTTPException(status_code=403, detail=f"Order exceeds the {settings.MAX_POSITION_PCT * 100:.1f}% per-position margin limit")

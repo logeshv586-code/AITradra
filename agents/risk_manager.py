@@ -1,5 +1,8 @@
 """Risk Manager Agent — deterministic capital protection before execution."""
 
+import math
+
+from core.trade_plan import finite_number, signal_direction, economics_for_settings
 from agents.base_agent import BaseAgent, AgentContext
 from core.config import settings
 from core.logger import get_logger
@@ -45,45 +48,24 @@ class RiskManagerAgent(BaseAgent):
 
     @staticmethod
     def _normalize_direction(verdict: str) -> str:
-        verdict = str(verdict or "HOLD").upper().strip()
-        if "BUY" in verdict:
-            return "BUY"
-        if "SELL" in verdict:
-            return "SELL"
-        return "HOLD"
+        return signal_direction({"verdict": verdict})
 
     async def act(self, context: AgentContext) -> AgentContext:
+        try:
+            return await self._evaluate(context)
+        except (TypeError, ValueError, OverflowError) as exc:
+            context.result = {"decision": "BLOCK", "reason": f"Invalid risk data: {exc}", "risk_score": 1.0}
+            return context
+
+    async def _evaluate(self, context: AgentContext) -> AgentContext:
         ticker = context.ticker
         portfolio = context.observations.get("portfolio", {}) or {}
         open_positions = portfolio.get("open_positions", []) or []
 
-        # 1. Max open positions. Existing ticker management is still allowed by
-        # the service; this gate protects new entries.
-        if len(open_positions) >= self.max_open_pos:
-            context.result = {
-                "decision": "BLOCK",
-                "reason": f"Max open positions ({self.max_open_pos}) reached.",
-                "risk_score": 1.0,
-            }
-            return context
-
-        # 2. Daily loss breaker. This is now populated by the execution service.
-        daily_pnl_pct = float(portfolio.get("daily_pnl_pct", 0.0) or 0.0)
-        if daily_pnl_pct <= -self.max_daily_loss:
-            context.result = {
-                "decision": "BLOCK",
-                "reason": (
-                    f"Daily loss limit reached ({daily_pnl_pct * 100:.2f}% <= "
-                    f"-{self.max_daily_loss * 100:.2f}%)."
-                ),
-                "risk_score": 1.0,
-            }
-            return context
-
-        # 3. Emergency loss scan can return a different ticker than the current
+        # Emergency exits take precedence over entry-only limits. The loss scan can return a different ticker than the current
         # analysis target. The execution service honors this exact ticker.
         for pos in open_positions:
-            unrealized = float(pos.get("unrealized_pnl_pct", 0.0) or 0.0)
+            unrealized = finite_number(pos.get("unrealized_pnl_pct", 0.0) or 0.0)
             if unrealized <= -settings.FORCE_CLOSE_LOSS_PCT:
                 force_ticker = pos.get("ticker", ticker)
                 self._add_thought(
@@ -101,9 +83,32 @@ class RiskManagerAgent(BaseAgent):
                 }
                 return context
 
+        # 1. Max open positions. Existing ticker management is still allowed by
+        # the service; this gate protects new entries.
+        if len(open_positions) >= self.max_open_pos:
+            context.result = {
+                "decision": "BLOCK",
+                "reason": f"Max open positions ({self.max_open_pos}) reached.",
+                "risk_score": 1.0,
+            }
+            return context
+
+        # 2. Daily loss breaker. This is now populated by the execution service.
+        daily_pnl_pct = finite_number(portfolio.get("daily_pnl_pct", 0.0) or 0.0)
+        if daily_pnl_pct <= -self.max_daily_loss:
+            context.result = {
+                "decision": "BLOCK",
+                "reason": (
+                    f"Daily loss limit reached ({daily_pnl_pct * 100:.2f}% <= "
+                    f"-{self.max_daily_loss * 100:.2f}%)."
+                ),
+                "risk_score": 1.0,
+            }
+            return context
+
         # 4. Cash reserve
-        total_balance = float(portfolio.get("total_value", 0) or 0)
-        available_cash = float(portfolio.get("cash", total_balance) or 0)
+        total_balance = finite_number(portfolio.get("total_value", 0) or 0)
+        available_cash = finite_number(portfolio.get("cash", total_balance) or 0)
         if total_balance <= 0:
             context.result = {
                 "decision": "BLOCK",
@@ -128,9 +133,11 @@ class RiskManagerAgent(BaseAgent):
         # 6. Consensus normalization. STRONG BUY/SELL must not be accidentally
         # converted to HOLD by a second call to get_recommendation.
         agg_result = context.observations.get("signal_aggregator_result", {}) or {}
-        consensus_verdict = agg_result.get("verdict", "HOLD")
-        direction = self._normalize_direction(consensus_verdict)
-        confidence = float(agg_result.get("confidence", 0.0) or 0.0)
+        direction = signal_direction(agg_result)
+        confidence = finite_number(agg_result.get("confidence", 0.0) or 0.0)
+
+        if not 0 <= confidence <= 100:
+            raise ValueError("Signal confidence must be between 0 and 100")
 
         risk_spec = (
             context.observations.get("specialist_outputs", {}).get("risk", {}) or {}
@@ -157,19 +164,19 @@ class RiskManagerAgent(BaseAgent):
         # use the legacy drawdown proxy when a specialist does not supply one.
         ann_vol = risk_spec.get("annualized_volatility")
         if ann_vol is None:
-            ann_vol = float(risk_spec.get("max_drawdown_pct", 10.0) or 10.0) / 100 * 2.5
-        ann_vol = max(0.0, float(ann_vol or 0.0))
+            ann_vol = finite_number(risk_spec.get("max_drawdown_pct", 10.0) or 10.0) / 100 * 2.5
+        ann_vol = max(0.0, finite_number(ann_vol or 0.0))
         regime = classify_volatility_regime(ann_vol)
-        regime_mult = float(regime["risk_multiplier"])
+        regime_mult = finite_number(regime["risk_multiplier"])
 
         conviction_mult = get_sizing_multiplier(confidence)
 
         # 8. Kelly sizing. Missing history is deliberately conservative instead
         # of pretending a 55% win rate exists.
         stats = context.observations.get("historical_stats", {}) or {}
-        win_rate = float(stats.get("win_rate", 0.0) or 0.0)
-        avg_win = float(stats.get("avg_win", 0.0) or 0.0)
-        avg_loss = float(stats.get("avg_loss", 0.0) or 0.0)
+        win_rate = finite_number(stats.get("win_rate", 0.0) or 0.0)
+        avg_win = finite_number(stats.get("avg_win", 0.0) or 0.0)
+        avg_loss = finite_number(stats.get("avg_loss", 0.0) or 0.0)
         kelly_size = calculate_kelly_size(
             win_rate=win_rate,
             avg_win=avg_win,
@@ -196,9 +203,9 @@ class RiskManagerAgent(BaseAgent):
 
         # 9. Mandatory protection. Prefer signal/ATR levels and fall back to
         # percentage protection only when the signal stack could not calculate it.
-        entry = float(agg_result.get("entry_point", 0) or 0)
-        stop = float(agg_result.get("stop_loss", 0) or 0)
-        target = float(agg_result.get("take_profit", 0) or 0)
+        entry = finite_number(agg_result.get("entry_point", 0) or 0)
+        stop = finite_number(agg_result.get("stop_loss", 0) or 0)
+        target = finite_number(agg_result.get("take_profit", 0) or 0)
         if entry <= 0:
             context.result = {
                 "decision": "BLOCK",
@@ -221,7 +228,7 @@ class RiskManagerAgent(BaseAgent):
             )
 
         valid_levels = (
-            stop < entry < target if direction == "BUY" else target < entry < stop
+            min(entry, stop, target) > 0 and (stop < entry < target if direction == "BUY" else target < entry < stop)
         )
         if not valid_levels:
             context.result = {
@@ -231,13 +238,30 @@ class RiskManagerAgent(BaseAgent):
             }
             return context
 
+        economics = economics_for_settings(direction, entry, stop, target, settings)
+        if not economics["eligible"]:
+            context.result = {"decision": "BLOCK", "reason": "; ".join(economics["reasons"]), "economics": economics, "risk_score": 1.0}
+            return context
+        risk_budget = total_balance * finite_number(settings.MAX_TRADE_RISK_PCT)
+        if risk_budget <= 0:
+            raise ValueError("A positive per-trade risk budget is required")
+        suggested_size = min(suggested_size, risk_budget / (economics["stop_scenario_loss_pct"] / 100))
+        suggested_size = math.floor(finite_number(suggested_size) * 100) / 100
+        if suggested_size <= 0:
+            raise ValueError("Risk-adjusted position size is too small")
+        effective_pct = suggested_size / total_balance
+
         context.result = {
             "decision": "APPROVE",
             "reason": (
                 f"Risk checks passed. {recommendation}. Size ${suggested_size:.0f} "
                 f"({effective_pct * 100:.2f}% of portfolio)."
             ),
-            "suggested_position_size": round(suggested_size, 2),
+            "review_scope": portfolio.get("scope", "account"),
+            "suggested_position_size": suggested_size,
+            "planned_stop_loss_amount": suggested_size * economics["stop_scenario_loss_pct"] / 100,
+            "trade_risk_budget": risk_budget,
+            "economics": economics,
             "position_pct": round(effective_pct * 100, 2),
             "leverage": requested_leverage,
             "sizing_multiplier": conviction_mult,

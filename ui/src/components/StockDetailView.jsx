@@ -1,3 +1,4 @@
+import TradeGuidanceCard from "./TradeGuidanceCard";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -52,6 +53,7 @@ export default function StockDetailView({ ticker }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [researching, setResearching] = useState(false);
+  const [paperAccountValue, setPaperAccountValue] = useState("");
   const [error, setError] = useState("");
 
   const load = async () => {
@@ -91,6 +93,7 @@ export default function StockDetailView({ ticker }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "DEEP",
+          paper_account_value: paperAccountValue === "" ? null : Number(paperAccountValue),
           query: `Explain ${tickerId} for a customer: what happened, why it happened, whether the evidence is bullish/bearish/neutral, the main risks, contradictions, prediction and what to watch next.`,
         }),
       });
@@ -154,10 +157,16 @@ export default function StockDetailView({ ticker }) {
             </div>
           </div>
         </div>
-        <button onClick={runFullResearch} disabled={researching} className="btn-primary px-5 py-3 text-[12px] shrink-0">
+        <div className="flex flex-col gap-2">
+        <label className="text-[11px] text-[var(--text-muted)]">Hypothetical paper account value
+          <input type="number" min="1" max="1000000000000" step="any" value={paperAccountValue} onChange={event => setPaperAccountValue(event.target.value)} placeholder="Enter an amount to review sizing" className="block w-full rounded border border-[var(--border-color)] bg-[var(--app-bg)] p-2 mt-1 text-white" />
+        </label>
+        <p className="text-[10px] text-[var(--text-muted)]">Assumes an empty paper account. Use the same currency as the asset price.</p>
+        <button onClick={runFullResearch} disabled={researching || (paperAccountValue !== "" && (!Number.isFinite(Number(paperAccountValue)) || Number(paperAccountValue) <= 0 || Number(paperAccountValue) > 1e12))} className="btn-primary px-5 py-3 text-[12px] shrink-0">
           {researching ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           {researching ? "Agents are researching…" : "Run full AI research"}
         </button>
+        </div>
       </header>
 
       {error && <div className="surface-card p-4 text-[12px] text-amber-200 border-amber-500/20">{error}</div>}
@@ -221,14 +230,15 @@ export default function StockDetailView({ ticker }) {
         </div>
 
         <aside className="flex flex-col gap-5">
+          <TradeGuidanceCard guidance={brief?.trade_guidance} />
           <section className="surface-card p-5">
             <div className="flex items-center gap-2 mb-4"><CheckCircle2 size={16} className="text-[var(--accent)]" /><h2 className="heading-3">AI view</h2></div>
             <div className="text-2xl font-bold text-white">{prediction.recommendation || "HOLD"}</div>
-            <div className="text-[12px] text-[var(--text-muted)] mt-1">{prediction.direction || "SIDEWAYS"} • {number(prediction.confidence).toFixed(0)}% confidence</div>
+            <div className="text-[12px] text-[var(--text-muted)] mt-1">{prediction.direction || "SIDEWAYS"} • {number(prediction.confidence).toFixed(0)}% model confidence (not win rate)</div>
             <div className="grid grid-cols-2 gap-3 mt-5">
               <Metric label="Current" value={prediction.current_price ? `$${number(prediction.current_price).toFixed(2)}` : "—"} />
               <Metric label="Model target" value={prediction.target_price ? `$${number(prediction.target_price).toFixed(2)}` : "—"} />
-              <Metric label="Expected move" value={`${number(prediction.expected_move_pct).toFixed(2)}%`} />
+              <Metric label="Modelled move" value={`${number(prediction.expected_move_pct).toFixed(2)}%`} />
               <Metric label="Main driver" value={String(prediction.primary_driver || "—").replace(/_/g, " ")} />
             </div>
           </section>

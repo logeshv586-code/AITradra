@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from core.config import settings
+from core.trade_plan import finite_number, signal_direction, economics_for_settings
 from core.precision_gate import empirical_precision_gate
 from core.trading_safety import get_execution_status, strategy_validation_store
 
@@ -21,21 +22,13 @@ _ACTIVE_DIRECTIONS = {"BUY", "SELL"}
 
 def _float(value: Any) -> float:
     try:
-        return float(value or 0.0)
-    except (TypeError, ValueError):
+        return finite_number(value)
+    except (TypeError, ValueError, OverflowError):
         return 0.0
 
 
 def _direction(signal_result: dict[str, Any]) -> str:
-    direction = str(signal_result.get("direction") or "").upper().strip()
-    if direction in _ACTIVE_DIRECTIONS:
-        return direction
-    verdict = str(signal_result.get("verdict") or "").upper().strip()
-    if "BUY" in verdict:
-        return "BUY"
-    if "SELL" in verdict:
-        return "SELL"
-    return "HOLD"
+    return signal_direction(signal_result)
 
 
 @dataclass(frozen=True)
@@ -97,6 +90,12 @@ class TradeQualificationService:
         signal_ok = direction in _ACTIVE_DIRECTIONS and str(
             signal_result.get("verdict") or direction
         ).upper() != "HOLD"
+        try:
+            observed_confidence = finite_number(signal_result.get("confidence"))
+            if not 0 <= observed_confidence <= 100:
+                raise ValueError("Confidence outside 0–100")
+        except (ValueError, TypeError, OverflowError):
+            blockers.append("Signal confidence must be a finite value between 0 and 100")
         if not ticker:
             blockers.append("Ticker is required")
         if not signal_ok:
@@ -116,10 +115,10 @@ class TradeQualificationService:
             "reason": risk_result.get("reason"),
         }
 
-        entry = _float(risk_result.get("entry") or signal_result.get("entry_point"))
-        stop = _float(risk_result.get("stop_loss") or signal_result.get("stop_loss"))
+        entry = _float(risk_result.get("entry", signal_result.get("entry_point")))
+        stop = _float(risk_result.get("stop_loss", signal_result.get("stop_loss")))
         target = _float(
-            risk_result.get("take_profit") or signal_result.get("take_profit")
+            risk_result.get("take_profit", signal_result.get("take_profit"))
         )
         if direction == "BUY":
             protection_ok = entry > 0 and stop > 0 and target > 0 and stop < entry < target
@@ -141,6 +140,13 @@ class TradeQualificationService:
             "take_profit": target,
         }
 
+        economics = economics_for_settings(direction, entry, stop, target, settings_obj)
+        gates["trade_economics"] = economics
+        if not economics["eligible"]:
+            blockers.extend(economics["reasons"])
+        size = _float(risk_result.get("suggested_position_size"))
+        if size <= 0:
+            blockers.append("A finite positive risk-approved position size is required")
         base_allowed = not blockers
         live_authorized = bool(execution.get("live_execution_allowed"))
         live_blockers = list(execution.get("blockers") or []) if not live_authorized else []
@@ -164,10 +170,12 @@ class TradeQualificationService:
         }
 
         if live_authorized:
+            if risk_result.get("review_scope") == "paper_scenario":
+                live_blockers.append("Hypothetical paper account review cannot qualify a funded order")
             min_live_confidence = _float(
                 getattr(settings_obj, "AUTOTRADE_MIN_SIGNAL_CONFIDENCE", 90.0)
             )
-            current_confidence_ok = confidence >= min_live_confidence
+            current_confidence_ok = 0 < min_live_confidence <= confidence <= 100
             if not current_confidence_ok:
                 live_blockers.append(
                     f"Current signal confidence {confidence:.1f}% is below the live minimum "

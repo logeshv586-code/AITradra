@@ -252,6 +252,7 @@ class MythicOrchestrator:
 
                     agg_res = await self.signal_aggregator.run(decision_ctx)
                     specialist_outputs["signal_aggregator"] = agg_res.result
+                    decision_ctx.observations["signal_aggregator_result"] = agg_res.result
 
                 # ─── Phase 4.4: Risk Approval ───────────────────────────────
                 logger.info(f"[Orchestrator] Running Risk Manager Approval...")

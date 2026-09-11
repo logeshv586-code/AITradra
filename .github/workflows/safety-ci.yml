@@ -40,7 +40,7 @@ jobs:
       - name: Install focused test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio pydantic pydantic-settings httpx requests cryptography feedparser beautifulsoup4 numpy==1.26.4 "pandas>=2.2.3"
+          pip install pytest pytest-asyncio fastapi pydantic pydantic-settings httpx requests cryptography feedparser beautifulsoup4 numpy==1.26.4 "pandas>=2.2.3"
       - name: Compile critical Python modules
         run: |
           python -m compileall -q core brokers gateway agents self_improvement
@@ -51,6 +51,8 @@ jobs:
           tests/test_data_validation.py
           tests/test_primary_source_retry.py
           tests/test_trading_safety.py
+          tests/test_trade_plan.py
+          tests/test_trade_plan_routes.py
           tests/test_precision_gate.py
           tests/test_precision_audit.py
           tests/test_strict_live_price_session.py
