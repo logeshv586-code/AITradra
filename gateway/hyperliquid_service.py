@@ -315,7 +315,7 @@ class HyperliquidTradingService:
                 take_profit = float(risk_result.get("take_profit", 0) or 0)
                 order = Order(
                     ticker=ticker,
-                    side=OrderSide.BUY if decision == "LONG" else OrderSide.SELL,
+                    side=OrderSide.BUY if qualification.signal_direction == "BUY" else OrderSide.SELL,
                     qty=suggested_qty,
                     order_type=OrderType.MARKET,
                     reference_price=last_close,
