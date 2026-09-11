@@ -42,4 +42,4 @@ jobs:
           done
           echo "Deleted ${count} cache(s)."
 
-# Cleanup triggered 2026-09-03 to reclaim account Actions storage.
+# Cleanup triggered 2026-09-12 to reclaim account Actions storage.
