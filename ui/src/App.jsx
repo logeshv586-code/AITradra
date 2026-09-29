@@ -24,6 +24,7 @@ import {
   Globe2,
   Layout,
   X,
+  Menu,
   Bell,
   LayoutDashboard,
   Shield,
@@ -117,6 +118,7 @@ class ErrorBoundary extends React.Component {
 function AppContent() {
   const [activeView, setActiveView] = useState("World Map");
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [agentsStatus, setAgentsStatus] = useState([]);
   const [liveStocks, setLiveStocks] = useState([]);
@@ -340,7 +342,11 @@ function AppContent() {
     <div className="flex h-screen w-full bg-[var(--app-bg)] text-[var(--text-main)] overflow-hidden font-sans">
       
       {/* ── SIDEBAR ── */}
-      <aside className="w-[240px] flex-shrink-0 bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] flex flex-col z-20">
+      <aside
+  className={`fixed sm:static inset-y-0 left-0 z-50 w-[240px] flex-shrink-0 bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] flex flex-col transition-transform duration-300 ${
+    isSidebarOpen ? "translate-x-0" : "-translate-x-full sm:translate-x-0"
+  }`}
+>
         
         {/* Logo Area */}
         <div className="h-16 flex items-center px-6 border-b border-[var(--border-color)]">
@@ -370,7 +376,10 @@ function AppContent() {
                          label={item.id} 
                          active={activeView === item.id} 
                          count={item.count}
-                         onClick={() => setActiveView(item.id)} 
+                          onClick={() => {
+                            setActiveView(item.id);
+                            setIsSidebarOpen(false);
+                          }}
                       />
                    ))}
                 </div>
@@ -401,10 +410,16 @@ function AppContent() {
            </div>
         </div>
       </aside>
+       {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 sm:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
 
       {/* ── MAIN CONTENT AREA ── */}
       <main className="flex-1 flex flex-col min-w-0 relative">
-        <header className="h-16 flex-shrink-0 flex items-center justify-between px-6 border-b border-[var(--border-color)] bg-[var(--app-bg)] z-10">
+        <header className="min-h-16 h-auto flex-shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-6 py-2 border-b border-[var(--border-color)] bg-[var(--app-bg)] z-10">
           <div className="flex items-center gap-4 hidden sm:flex">
             <h2 className="heading-2">{activeView}</h2>
             <div className="h-4 w-px bg-[var(--border-color)]" />
@@ -420,11 +435,19 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="flex sm:hidden items-center gap-2">
-            <h2 className="heading-3">{activeView}</h2>
-          </div>
+<div className="flex sm:hidden items-center gap-2 min-w-0">
+  <button
+    onClick={() => setIsSidebarOpen(true)}
+    className="h-8 w-8 flex-shrink-0 flex items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[#1e232b] hover:text-white transition"
+    aria-label="Open menu"
+  >
+    <Menu size={18} />
+  </button>
 
-          <div className="flex items-center gap-3 sm:gap-4 ml-auto flex-1 justify-center max-w-xl">
+  <h2 className="heading-3 truncate">{activeView}</h2>
+</div> 
+
+          <div className="order-3 sm:order-none w-full sm:w-auto flex items-center gap-3 sm:gap-4 flex-1 justify-center max-w-xl min-w-0">
             <AskBar onAsk={(text) => handleChat(text)} />
           </div>
 
@@ -435,7 +458,7 @@ function AppContent() {
             </div>
             <div className="hidden sm:block h-4 w-px bg-[var(--border-color)]" />
             <button
-              className="h-8 w-8 flex items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[#1e232b] hover:text-white transition"
+              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-muted)] hover:bg-[#1e232b] hover:text-white transition"
               aria-label="Notifications"
             >
               <Bell size={16} />
